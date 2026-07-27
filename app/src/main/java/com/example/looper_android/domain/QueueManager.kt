@@ -79,11 +79,20 @@ class QueueManager @Inject constructor(
             } else emptyList()
 
             scope.launch(Dispatchers.Main) {
+                val chunkSize = 50
                 if (itemsAfter.isNotEmpty()) {
-                    player.addMediaItems(itemsAfter)
+                    for (chunk in itemsAfter.chunked(chunkSize)) {
+                        player.addMediaItems(chunk)
+                        yield()
+                    }
                 }
                 if (itemsBefore.isNotEmpty()) {
-                    player.addMediaItems(0, itemsBefore)
+                    var insertPos = 0
+                    for (chunk in itemsBefore.chunked(chunkSize)) {
+                        player.addMediaItems(insertPos, chunk)
+                        insertPos += chunk.size
+                        yield()
+                    }
                 }
             }
 
