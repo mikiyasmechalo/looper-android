@@ -1,119 +1,172 @@
 package com.example.looper_android.domain
 
+import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
+import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.QueueDao
 import com.example.looper_android.data.db.QueueEntity
 import com.example.looper_android.data.db.QueueItemEntity
+import com.example.looper_android.data.db.SongEntity
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.example.looper_android.data.db.SongEntity
+
+private data class PreparedQueueData(
+    val items: List<MediaItem>,
+    val songs: List<SongEntity>,
+    val startIndex: Int
+)
 
 @Singleton
 class QueueManager @Inject constructor(
     private val queueDao: QueueDao,
-    private val player: Player
+    private val player: Player,
+    private val libraryDao: LibraryDao,
+    @ApplicationContext private val context: Context
 ) {
     private val scope = CoroutineScope(Dispatchers.Main)
+    private val mediaSourceFactory by lazy { DefaultMediaSourceFactory(context) }
 
-    fun createAndPlayQueue(queueName: String, songs: List<SongEntity>, startIndex: Int = 0) {
+    @Volatile private var cachedSongs: List<SongEntity> = emptyList()
+    @Volatile private var cachedMediaItems: List<MediaItem> = emptyList()
+    private val cacheReady = AtomicBoolean(false)
+
+    init {
+        scope.launch(Dispatchers.IO) {
+            libraryDao.getAllSongs().collectLatest { songs ->
+                if (songs.isNotEmpty()) {
+                    val items = withContext(Dispatchers.Default) {
+                        songs.map { buildMediaItem(it) }
+                    }
+                    cachedSongs = songs
+                    cachedMediaItems = items
+                    cacheReady.set(true)
+                }
+            }
+        }
+    }
+
+    fun createAndPlayQueue(
+        queueName: String,
+        songs: List<SongEntity>,
+        startIndex: Int = 0,
+        shuffled: Boolean = false
+    ) {
         if (songs.isEmpty()) return
-        
-        // 1. INSTANT PLAY (Main thread, < 1ms): Start selected song immediately
-        val targetSong = songs[startIndex]
-        val targetMediaItem = MediaItem.Builder()
-            .setMediaId(targetSong.id.toString())
-            .setUri(targetSong.path)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(targetSong.title)
-                    .setArtist(targetSong.artist ?: "Unknown Artist")
-                    .setAlbumTitle(targetSong.album ?: "Unknown Album")
-                    .setArtworkUri(targetSong.artPath?.let { android.net.Uri.parse(it) })
-                    .build()
-            )
-            .build()
 
+        // STEP 1: INSTANT PLAY (<0.1ms on Main thread) — Zero allocations before play()
+        val targetSong = songs[startIndex]
+        val targetMediaItem = buildMediaItem(targetSong)
         player.setMediaItem(targetMediaItem)
         player.prepare()
         player.play()
 
-        // 2. BACKGROUND QUEUE POPULATION: Append surrounding playlist without re-preparing active track or blocking UI
+        // STEP 2: DEFERRED QUEUE ATTACHMENT (Off Main thread, on-demand MediaSource creation)
         scope.launch(Dispatchers.Default) {
-            val itemsBefore = if (startIndex > 0) {
-                songs.subList(0, startIndex).map { song ->
-                    MediaItem.Builder()
-                        .setMediaId(song.id.toString())
-                        .setUri(song.path)
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(song.title)
-                                .setArtist(song.artist ?: "Unknown Artist")
-                                .setAlbumTitle(song.album ?: "Unknown Album")
-                                .build()
-                        )
-                        .build()
-                }
-            } else emptyList()
+            val cached = cachedMediaItems
+            val cachedSongList = cachedSongs
 
-            val itemsAfter = if (startIndex < songs.size - 1) {
-                songs.subList(startIndex + 1, songs.size).map { song ->
-                    MediaItem.Builder()
-                        .setMediaId(song.id.toString())
-                        .setUri(song.path)
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(song.title)
-                                .setArtist(song.artist ?: "Unknown Artist")
-                                .setAlbumTitle(song.album ?: "Unknown Album")
-                                .build()
-                        )
-                        .build()
+            if (cacheReady.get() && cached.isNotEmpty()) {
+                val prepared = if (shuffled) {
+                    val others = cached.indices.filter { it != startIndex }.shuffled()
+                    val idx = listOf(startIndex) + others
+                    PreparedQueueData(
+                        items = idx.map { cached[it] },
+                        songs = idx.map { cachedSongList[it] },
+                        startIndex = 0
+                    )
+                } else {
+                    PreparedQueueData(
+                        items = cached,
+                        songs = cachedSongList,
+                        startIndex = startIndex
+                    )
                 }
-            } else emptyList()
 
-            scope.launch(Dispatchers.Main) {
-                val chunkSize = 50
-                if (itemsAfter.isNotEmpty()) {
-                    for (chunk in itemsAfter.chunked(chunkSize)) {
-                        player.addMediaItems(chunk)
-                        yield()
+                // Give ExoPlayer 250ms to start audio decoder output cleanly without timeline interruption
+                delay(250)
+
+                val idx = prepared.startIndex
+                val beforeItems = if (idx > 0) prepared.items.subList(0, idx) else emptyList()
+                val afterItems = if (idx < prepared.items.size - 1) prepared.items.subList(idx + 1, prepared.items.size) else emptyList()
+
+                // Create MediaSources on demand off Main thread without caching 9,000 heavy C++ handles in RAM
+                val afterSources = afterItems.map { mediaSourceFactory.createMediaSource(it) }
+                val beforeSources = beforeItems.map { mediaSourceFactory.createMediaSource(it) }
+
+                withContext(Dispatchers.Main) {
+                    val exoPlayer = player as? ExoPlayer
+                    if (exoPlayer != null) {
+                        if (afterSources.isNotEmpty()) {
+                            exoPlayer.addMediaSources(afterSources)
+                        }
+                        if (beforeSources.isNotEmpty()) {
+                            exoPlayer.addMediaSources(0, beforeSources)
+                        }
                     }
                 }
-                if (itemsBefore.isNotEmpty()) {
-                    var insertPos = 0
-                    for (chunk in itemsBefore.chunked(chunkSize)) {
-                        player.addMediaItems(insertPos, chunk)
-                        insertPos += chunk.size
-                        yield()
+
+                persistFullQueue(queueName, prepared.songs)
+            } else {
+                // FALLBACK (rare: cache not built yet, e.g. < 2s after first app launch)
+                while (!cacheReady.get()) delay(50)
+                val pos = player.currentPosition
+                val items = cachedMediaItems
+                if (items.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        player.setMediaItems(items, startIndex, pos)
                     }
                 }
+                persistFullQueue(queueName, songs)
             }
-
-            // 3. Persist queue state in background DB
-            val queueId = queueDao.insertQueue(QueueEntity(name = queueName, isActive = true))
-            val itemsWithId = songs.mapIndexed { index, song -> 
-                QueueItemEntity(
-                    queueId = queueId,
-                    mediaId = song.id.toString(),
-                    title = song.title,
-                    artist = song.artist ?: "Unknown Artist",
-                    album = song.album ?: "Unknown Album",
-                    durationMs = song.duration?.toLong() ?: 0L,
-                    uri = song.path,
-                    albumArtUri = song.artPath,
-                    positionInQueue = index
-                )
-            }
-            queueDao.insertQueueItems(itemsWithId)
-            queueDao.setActiveQueue(queueId)
         }
+    }
+
+    private fun buildMediaItem(song: SongEntity): MediaItem {
+        val meta = MediaMetadata.Builder()
+            .setTitle(song.title)
+            .setArtist(song.artist ?: "Unknown Artist")
+            .setAlbumTitle(song.album ?: "Unknown Album")
+        if (!song.artPath.isNullOrEmpty()) {
+            meta.setArtworkUri(android.net.Uri.parse(song.artPath))
+        }
+        return MediaItem.Builder()
+            .setMediaId(song.id.toString())
+            .setUri(song.path)
+            .setMediaMetadata(meta.build())
+            .build()
+    }
+
+    private suspend fun persistFullQueue(queueName: String, songs: List<SongEntity>) {
+        val queueId = queueDao.insertQueue(QueueEntity(name = queueName, isActive = true))
+        val items = songs.mapIndexed { index, song ->
+            QueueItemEntity(
+                queueId = queueId,
+                mediaId = song.id.toString(),
+                title = song.title,
+                artist = song.artist ?: "Unknown Artist",
+                album = song.album ?: "Unknown Album",
+                durationMs = song.duration?.toLong() ?: 0L,
+                uri = song.path,
+                albumArtUri = song.artPath,
+                positionInQueue = index
+            )
+        }
+        queueDao.insertQueueItems(items)
+        queueDao.setActiveQueue(queueId)
     }
 
     fun switchToQueue(queueId: Long) {

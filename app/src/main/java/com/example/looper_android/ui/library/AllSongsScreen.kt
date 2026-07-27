@@ -127,9 +127,10 @@ fun AllSongsScreen(
                     Text("No songs found.", color = Color.Gray)
                 }
             } else {
+                val bottomPadding = if (currentSong != null) 260.dp else 180.dp
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 180.dp) // Leave space for FAB & Nav bar
+                    contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding) // Leave space for FAB & Nav bar
                 ) {
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                         val isCurrent = currentSong?.path == song.path
@@ -138,18 +139,24 @@ fun AllSongsScreen(
                             song = song,
                             isCurrent = isCurrent,
                             isPlaying = isPlaying,
-                            onClick = { viewModel.playAll(index) }
+                            onClick = { viewModel.playAll(index, shuffled = isShuffleEnabled) }
                         )
                     }
                 }
             }
         }
 
-        // Floating Shuffle Button
+        // Dynamic Floating Shuffle Button Position
+        val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (currentSong != null) 210.dp else 130.dp,
+            animationSpec = androidx.compose.animation.core.tween(300),
+            label = "fabPadding"
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 120.dp, end = 40.dp),
+                .padding(bottom = fabBottomPadding, end = 40.dp),
             contentAlignment = Alignment.BottomEnd
         ) {
             PremiumSection(

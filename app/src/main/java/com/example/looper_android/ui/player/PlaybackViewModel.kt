@@ -83,8 +83,9 @@ class PlaybackViewModel @Inject constructor(
     }
 
     private fun updatePlaybackState() {
-        val buffering = player.playbackState == Player.STATE_BUFFERING
-        val playing = player.isPlaying
+        val state = player.playbackState
+        val buffering = state == Player.STATE_BUFFERING
+        val playing = player.playWhenReady && state != Player.STATE_ENDED && state != Player.STATE_IDLE
         
         _playbackState.value = _playbackState.value.copy(
             isPlaying = playing,

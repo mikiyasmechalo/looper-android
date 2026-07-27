@@ -71,17 +71,17 @@ class AllSongsViewModel @Inject constructor(
         }
     }
     
-    fun playAll(startIndex: Int) {
+    fun playAll(startIndex: Int, shuffled: Boolean = false) {
         val currentSongs = _songs.value
         if (currentSongs.isNotEmpty()) {
-            queueManager.createAndPlayQueue("All Songs", currentSongs, startIndex)
+            queueManager.createAndPlayQueue("All Songs", currentSongs, startIndex, shuffled)
         }
     }
 
     fun shuffleAll() {
-        val currentSongs = _songs.value.shuffled()
+        val currentSongs = _songs.value
         if (currentSongs.isNotEmpty()) {
-            queueManager.createAndPlayQueue("Shuffled Library", currentSongs)
+            queueManager.createAndPlayQueue("Shuffled Library", currentSongs, startIndex = 0, shuffled = true)
         }
     }
 }
