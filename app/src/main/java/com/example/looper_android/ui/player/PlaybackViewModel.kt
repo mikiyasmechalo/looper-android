@@ -23,10 +23,13 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+import androidx.compose.runtime.Immutable
+
 enum class RepeatMode {
     OFF, ALL, ONE
 }
 
+@Immutable
 data class PlaybackState(
     val currentSong: SongEntity? = null,
     val isPlaying: Boolean = false,
@@ -87,13 +90,10 @@ class PlaybackViewModel @Inject constructor(
                     artPath = metadata.artworkUri?.toString(),
                     dateAdded = System.currentTimeMillis()
                 )
-                
-                val qualityText = AudioQualityAnalyzer.getQualityString(instantSong.path)
 
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
-                    duration = player.duration.coerceAtLeast(0),
-                    audioQualityText = qualityText
+                    duration = player.duration.coerceAtLeast(0)
                 )
 
                 viewModelScope.launch(Dispatchers.IO) {
@@ -204,7 +204,7 @@ class PlaybackViewModel @Inject constructor(
             }
             b.recycle()
 
-            return when {
+            val rawColor = when {
                 vibrantCount > 0 -> {
                     Color((vibrantRedSum / vibrantCount).toInt(), (vibrantGreenSum / vibrantCount).toInt(), (vibrantBlueSum / vibrantCount).toInt())
                 }
@@ -213,10 +213,42 @@ class PlaybackViewModel @Inject constructor(
                 }
                 else -> fallbackColor
             }
+
+            return ensureVibrantAccentColor(rawColor)
         } catch (e: Exception) {
             e.printStackTrace()
             return fallbackColor
         }
+    }
+
+    private fun ensureVibrantAccentColor(rawColor: Color): Color {
+        val hsl = FloatArray(3)
+        androidx.core.graphics.ColorUtils.colorToHSL(
+            android.graphics.Color.rgb(
+                (rawColor.red * 255).toInt(),
+                (rawColor.green * 255).toInt(),
+                (rawColor.blue * 255).toInt()
+            ),
+            hsl
+        )
+
+        // Boost saturation if too gray/washed out
+        if (hsl[1] < 0.15f) {
+            hsl[1] = 0.40f
+        }
+
+        // Match Flutter theme_provider.dart 1-to-1:
+        // double newLightness = hsl.lightness + 0.15;
+        // if (newLightness < 0.60) newLightness = 0.60;
+        // newLightness = newLightness.clamp(0.0, 0.95);
+        var newLightness = hsl[2] + 0.15f
+        if (newLightness < 0.60f) {
+            newLightness = 0.60f
+        }
+        hsl[2] = newLightness.coerceIn(0.60f, 0.95f)
+
+        val intColor = androidx.core.graphics.ColorUtils.HSLToColor(hsl)
+        return Color(intColor)
     }
 
     private fun updatePlaybackState() {
@@ -253,7 +285,7 @@ class PlaybackViewModel @Inject constructor(
                     _currentPosition.value = player.currentPosition.coerceAtLeast(0L)
                     _playbackState.value = _playbackState.value.copy(position = player.currentPosition.coerceAtLeast(0L))
                 }
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(100)
             }
         }
     }

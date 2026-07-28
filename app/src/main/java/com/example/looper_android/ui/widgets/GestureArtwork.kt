@@ -32,8 +32,12 @@ import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.JostFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun GestureArtwork(
     song: SongEntity,
@@ -43,6 +47,8 @@ fun GestureArtwork(
     onSeekRelative: (Long) -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -111,12 +117,17 @@ fun GestureArtwork(
             },
         contentAlignment = Alignment.Center
     ) {
-        // Carousel translation for smooth artwork swipe peek
+        // Carousel translation for smooth artwork swipe peek (Hero tag matching Flutter)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(dragOffset.roundToInt(), 0) }
-                .clip(RoundedCornerShape(24.dp))
+                .sharedBoundsOrElement(
+                    key = "album_art",
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    clipShape = RoundedCornerShape(24.dp)
+                )
         ) {
             OptimizedImage(
                 url = song.artPath,

@@ -93,7 +93,7 @@ object AudioQualityAnalyzer {
 
     fun getQualityString(path: String?): String {
         if (path == null) return "High Quality • Audio"
-        val analysis = cache[path] ?: analyze(path) ?: getFallbackAnalysis(path)
+        val analysis = cache[path] ?: getFallbackAnalysis(path)
 
         val codecStr = analysis.codec.uppercase()
         val isLossless = listOf("FLAC", "WAV", "ALAC", "APE").contains(codecStr)

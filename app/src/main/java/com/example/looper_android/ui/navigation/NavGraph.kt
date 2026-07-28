@@ -23,7 +23,8 @@ import com.example.looper_android.ui.screens.DashboardScreen
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AppNavGraph(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    playbackViewModel: PlaybackViewModel = hiltViewModel()
 ) {
     SharedTransitionLayout {
         NavHost(
@@ -32,31 +33,25 @@ fun AppNavGraph(
         ) {
             composable(
                 route = "dashboard",
-                exitTransition = { ExitTransition.None },
-                popEnterTransition = { EnterTransition.None }
+                enterTransition = { fadeIn(animationSpec = tween(400)) },
+                exitTransition = { fadeOut(animationSpec = tween(400)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+                popExitTransition = { fadeOut(animationSpec = tween(400)) }
             ) {
                 DashboardScreen(
                     navController = navController,
+                    playbackViewModel = playbackViewModel,
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@composable
                 )
             }
             composable(
                 route = "player",
-                enterTransition = {
-                    fadeIn(animationSpec = tween(350))
-                },
-                exitTransition = {
-                    fadeOut(animationSpec = tween(350))
-                },
-                popEnterTransition = {
-                    fadeIn(animationSpec = tween(350))
-                },
-                popExitTransition = {
-                    fadeOut(animationSpec = tween(350))
-                }
+                enterTransition = { fadeIn(animationSpec = tween(400)) },
+                exitTransition = { fadeOut(animationSpec = tween(400)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+                popExitTransition = { fadeOut(animationSpec = tween(400)) }
             ) {
-                val playbackViewModel: PlaybackViewModel = hiltViewModel()
                 PlayerScreen(
                     viewModel = playbackViewModel,
                     sharedTransitionScope = this@SharedTransitionLayout,

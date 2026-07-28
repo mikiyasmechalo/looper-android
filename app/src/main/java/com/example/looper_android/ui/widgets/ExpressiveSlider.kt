@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.looper_android.ui.theme.DmSansFontFamily
+import android.os.SystemClock
+import kotlinx.coroutines.isActive
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -40,13 +42,44 @@ fun ExpressiveSlider(
     modifier: Modifier = Modifier
 ) {
     val totalDurationMs = durationMs.coerceAtLeast(1L)
-    val progress = (positionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
 
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableStateOf<Float?>(null) }
+    var lastSeekProgress by remember { mutableStateOf<Float?>(null) }
 
-    val displayProgress = dragProgress ?: progress
-    val displayPositionMs = ((dragProgress ?: progress) * totalDurationMs).toLong()
+    var smoothPositionMs by remember { mutableLongStateOf(positionMs) }
+
+    LaunchedEffect(positionMs, isPlaying) {
+        smoothPositionMs = positionMs
+        if (isPlaying) {
+            var lastRealtime = SystemClock.elapsedRealtime()
+            while (isActive) {
+                withFrameNanos {
+                    val now = SystemClock.elapsedRealtime()
+                    val delta = now - lastRealtime
+                    lastRealtime = now
+                    if (delta > 0) {
+                        smoothPositionMs = (smoothPositionMs + delta).coerceAtMost(totalDurationMs)
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(positionMs) {
+        lastSeekProgress?.let { seek ->
+            val currentProgress = (positionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+            if (kotlin.math.abs(currentProgress - seek) < 0.05f) {
+                lastSeekProgress = null
+            }
+        }
+    }
+
+    val activePositionMs = if (isDragging || lastSeekProgress != null) positionMs else smoothPositionMs
+    val progress = (activePositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+
+    val displayProgress = dragProgress ?: lastSeekProgress ?: progress
+    val displayPositionMs = (displayProgress * totalDurationMs).toLong()
 
     val density = LocalDensity.current
     val targetAmplitudePx = with(density) { if (isPlaying && displayProgress > 0.12f) 2.dp.toPx() else 0f }
@@ -61,7 +94,7 @@ fun ExpressiveSlider(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20000, easing = LinearEasing),
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "phaseFactor"
@@ -101,6 +134,7 @@ fun ExpressiveSlider(
                         },
                         onDragEnd = {
                             dragProgress?.let { fraction ->
+                                lastSeekProgress = fraction
                                 onSeek((fraction * totalDurationMs).toLong())
                             }
                             isDragging = false
@@ -144,30 +178,37 @@ fun ExpressiveSlider(
                     val totalWaveLength = endX - startX
 
                     if (animatedAmplitude > 0.1f && totalWaveLength > 0f) {
-                        val phase = wavelengthPx * wavePhaseFactor
+                        val phase = wavePhaseFactor * 2 * Math.PI
                         val easeLength = wavelengthPx * 3f
                         val path = Path()
 
                         val step = 1.dp.toPx()
-                        var xOff = 0f
+                        var currentX = startX
                         var first = true
 
-                        while (xOff <= totalWaveLength) {
-                            val x = min(endX, startX + xOff)
+                        while (currentX < endX) {
+                            val x = currentX
+                            val distFromStart = x - startX
+                            val distFromEnd = endX - x
                             val easeFactor = when {
-                                xOff < easeLength -> xOff / easeLength
-                                xOff > totalWaveLength - easeLength -> (totalWaveLength - xOff) / easeLength
+                                distFromStart < easeLength -> distFromStart / easeLength
+                                distFromEnd < easeLength -> distFromEnd / easeLength
                                 else -> 1f
                             }.coerceIn(0f, 1f)
 
-                            val y = centerY + sin(x / wavelengthPx + phase * 2 * Math.PI).toFloat() * animatedAmplitude * easeFactor
+                            val y = centerY + sin(x / wavelengthPx - phase).toFloat() * animatedAmplitude * easeFactor
                             if (first) {
                                 path.moveTo(x, y)
                                 first = false
                             } else {
                                 path.lineTo(x, y)
                             }
-                            xOff += step
+                            currentX += step
+                        }
+
+                        // Always connect to exact endX with easeFactor = 0 (y = centerY)
+                        if (!first) {
+                            path.lineTo(endX, centerY)
                         }
 
                         drawPath(

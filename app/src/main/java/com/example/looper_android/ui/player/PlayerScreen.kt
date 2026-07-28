@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.looper_android.data.db.SongEntity
+import com.example.looper_android.ui.components.AnimatedPlayPauseIcon
 import com.example.looper_android.ui.components.AssetSvgIcon
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.DmSansFontFamily
@@ -91,6 +93,8 @@ fun PlayerScreen(
         label = "accentColorAnim"
     )
 
+    var isDismissing by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -99,20 +103,24 @@ fun PlayerScreen(
                 detectVerticalDragGestures(
                     onDragStart = {
                         rawVerticalOffset = 0f
+                        isDismissing = false
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
                         rawVerticalOffset += dragAmount
-                    },
-                    onDragEnd = {
-                        if (rawVerticalOffset > 60.dp.toPx()) {
+                        if (rawVerticalOffset > 60.dp.toPx() && !isDismissing) {
+                            isDismissing = true
                             haptics.mediumImpact()
                             onBack()
                         }
+                    },
+                    onDragEnd = {
                         rawVerticalOffset = 0f
+                        isDismissing = false
                     },
                     onDragCancel = {
                         rawVerticalOffset = 0f
+                        isDismissing = false
                     }
                 )
             }
@@ -122,17 +130,21 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            animatedAccentColor.copy(alpha = 0.42f),
-                            animatedAccentColor.copy(alpha = 0.18f),
-                            Color(0xFF11110E)
-                        ),
-                        center = Offset(screenWidthPx, 0f),
-                        radius = maxDimensionPx * 1.35f
-                    )
-                )
+                .drawWithCache {
+                    onDrawBehind {
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    animatedAccentColor.copy(alpha = 0.42f),
+                                    animatedAccentColor.copy(alpha = 0.18f),
+                                    Color(0xFF11110E)
+                                ),
+                                center = Offset(screenWidthPx, 0f),
+                                radius = maxDimensionPx * 1.35f
+                            )
+                        )
+                    }
+                }
         )
 
         SafeAreaColumn(
@@ -186,15 +198,17 @@ fun PlayerScreen(
                                 color = Color.White.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(20.dp)
                             )
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Text(
                             text = state.audioQualityText,
                             color = Color.White.copy(alpha = 0.70f),
                             fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Normal,
                             fontSize = 9.sp,
-                            letterSpacing = 0.5.sp
+                            letterSpacing = 0.5.sp,
+                            lineHeight = 10.sp,
+                            modifier = Modifier.wrapContentHeight(unbounded = true) 
                         )
                     }
                 }
@@ -230,14 +244,7 @@ fun PlayerScreen(
 
             // 2. Large Album Art with Gestures (Morphs from Mini Player album artwork)
             Padding(
-                modifier = Modifier
-                    .padding(horizontal = 30.dp)
-                    .sharedBoundsOrElement(
-                        key = "album_art",
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = animatedVisibilityScope,
-                        clipShape = RoundedCornerShape(24.dp)
-                    )
+                modifier = Modifier.padding(horizontal = 30.dp)
             ) {
                 GestureArtwork(
                     song = song,
@@ -257,7 +264,9 @@ fun PlayerScreen(
                     onSkipPrevious = {
                         haptics.mediumImpact()
                         viewModel.skipToPrevious()
-                    }
+                    },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope
                 )
             }
 
@@ -274,14 +283,20 @@ fun PlayerScreen(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    MarqueeText(
+                    Text(
                         text = song.title,
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = DmSansFontFamily,
                         letterSpacing = 0.3.sp,
-                        modifier = Modifier.sharedBoundsOrElement("song_title", sharedTransitionScope, animatedVisibilityScope)
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.sharedBoundsOrElement(
+                            key = "song_title",
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope
+                        )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -296,7 +311,11 @@ fun PlayerScreen(
                             .clickable {
                                 song.artist?.let { onArtistClick(it) }
                             }
-                            .sharedBoundsOrElement("song_artist", sharedTransitionScope, animatedVisibilityScope)
+                            .sharedBoundsOrElement(
+                                key = "song_artist",
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope
+                            )
                     )
                 }
 
@@ -390,11 +409,10 @@ fun PlayerScreen(
                         viewModel.togglePlayPause()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = if (state.isPlaying) "pause_icon.svg" else "play_icon.svg",
-                        contentDescription = "Play/Pause",
-                        tint = if (state.isPlaying) Color.White else Color(0xFF121212),
-                        modifier = Modifier.size(22.dp)
+                    AnimatedPlayPauseIcon(
+                        isPlaying = state.isPlaying,
+                        modifier = Modifier.size(22.dp),
+                        tint = if (state.isPlaying) Color.White else Color(0xFF121212)
                     )
                 }
 
