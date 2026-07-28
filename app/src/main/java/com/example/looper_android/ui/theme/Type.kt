@@ -14,7 +14,14 @@ val DmSansFontFamily = FontFamily(
     Font(R.font.dmsans_bold, FontWeight.Bold)
 )
 
-// Set of Material typography styles to start with
+val JostFontFamily = FontFamily(
+    Font(R.font.jost_regular, FontWeight.Normal),
+    Font(R.font.jost_medium, FontWeight.Medium),
+    Font(R.font.jost_semibold, FontWeight.SemiBold),
+    Font(R.font.jost_bold, FontWeight.Bold)
+)
+
+// Primary default Typography uses DM Sans (matching Flutter AppFonts.activeFontFamily = 'DM Sans')
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = DmSansFontFamily,
@@ -22,21 +29,28 @@ val Typography = Typography(
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp
-    )
-    /* Other default text styles to override
-    titleLarge = TextStyle(
+    ),
+    bodyMedium = TextStyle(
         fontFamily = DmSansFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
+        fontSize = 14.sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = DmSansFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        letterSpacing = 0.3.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = DmSansFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSansFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
+        fontSize = 12.sp,
         letterSpacing = 0.5.sp
     )
-    */
 )

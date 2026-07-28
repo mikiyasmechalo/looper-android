@@ -22,10 +22,18 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.looper_android.ui.widgets.PremiumSection
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import com.example.looper_android.ui.widgets.sharedBoundsOrElement
+
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun PremiumNavbar(
     currentIndex: Int,
     onTap: (Int) -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val gap1 by androidx.compose.animation.core.animateDpAsState(
@@ -52,9 +60,12 @@ fun PremiumNavbar(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.Center
         ) {
-            // HOME
+            // HOME (Morphs to Shuffle button in PlayerScreen)
             PremiumSection(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
                 shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = homeRadiusEnd, bottomEnd = homeRadiusEnd),
                 backgroundColor = if (currentIndex == 0) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
                 showRightBorder = currentIndex == 0 || currentIndex == 1,
@@ -65,9 +76,12 @@ fun PremiumNavbar(
 
             Spacer(modifier = Modifier.width(gap1))
 
-            // SONGS
+            // SONGS (Morphs to Repeat button in PlayerScreen)
             PremiumSection(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
                 shape = RoundedCornerShape(topStart = songsRadiusStart, bottomStart = songsRadiusStart, topEnd = songsRadiusEnd, bottomEnd = songsRadiusEnd),
                 backgroundColor = if (currentIndex == 1) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
                 showLeftBorder = currentIndex == 0 || currentIndex == 1,
@@ -79,9 +93,12 @@ fun PremiumNavbar(
 
             Spacer(modifier = Modifier.width(gap2))
 
-            // LIBRARY
+            // LIBRARY (Morphs to Lyrics button in PlayerScreen)
             PremiumSection(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
                 shape = RoundedCornerShape(topStart = libraryRadiusStart, bottomStart = libraryRadiusStart, topEnd = 36.dp, bottomEnd = 36.dp),
                 backgroundColor = if (currentIndex == 2) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
                 showLeftBorder = currentIndex == 1 || currentIndex == 2,

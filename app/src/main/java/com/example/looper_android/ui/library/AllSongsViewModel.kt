@@ -46,6 +46,7 @@ class AllSongsViewModel @Inject constructor(
     }
 
     fun loadSongs() {
+        if (_songs.value.isNotEmpty()) return
         viewModelScope.launch {
             _isLoading.value = true
             try {

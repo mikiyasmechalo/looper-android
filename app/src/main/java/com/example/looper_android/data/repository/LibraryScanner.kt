@@ -109,12 +109,8 @@ class LibraryScanner @Inject constructor(
             }
         }
 
-        // Batch insert into DB
+        // Batch insert into DB using REPLACE on conflict (no empty DB flash)
         if (songs.isNotEmpty()) {
-            libraryDao.clearSongs()
-            libraryDao.clearAlbums()
-            libraryDao.clearArtists()
-            
             libraryDao.insertSongs(songs)
             libraryDao.insertAlbums(albumsMap.values.toList())
             libraryDao.insertArtists(artistsMap.values.toList())

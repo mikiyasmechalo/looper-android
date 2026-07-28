@@ -1,149 +1,566 @@
 package com.example.looper_android.ui.player
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.looper_android.ui.widgets.PremiumSection
+import com.example.looper_android.data.db.SongEntity
+import com.example.looper_android.ui.components.AssetSvgIcon
+import com.example.looper_android.ui.components.OptimizedImage
+import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.utils.rememberHapticFeedbackHelper
+import com.example.looper_android.ui.widgets.*
+import kotlin.math.roundToInt
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun PlayerScreen(
-    title: String,
-    artist: String,
-    album: String,
-    onArtistClick: () -> Unit,
-    onAlbumClick: () -> Unit
+    viewModel: PlaybackViewModel,
+    onBack: () -> Unit,
+    onNavigateToLyrics: () -> Unit,
+    onNavigateToEqualizer: () -> Unit,
+    onArtistClick: (String) -> Unit,
+    onAlbumClick: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
-    // Simulated dynamic background gradient similar to the Flutter app
-    val backgroundGradient = Brush.verticalGradient(
-        colors = listOf(Color(0xFF2B2B2B), Color(0xFF121212))
-    )
+    val state by viewModel.playbackState.collectAsState()
+    val song = state.currentSong
+    val haptics = rememberHapticFeedbackHelper()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundGradient)
-            .padding(horizontal = 24.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Top Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            PremiumSection(width = 48.dp, height = 48.dp, cornerRadius = 16.dp, onClick = {}) {
-                Text("v", color = Color.White, fontSize = 20.sp) // Mock Down Arrow
-            }
-            PremiumSection(width = 48.dp, height = 48.dp, cornerRadius = 16.dp, onClick = {}) {
-                Text("...", color = Color.White) // Mock Options
-            }
-        }
+    var showQueueSheet by remember { mutableStateOf(false) }
+    var showOptionsSheet by remember { mutableStateOf(false) }
 
-        Spacer(modifier = Modifier.height(32.dp))
+    var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
 
-        // Large Album Art
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+
+    if (song == null) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color.White.copy(alpha = 0.1f))
+                .fillMaxSize()
+                .background(Color(0xFF11110E)),
+            contentAlignment = Alignment.Center
         ) {
-            // Image would go here
+            Text("No song playing", color = Color.White, fontFamily = DmSansFontFamily)
         }
+        return
+    }
 
-        Spacer(modifier = Modifier.height(48.dp))
-
-        // Audio Quality Badge (Mocking the logic from Flutter)
-        PremiumSection(
-            cornerRadius = 12.dp,
-            backgroundColor = Color.White.copy(alpha = 0.05f)
-        ) {
-            Text(
-                text = "High Quality • FLAC • 44.1 kHz",
-                color = Color.LightGray,
-                fontSize = 12.sp
-            )
+    val subtitleText = remember(song.artist, song.album) {
+        val artist = song.artist ?: "Unknown Artist"
+        if (!song.album.isNullOrEmpty() && song.album != "Unknown Album") {
+            "$artist • ${song.album}"
+        } else {
+            artist
         }
+    }
 
-        Spacer(modifier = Modifier.height(16.dp))
+    val animatedAccentColor by animateColorAsState(
+        targetValue = state.accentColor,
+        animationSpec = tween(durationMillis = 600),
+        label = "accentColorAnim"
+    )
 
-        // Title
-        Text(
-            text = title,
-            color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF11110E))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = {
+                        rawVerticalOffset = 0f
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        rawVerticalOffset += dragAmount
+                    },
+                    onDragEnd = {
+                        if (rawVerticalOffset > 60.dp.toPx()) {
+                            haptics.mediumImpact()
+                            onBack()
+                        }
+                        rawVerticalOffset = 0f
+                    },
+                    onDragCancel = {
+                        rawVerticalOffset = 0f
+                    }
+                )
+            }
+    ) {
+        // Dynamic Accent Radial Gradient Layer (Uses single main accent color from artwork, animated 600ms)
+        val maxDimensionPx = maxOf(screenWidthPx, screenHeightPx)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            animatedAccentColor.copy(alpha = 0.42f),
+                            animatedAccentColor.copy(alpha = 0.18f),
+                            Color(0xFF11110E)
+                        ),
+                        center = Offset(screenWidthPx, 0f),
+                        radius = maxDimensionPx * 1.35f
+                    )
+                )
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Artist and Album (Fixing the clickable bounds requested!)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+        SafeAreaColumn(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = artist,
-                color = Color(0xFF55DF69), // Brand Green
-                fontSize = 18.sp,
+            // 1. Top Header Bar
+            Row(
                 modifier = Modifier
-                    .wrapContentWidth()
-                    .clickable { onArtistClick() }
-            )
-            Text(
-                text = " • ",
-                color = Color.Gray,
-                fontSize = 18.sp
-            )
-            Text(
-                text = album,
-                color = Color(0xFF55DF69),
-                fontSize = 18.sp,
-                modifier = Modifier
-                    .wrapContentWidth()
-                    .clickable { onAlbumClick() }
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Controls
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PremiumSection(width = 64.dp, height = 64.dp, cornerRadius = 32.dp, onClick = {}) {
-                Text("|<", color = Color.White) // Mock Prev
-            }
-            PremiumSection(
-                width = 80.dp, 
-                height = 80.dp, 
-                cornerRadius = 40.dp, 
-                backgroundColor = Color(0xFF55DF69), // Green Play Button
-                onClick = {}
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("||", color = Color.Black, fontWeight = FontWeight.Bold) // Mock Pause
+                // Close button (48x48, radius 32dp, icon size 8dp)
+                PremiumSection(
+                    width = 48.dp,
+                    height = 48.dp,
+                    cornerRadius = 32.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.05f),
+                    onClick = {
+                        haptics.lightImpact()
+                        onBack()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "down_arrow_icon.svg",
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier.size(8.dp)
+                    )
+                }
+
+                // Title & Quality badge
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Now Playing",
+                        color = Color.White,
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(
+                                width = 0.5.dp,
+                                color = Color.White.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = state.audioQualityText,
+                            color = Color.White.copy(alpha = 0.70f),
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 9.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+
+                // Options / Sleep Timer button (48x48, radius 32dp, icon size 14dp)
+                PremiumSection(
+                    width = 48.dp,
+                    height = 48.dp,
+                    cornerRadius = 32.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.05f),
+                    onClick = {
+                        haptics.mediumImpact()
+                        showOptionsSheet = true
+                    }
+                ) {
+                    if (state.isSleepTimerActive) {
+                        SleepTimerClock(
+                            progress = 0.75f,
+                            label = state.sleepTimerLabel
+                        )
+                    } else {
+                        AssetSvgIcon(
+                            assetName = "menu_button_icon.svg",
+                            contentDescription = "More Options",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
-            PremiumSection(width = 64.dp, height = 64.dp, cornerRadius = 32.dp, onClick = {}) {
-                Text(">|", color = Color.White) // Mock Next
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // 2. Large Album Art with Gestures (Morphs from Mini Player album artwork)
+            Padding(
+                modifier = Modifier
+                    .padding(horizontal = 30.dp)
+                    .sharedBoundsOrElement(
+                        key = "album_art",
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        clipShape = RoundedCornerShape(24.dp)
+                    )
+            ) {
+                GestureArtwork(
+                    song = song,
+                    nextSong = state.queue.getOrNull(1),
+                    prevSong = null,
+                    onTap = {
+                        haptics.lightImpact()
+                        onNavigateToLyrics()
+                    },
+                    onSeekRelative = { offsetMs ->
+                        viewModel.seekRelative(offsetMs)
+                    },
+                    onSkipNext = {
+                        haptics.mediumImpact()
+                        viewModel.skipToNext()
+                    },
+                    onSkipPrevious = {
+                        haptics.mediumImpact()
+                        viewModel.skipToPrevious()
+                    }
+                )
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // 3. Song Details & Favorite Button (Artist • Album Subtitle)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    MarqueeText(
+                        text = song.title,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = DmSansFontFamily,
+                        letterSpacing = 0.3.sp,
+                        modifier = Modifier.sharedBoundsOrElement("song_title", sharedTransitionScope, animatedVisibilityScope)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = subtitleText,
+                        color = Color.White.copy(alpha = 0.60f),
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 16.sp,
+                        letterSpacing = 0.2.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .clickable {
+                                song.artist?.let { onArtistClick(it) }
+                            }
+                            .sharedBoundsOrElement("song_artist", sharedTransitionScope, animatedVisibilityScope)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .width(1.dp)
+                        .background(Color.White.copy(alpha = 0.15f))
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Favorite Button (56x56, radius 32dp, icon size 24dp)
+                PremiumSection(
+                    width = 56.dp,
+                    height = 56.dp,
+                    cornerRadius = 32.dp,
+                    backgroundColor = if (state.isFavorite) Color(0x26FFC107) else Color.Transparent,
+                    onClick = {
+                        haptics.selectionClick()
+                        viewModel.toggleFavorite()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "liked_icon.svg",
+                        contentDescription = "Favorite",
+                        tint = if (state.isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 4. Seek Bar
+            Box(
+                modifier = Modifier.padding(horizontal = 28.dp)
+            ) {
+                ExpressiveSlider(
+                    positionMs = state.position,
+                    durationMs = state.duration,
+                    isPlaying = state.isPlaying,
+                    onSeek = { targetMs ->
+                        viewModel.seekTo(targetMs)
+                    },
+                    activeColor = state.accentColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 5. Main Playback Control Row (Height 80dp, Prev/Next 16dp, Play/Pause 22dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Prev (16dp)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp),
+                    shape = RoundedCornerShape(topStart = 40.dp, bottomStart = 40.dp, topEnd = 12.dp, bottomEnd = 12.dp),
+                    backgroundColor = Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.lightImpact()
+                        viewModel.skipToPrevious()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "previous_button_icon.svg",
+                        contentDescription = "Previous",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Play / Pause (22dp) (Morphs from Mini Player play button)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp)
+                        .sharedBoundsOrElement("player_play_pause_btn", sharedTransitionScope, animatedVisibilityScope),
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = if (!state.isPlaying) state.accentColor else Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.mediumImpact()
+                        viewModel.togglePlayPause()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = if (state.isPlaying) "pause_icon.svg" else "play_icon.svg",
+                        contentDescription = "Play/Pause",
+                        tint = if (state.isPlaying) Color.White else Color(0xFF121212),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Next (16dp)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp),
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 40.dp, bottomEnd = 40.dp),
+                    backgroundColor = Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.lightImpact()
+                        viewModel.skipToNext()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "next_button_icon.svg",
+                        contentDescription = "Next",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 6. Utility Controls Row (Height 64dp, Shuffle/Repeat/Lyrics 15dp, Queue 12dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Shuffle (15dp) (Morphs from Navbar Home tab)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
+                    shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 12.dp, bottomEnd = 12.dp),
+                    backgroundColor = if (state.isShuffle) state.accentColor else Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.selectionClick()
+                        viewModel.toggleShuffle()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "shuffle_button_icon.svg",
+                        contentDescription = "Shuffle",
+                        tint = if (state.isShuffle) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                // Repeat (15dp) (Morphs from Navbar Songs tab)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = if (state.repeatMode != RepeatMode.OFF) state.accentColor else Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.selectionClick()
+                        viewModel.nextRepeatMode()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = if (state.repeatMode == RepeatMode.ONE) "repeat_1.svg" else "repeat_mode_icon.svg",
+                        contentDescription = "Repeat",
+                        tint = if (state.repeatMode != RepeatMode.OFF) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                // Lyrics (15dp) (Morphs from Navbar Library tab)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
+                    shape = RoundedCornerShape(12.dp),
+                    backgroundColor = Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.lightImpact()
+                        onNavigateToLyrics()
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "lyrics_button_icon.svg",
+                        contentDescription = "Lyrics",
+                        tint = Color.White.copy(alpha = 0.70f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                // Queue (12dp)
+                PremiumSection(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp),
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 32.dp, bottomEnd = 32.dp),
+                    backgroundColor = Color(0xFF1E1E1E),
+                    onClick = {
+                        haptics.mediumImpact()
+                        showQueueSheet = true
+                    }
+                ) {
+                    AssetSvgIcon(
+                        assetName = "queue_icon.svg",
+                        contentDescription = "Queue",
+                        tint = Color.White.copy(alpha = 0.70f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
     }
+
+    // Modal Bottom Sheets
+    if (showQueueSheet) {
+        QueueBottomSheet(
+            queue = state.queue,
+            currentSong = song,
+            onDismiss = { showQueueSheet = false },
+            onSongSelect = { selectedSong ->
+                showQueueSheet = false
+            }
+        )
+    }
+
+    if (showOptionsSheet) {
+        SongOptionsSheet(
+            song = song,
+            onDismiss = { showOptionsSheet = false },
+            onArtistClick = onArtistClick,
+            onAlbumClick = onAlbumClick,
+            onEqualizerClick = onNavigateToEqualizer,
+            onSleepTimerClick = { }
+        )
+    }
+}
+
+@Composable
+private fun Padding(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = modifier) {
+        content()
+    }
+}
+
+@Composable
+private fun SafeAreaColumn(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        content = content
+    )
 }

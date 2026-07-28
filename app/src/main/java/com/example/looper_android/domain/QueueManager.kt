@@ -135,6 +135,14 @@ class QueueManager @Inject constructor(
         }
     }
 
+    private fun parseAudioUri(path: String): android.net.Uri {
+        return if (path.startsWith("content://") || path.startsWith("file://")) {
+            android.net.Uri.parse(path)
+        } else {
+            android.net.Uri.fromFile(java.io.File(path))
+        }
+    }
+
     private fun buildMediaItem(song: SongEntity): MediaItem {
         val meta = MediaMetadata.Builder()
             .setTitle(song.title)
@@ -145,7 +153,7 @@ class QueueManager @Inject constructor(
         }
         return MediaItem.Builder()
             .setMediaId(song.id.toString())
-            .setUri(song.path)
+            .setUri(parseAudioUri(song.path))
             .setMediaMetadata(meta.build())
             .build()
     }
@@ -186,7 +194,7 @@ class QueueManager @Inject constructor(
         val mediaItems = items.map { item ->
             MediaItem.Builder()
                 .setMediaId(item.mediaId)
-                .setUri(item.uri)
+                .setUri(parseAudioUri(item.uri))
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(item.title)

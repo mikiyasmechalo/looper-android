@@ -17,17 +17,19 @@ fun OptimizedImage(
     url: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    sizePx: Int = 120
+    sizePx: Int? = null
 ) {
     val context = LocalContext.current
-    val imageRequest = remember(url, sizePx) {
+    val imageRequest = remember(url, sizePx, context) {
         if (url.isNullOrEmpty()) null
         else {
-            ImageRequest.Builder(context)
+            val builder = ImageRequest.Builder(context)
                 .data(url)
-                .size(sizePx, sizePx)
-                .crossfade(150)
-                .build()
+                .crossfade(200)
+            if (sizePx != null && sizePx > 0) {
+                builder.size(sizePx, sizePx)
+            }
+            builder.build()
         }
     }
 

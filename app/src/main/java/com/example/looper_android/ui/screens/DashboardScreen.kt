@@ -17,15 +17,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.navigation.NavController
 import com.example.looper_android.ui.components.PremiumNavbar
 import com.example.looper_android.ui.library.AllSongsScreen
 import com.example.looper_android.ui.screens.tabs.HomeTab
 import com.example.looper_android.ui.screens.tabs.LibraryTab
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DashboardScreen(
     navController: NavController,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(1) } // Default to Songs Tab
@@ -123,12 +129,16 @@ fun DashboardScreen(
         ) {
             com.example.looper_android.ui.widgets.PremiumMusicBar(
                 viewModel = playbackViewModel,
-                onNavigateToPlayer = { navController.navigate("player") }
+                onNavigateToPlayer = { navController.navigate("player") },
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope
             )
             
             PremiumNavbar(
                 currentIndex = selectedTabIndex,
-                onTap = { selectedTabIndex = it }
+                onTap = { selectedTabIndex = it },
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope
             )
         }
     }

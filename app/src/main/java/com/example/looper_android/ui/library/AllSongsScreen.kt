@@ -44,6 +44,28 @@ fun AllSongsScreen(
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.loadSongs()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            viewModel.loadSongs()
+        } else {
+            permissionLauncher.launch(permission)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
