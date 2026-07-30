@@ -4,14 +4,14 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LibraryDao {
+
     // --- Songs ---
-    @Query("SELECT * FROM songs ORDER BY title ASC")
+    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongs(): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE path = :path LIMIT 1")
@@ -20,40 +20,40 @@ interface LibraryDao {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     fun getSongById(id: Long): Flow<SongEntity?>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSongs(songs: List<SongEntity>)
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSong(song: SongEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSong(song: SongEntity): Long
 
-    @Query("DELETE FROM songs")
-    suspend fun clearSongs()
-    
     @Update
     suspend fun updateSong(song: SongEntity)
 
+    @Query("DELETE FROM songs WHERE id = :id")
+    suspend fun deleteSongById(id: Long)
+
+    @Query("DELETE FROM songs")
+    suspend fun clearSongs()
+
     // --- Albums ---
-    @Query("SELECT * FROM albums ORDER BY name ASC")
+    @Query("SELECT * FROM albums ORDER BY name COLLATE NOCASE ASC")
     fun getAllAlbums(): Flow<List<AlbumEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbums(albums: List<AlbumEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAlbum(album: AlbumEntity): Long
 
     @Query("DELETE FROM albums")
     suspend fun clearAlbums()
 
     // --- Artists ---
-    @Query("SELECT * FROM artists ORDER BY name ASC")
+    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
     fun getAllArtists(): Flow<List<ArtistEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertArtists(artists: List<ArtistEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertArtist(artist: ArtistEntity): Long
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()
 
     // --- Playlists ---
-    @Query("SELECT * FROM playlists ORDER BY name ASC")
+    @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE ASC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

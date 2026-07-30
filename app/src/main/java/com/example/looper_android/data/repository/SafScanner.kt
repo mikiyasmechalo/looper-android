@@ -1,10 +1,11 @@
 package com.example.looper_android.data.repository
 
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import androidx.room.withTransaction
 import com.example.looper_android.data.db.AlbumEntity
+import com.example.looper_android.data.db.AppDatabase
 import com.example.looper_android.data.db.ArtistEntity
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
@@ -17,106 +18,125 @@ import javax.inject.Singleton
 @Singleton
 class SafScanner @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val libraryDao: LibraryDao
+    private val libraryDao: LibraryDao,
+    private val db: AppDatabase,
+    private val tagReader: AudioTagReader
 ) {
-    suspend fun scanDirectory(treeUri: Uri) = withContext(Dispatchers.IO) {
-        // Take persistable permission so we can read this folder across reboots
-        try {
-            val takeFlags: Int = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(treeUri, takeFlags)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
 
-        val rootDir = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext
-        val songs = mutableListOf<SongEntity>()
-        val albumsMap = mutableMapOf<String, AlbumEntity>()
-        val artistsMap = mutableMapOf<String, ArtistEntity>()
+    private val supportedExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus")
 
-        val supportedExtensions = listOf("mp3", "flac", "opus", "aac", "m4a", "wav", "ogg")
+    suspend fun scanDirectory(folderUri: Uri) = scanFolder(folderUri)
 
-        suspend fun traverse(directory: DocumentFile) {
-            val files = directory.listFiles()
-            for (file in files) {
-                if (file.isDirectory) {
-                    traverse(file)
-                } else if (file.isFile) {
-                    val ext = file.name?.substringAfterLast('.', "")?.lowercase()
-                    if (ext != null && supportedExtensions.contains(ext)) {
-                        extractAndAddSong(file.uri, songs, albumsMap, artistsMap)
+    suspend fun scanFolder(folderUri: Uri) = withContext(Dispatchers.IO) {
+        val rootDir = DocumentFile.fromTreeUri(context, folderUri) ?: return@withContext
+        val processedAlbums = mutableSetOf<String>()
+        val processedArtists = mutableSetOf<String>()
+        val songsToEnrich = mutableListOf<SongEntity>()
+
+        db.withTransaction {
+            suspend fun traverse(directory: DocumentFile) {
+                for (file in directory.listFiles()) {
+                    if (file.isDirectory) {
+                        traverse(file)
+                    } else if (file.isFile) {
+                        val ext = file.name?.substringAfterLast('.', "")?.lowercase()
+                        if (ext != null && supportedExtensions.contains(ext)) {
+                            val path = file.uri.toString()
+                            val existing = libraryDao.getSongByPath(path)
+                            val dateAdded = System.currentTimeMillis()
+                            val fileNameWithoutExt = file.name?.substringBeforeLast('.') ?: "Unknown"
+
+                            val songTitle = existing?.title ?: fileNameWithoutExt
+                            val songArtist = existing?.artist ?: "Unknown Artist"
+                            val songAlbum = existing?.album ?: "Unknown Album"
+
+                            val song = SongEntity(
+                                id = existing?.id ?: 0,
+                                path = path,
+                                title = songTitle,
+                                artist = songArtist,
+                                albumArtist = existing?.albumArtist ?: songArtist,
+                                album = songAlbum,
+                                genre = existing?.genre,
+                                duration = existing?.duration ?: 0,
+                                trackNumber = existing?.trackNumber,
+                                year = existing?.year,
+                                lyrics = existing?.lyrics,
+                                artPath = null,
+                                dateAdded = dateAdded,
+                                playCount = existing?.playCount ?: 0,
+                                lastPlayed = existing?.lastPlayed,
+                                isFavorite = existing?.isFavorite ?: false,
+                                hasCustomEqualizer = existing?.hasCustomEqualizer ?: false,
+                                equalizerGains = existing?.equalizerGains
+                            )
+
+                            if (existing == null) {
+                                libraryDao.insertSong(song)
+                            } else {
+                                libraryDao.updateSong(song)
+                            }
+
+                            songsToEnrich.add(song)
+
+                            if (songAlbum !in processedAlbums) {
+                                processedAlbums.add(songAlbum)
+                                libraryDao.insertAlbum(
+                                    AlbumEntity(
+                                        name = songAlbum,
+                                        artist = songArtist,
+                                        artPath = null,
+                                        year = song.year,
+                                        dateAdded = dateAdded
+                                    )
+                                )
+                            }
+
+                            if (songArtist !in processedArtists) {
+                                processedArtists.add(songArtist)
+                                libraryDao.insertArtist(
+                                    ArtistEntity(
+                                        name = songArtist,
+                                        artPath = null,
+                                        artistImageUrl = null
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
+
+            traverse(rootDir)
         }
 
-        traverse(rootDir)
-
-        if (songs.isNotEmpty()) {
-            libraryDao.insertSongs(songs)
-            libraryDao.insertAlbums(albumsMap.values.toList())
-            libraryDao.insertArtists(artistsMap.values.toList())
+        // Asynchronously enrich Jaudiotagger metadata (genre, lyrics, full tags) in background
+        if (songsToEnrich.isNotEmpty()) {
+            enrichMetadataInBackground(songsToEnrich)
         }
     }
 
-    private fun extractAndAddSong(
-        uri: Uri,
-        songs: MutableList<SongEntity>,
-        albumsMap: MutableMap<String, AlbumEntity>,
-        artistsMap: MutableMap<String, ArtistEntity>
-    ) {
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(context, uri)
-            
-            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: "Unknown"
-            val artistName = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
-            val albumName = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "Unknown Album"
-            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            val duration = durationStr?.toIntOrNull() ?: 0
-            val trackStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-            val trackNumber = trackStr?.substringBefore("/")?.toIntOrNull()
-            val yearStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
-            val year = yearStr?.toIntOrNull()
-            
-            val dateAdded = System.currentTimeMillis()
-
-            songs.add(
-                SongEntity(
-                    path = uri.toString(),
-                    title = title,
-                    artist = artistName,
-                    albumArtist = artistName,
-                    album = albumName,
-                    genre = null,
-                    duration = duration,
-                    trackNumber = trackNumber,
-                    year = year,
-                    artPath = null, // Will need a separate content provider or caching mechanism for SAF art
-                    dateAdded = dateAdded
-                )
-            )
-
-            if (!albumsMap.containsKey(albumName)) {
-                albumsMap[albumName] = AlbumEntity(
-                    name = albumName,
-                    artist = artistName,
-                    artPath = null,
-                    year = year,
-                    dateAdded = dateAdded
-                )
-            }
-
-            if (!artistsMap.containsKey(artistName)) {
-                artistsMap[artistName] = ArtistEntity(
-                    name = artistName,
-                    artPath = null,
-                    artistImageUrl = null
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            retriever.release()
+    private suspend fun enrichMetadataInBackground(songs: List<SongEntity>) = withContext(Dispatchers.IO) {
+        for (song in songs) {
+            try {
+                if (song.genre == null || song.lyrics == null || song.year == null) {
+                    val uri = Uri.parse(song.path)
+                    val embedded = tagReader.read(uri)
+                    val updated = song.copy(
+                        title = embedded.title ?: song.title,
+                        artist = embedded.artist ?: song.artist,
+                        album = embedded.album ?: song.album,
+                        albumArtist = embedded.albumArtist ?: song.albumArtist,
+                        duration = if (song.duration == 0) embedded.durationMs else song.duration,
+                        genre = song.genre ?: embedded.genre,
+                        lyrics = song.lyrics ?: embedded.lyrics,
+                        year = song.year ?: embedded.year
+                    )
+                    if (updated != song) {
+                        libraryDao.updateSong(updated)
+                    }
+                }
+            } catch (_: Exception) { }
         }
     }
 }

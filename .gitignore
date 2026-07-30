@@ -14,3 +14,6 @@
 .cxx
 local.properties
 /.artifacts
+.kotlin/
+/app/build/
+/.idea/

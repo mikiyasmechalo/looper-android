@@ -546,14 +546,45 @@ fun PlayerScreen(
         )
     }
 
+    var showEditSheet by remember { mutableStateOf(false) }
+    val songEditViewModel: SongEditViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+
     if (showOptionsSheet) {
         SongOptionsSheet(
             song = song,
             onDismiss = { showOptionsSheet = false },
+            accentColor = state.accentColor,
+            showSleepTimer = true,
+            isSleepTimerActive = state.isSleepTimerActive,
+            sleepTimerLabel = state.sleepTimerLabel,
+            onPlayNextClick = { viewModel.addNext(song) },
+            onAddToQueueClick = { viewModel.addToQueue(song) },
+            onFavoriteClick = { viewModel.toggleFavorite(song) },
             onArtistClick = onArtistClick,
             onAlbumClick = onAlbumClick,
             onEqualizerClick = onNavigateToEqualizer,
-            onSleepTimerClick = { }
+            onEditSongClick = { showEditSheet = true }
+        )
+    }
+
+    if (showEditSheet) {
+        EditSongSheet(
+            song = song,
+            onDismiss = { showEditSheet = false },
+            accentColor = state.accentColor,
+            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
+                songEditViewModel.saveEdit(
+                    song = song,
+                    newTitle = newTitle,
+                    newArtist = newArtist,
+                    newAlbum = newAlbum,
+                    newYear = if (newYear > 0) newYear else null,
+                    newGenre = newGenre,
+                    newLyrics = newLyrics,
+                    newArtPath = newArtPath
+                )
+                showEditSheet = false
+            }
         )
     }
 }

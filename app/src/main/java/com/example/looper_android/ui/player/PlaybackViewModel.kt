@@ -59,6 +59,8 @@ class PlaybackViewModel @Inject constructor(
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
+    private var songObserveJob: kotlinx.coroutines.Job? = null
+
     private val playerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             updatePlaybackState()
@@ -96,17 +98,20 @@ class PlaybackViewModel @Inject constructor(
                     duration = player.duration.coerceAtLeast(0)
                 )
 
-                viewModelScope.launch(Dispatchers.IO) {
-                    val dbSong = libraryDao.getSongById(songId).firstOrNull()
-                    val targetSong = dbSong ?: instantSong
-                    val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
-                    val accent = extractAccentColor(targetSong)
+                songObserveJob?.cancel()
+                songObserveJob = viewModelScope.launch(Dispatchers.IO) {
+                    libraryDao.getSongById(songId).collect { dbSong ->
+                        val targetSong = dbSong ?: instantSong
+                        val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
+                        val accent = extractAccentColor(targetSong)
 
-                    _playbackState.value = _playbackState.value.copy(
-                        currentSong = targetSong,
-                        audioQualityText = dbQualityText,
-                        accentColor = accent
-                    )
+                        _playbackState.value = _playbackState.value.copy(
+                            currentSong = targetSong,
+                            isFavorite = targetSong.isFavorite,
+                            audioQualityText = dbQualityText,
+                            accentColor = accent
+                        )
+                    }
                 }
             } else {
                 _playbackState.value = _playbackState.value.copy(currentSong = null)
@@ -347,9 +352,67 @@ class PlaybackViewModel @Inject constructor(
         _playbackState.value = _playbackState.value.copy(repeatMode = nextMode)
     }
 
-    fun toggleFavorite() {
-        val newFav = !_playbackState.value.isFavorite
-        _playbackState.value = _playbackState.value.copy(isFavorite = newFav)
+    fun toggleFavorite(targetSong: SongEntity? = null) {
+        val songToToggle = targetSong ?: _playbackState.value.currentSong ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = songToToggle.copy(isFavorite = !songToToggle.isFavorite)
+            libraryDao.updateSong(updated)
+        }
+    }
+
+    fun addNext(song: SongEntity) {
+        val mediaUri = Uri.parse(song.path)
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(song.id.toString())
+            .setUri(mediaUri)
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist ?: "Unknown Artist")
+                    .setAlbumTitle(song.album ?: "Unknown Album")
+                    .setArtworkUri(song.artPath?.let { Uri.parse(it) })
+                    .build()
+            )
+            .build()
+
+        // Prevent duplicates: remove if already exists in queue
+        for (i in 0 until player.mediaItemCount) {
+            val item = player.getMediaItemAt(i)
+            if (item.mediaId == song.id.toString() || item.localConfiguration?.uri == mediaUri) {
+                player.removeMediaItem(i)
+                break
+            }
+        }
+
+        val insertIndex = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+        player.addMediaItem(insertIndex, mediaItem)
+    }
+
+    fun addToQueue(song: SongEntity) {
+        val mediaUri = Uri.parse(song.path)
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(song.id.toString())
+            .setUri(mediaUri)
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist ?: "Unknown Artist")
+                    .setAlbumTitle(song.album ?: "Unknown Album")
+                    .setArtworkUri(song.artPath?.let { Uri.parse(it) })
+                    .build()
+            )
+            .build()
+
+        // Prevent duplicates: remove if already exists in queue
+        for (i in 0 until player.mediaItemCount) {
+            val item = player.getMediaItemAt(i)
+            if (item.mediaId == song.id.toString() || item.localConfiguration?.uri == mediaUri) {
+                player.removeMediaItem(i)
+                break
+            }
+        }
+
+        player.addMediaItem(mediaItem)
     }
 
     fun clearQueue() {

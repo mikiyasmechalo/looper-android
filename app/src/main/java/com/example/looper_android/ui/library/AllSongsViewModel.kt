@@ -18,6 +18,11 @@ import javax.inject.Inject
 
 import com.example.looper_android.domain.QueueManager
 
+import com.example.looper_android.data.models.SortOption
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+
 @HiltViewModel
 class AllSongsViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
@@ -28,6 +33,23 @@ class AllSongsViewModel @Inject constructor(
 
     private val _songs = MutableStateFlow<List<SongEntity>>(emptyList())
     val songs: StateFlow<List<SongEntity>> = _songs.asStateFlow()
+
+    private val _sortOption = MutableStateFlow(SortOption.DEFAULT)
+    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+
+    val sortedSongs: StateFlow<List<SongEntity>> = combine(_songs, _sortOption) { list, sort ->
+        val sorted = list.toMutableList()
+        when (sort) {
+            SortOption.DEFAULT -> list
+            SortOption.TITLE_ASC -> sorted.apply { sortBy { it.title.lowercase() } }
+            SortOption.TITLE_DESC -> sorted.apply { sortByDescending { it.title.lowercase() } }
+            SortOption.ARTIST_ASC -> sorted.apply { sortBy { (it.artist ?: "").lowercase() } }
+            SortOption.ALBUM_ASC -> sorted.apply { sortBy { (it.album ?: "").lowercase() } }
+            SortOption.DURATION -> sorted.apply { sortBy { it.duration } }
+            SortOption.YEAR_NEWEST -> sorted.apply { sortByDescending { it.year ?: 0 } }
+            SortOption.YEAR_OLDEST -> sorted.apply { sortBy { it.year ?: 0 } }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -43,6 +65,10 @@ class AllSongsViewModel @Inject constructor(
             }
             .catch { it.printStackTrace() }
             .launchIn(viewModelScope)
+    }
+
+    fun setSortOption(option: SortOption) {
+        _sortOption.value = option
     }
 
     fun loadSongs() {
@@ -72,17 +98,39 @@ class AllSongsViewModel @Inject constructor(
         }
     }
     
-    fun playAll(startIndex: Int, shuffled: Boolean = false) {
-        val currentSongs = _songs.value
-        if (currentSongs.isNotEmpty()) {
-            queueManager.createAndPlayQueue("All Songs", currentSongs, startIndex, shuffled)
+    fun playAll(startIndex: Int = 0, shuffled: Boolean = false) {
+        val currentList = sortedSongs.value.ifEmpty { _songs.value }
+        if (currentList.isNotEmpty()) {
+            val safeIndex = startIndex.coerceIn(0, currentList.lastIndex)
+            queueManager.createAndPlayQueue("All Songs", currentList, safeIndex, shuffled)
         }
     }
 
     fun shuffleAll() {
-        val currentSongs = _songs.value
-        if (currentSongs.isNotEmpty()) {
-            queueManager.createAndPlayQueue("Shuffled Library", currentSongs, startIndex = 0, shuffled = true)
+        val currentList = sortedSongs.value.ifEmpty { _songs.value }
+        if (currentList.isNotEmpty()) {
+            val randomIndex = currentList.indices.random()
+            queueManager.createAndPlayQueue("Shuffled Library", currentList, startIndex = randomIndex, shuffled = true)
+        }
+    }
+
+    fun updateSong(song: SongEntity) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            libraryDao.updateSong(song)
+        }
+    }
+
+    fun deleteSong(song: SongEntity) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val file = java.io.File(song.path)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            libraryDao.deleteSongById(song.id)
         }
     }
 }

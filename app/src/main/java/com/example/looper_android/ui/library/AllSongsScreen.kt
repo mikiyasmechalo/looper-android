@@ -8,43 +8,56 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.looper_android.ui.theme.LucideIcons
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
+import com.example.looper_android.ui.player.DeleteSongDialog
+import com.example.looper_android.ui.player.EditSongSheet
+import com.example.looper_android.ui.player.PlaybackViewModel
+import com.example.looper_android.ui.player.SongDetailsBottomSheet
+import com.example.looper_android.ui.player.SongEditViewModel
+import com.example.looper_android.ui.player.SongInfoScreen
+import com.example.looper_android.ui.player.SongOptionsSheet
+import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
+import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.theme.LucideIcons
 import com.example.looper_android.ui.widgets.PremiumSection
 
 @Composable
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
+    songEditViewModel: SongEditViewModel = hiltViewModel(),
     onShufflePlayClick: () -> Unit
 ) {
-    var isShuffleEnabled by remember { mutableStateOf(false) }
-    val songs by viewModel.songs.collectAsState()
+    val songs by viewModel.sortedSongs.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isDbLoaded by viewModel.isDbLoaded.collectAsState()
 
-    val playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = hiltViewModel()
+    val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    var showSortSheet by remember { mutableStateOf(false) }
+    var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
+
+    val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -72,7 +85,7 @@ fun AllSongsScreen(
             .background(Color(0xFF11110E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // Header Row (Matches Flutter android_songs_tab.dart 1-to-1)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -81,8 +94,9 @@ fun AllSongsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 PremiumSection(
-                    width = 48.dp, 
-                    height = 48.dp, 
+                    width = 48.dp,
+                    height = 48.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
                     onClick = {}
                 ) {
@@ -92,11 +106,13 @@ fun AllSongsScreen(
                     text = "All Songs",
                     color = Color.White,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
                 )
                 PremiumSection(
-                    width = 48.dp, 
-                    height = 48.dp, 
+                    width = 48.dp,
+                    height = 48.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 32.dp, bottomEnd = 32.dp),
                     onClick = {}
                 ) {
@@ -104,6 +120,7 @@ fun AllSongsScreen(
                 }
             }
 
+            // Thin divider below header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,6 +129,7 @@ fun AllSongsScreen(
                     .background(Color.White.copy(alpha = 0.15f))
             )
 
+            // Songs Header Bar (Matches Flutter songs_list.dart 1-to-1: Song Count + Sort Button)
             if (isDbLoaded) {
                 Row(
                     modifier = Modifier
@@ -124,12 +142,14 @@ fun AllSongsScreen(
                         text = "${songs.size} Songs",
                         color = Color.Gray,
                         fontSize = 13.sp,
-                        fontFamily = com.example.looper_android.ui.theme.DmSansFontFamily
+                        fontFamily = DmSansFontFamily
                     )
-                    androidx.compose.material3.IconButton(onClick = { /* Sort */ }) {
+                    IconButton(
+                        onClick = { showSortSheet = true }
+                    ) {
                         Icon(
-                            Icons.Default.FilterList,
-                            contentDescription = "Sort",
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Sort By",
                             tint = Color(0xFF55DF69),
                             modifier = Modifier.size(18.dp)
                         )
@@ -140,7 +160,7 @@ fun AllSongsScreen(
             }
 
             // Song List
-            if (isLoading || !isDbLoaded) {
+            if (isLoading && songs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFF55DF69))
                 }
@@ -152,7 +172,7 @@ fun AllSongsScreen(
                 val bottomPadding = if (currentSong != null) 260.dp else 180.dp
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding) // Leave space for FAB & Nav bar
+                    contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding)
                 ) {
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                         val isCurrent = currentSong?.path == song.path
@@ -161,17 +181,18 @@ fun AllSongsScreen(
                             song = song,
                             isCurrent = isCurrent,
                             isPlaying = isPlaying,
-                            onClick = { viewModel.playAll(index, shuffled = isShuffleEnabled) }
+                            onClick = { viewModel.playAll(startIndex = index, shuffled = false) },
+                            onOptionsClick = { selectedSongForOptions = song }
                         )
                     }
                 }
             }
         }
 
-        // Dynamic Floating Shuffle Button Position
+        // Floating Shuffle Action Button (Matches Flutter android_songs_tab.dart 1-to-1: 40dp right, bottom padded)
         val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSong != null) 210.dp else 130.dp,
-            animationSpec = androidx.compose.animation.core.tween(300),
+            targetValue = if (currentSong != null) 200.dp else 120.dp,
+            animationSpec = androidx.compose.animation.core.tween(250),
             label = "fabPadding"
         )
 
@@ -185,29 +206,133 @@ fun AllSongsScreen(
                 width = 48.dp,
                 height = 48.dp,
                 shape = RoundedCornerShape(48.dp),
-                backgroundColor = if (isShuffleEnabled) Color(0xFF55DF69) else Color(0xFF1E1E1E),
+                backgroundColor = Color(0xFF1E1E1E),
                 onClick = {
-                    isShuffleEnabled = !isShuffleEnabled
-                    if (isShuffleEnabled) {
-                        viewModel.shuffleAll()
-                    }
+                    viewModel.shuffleAll()
                 }
             ) {
                 coil.compose.AsyncImage(
-                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
                         .data("file:///android_asset/android_icons/shuffle_button_icon.svg")
                         .build(),
                     contentDescription = "Shuffle",
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (isShuffleEnabled) Color.Black else Color.White),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
                     modifier = Modifier.size(18.dp)
                 )
             }
+        }
+
+        // Modal Sheets
+        if (showSortSheet) {
+            SortBottomSheet(
+                currentSort = sortOption,
+                onSortSelected = { option -> viewModel.setSortOption(option) },
+                onDismiss = { showSortSheet = false }
+            )
+        }
+
+        var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
+        var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
+
+        selectedSongForOptions?.let { song ->
+            SongOptionsSheet(
+                song = song,
+                onDismiss = { selectedSongForOptions = null },
+                accentColor = playbackState.accentColor,
+                isFavorite = song.isFavorite,
+                onPlayNextClick = {
+                    playbackViewModel.addNext(song)
+                },
+                onAddToQueueClick = {
+                    playbackViewModel.addToQueue(song)
+                },
+                onAddToPlaylistClick = {
+                    // Add to Playlist action
+                },
+                onFavoriteClick = {
+                    viewModel.updateSong(song.copy(isFavorite = !song.isFavorite))
+                },
+                onEditSongClick = {
+                    selectedSongForEdit = song
+                },
+                onSongDetailsClick = {
+                    selectedSongForDetails = song
+                },
+                onDeleteClick = {
+                    selectedSongForDelete = song
+                }
+            )
+        }
+
+        selectedSongForEdit?.let { song ->
+            EditSongSheet(
+                song = song,
+                onDismiss = { selectedSongForEdit = null },
+                accentColor = playbackState.accentColor,
+                onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
+                    songEditViewModel.saveEdit(
+                        song = song,
+                        newTitle = newTitle,
+                        newArtist = newArtist,
+                        newAlbum = newAlbum,
+                        newYear = if (newYear > 0) newYear else null,
+                        newGenre = newGenre,
+                        newLyrics = newLyrics,
+                        newArtPath = newArtPath
+                    )
+                    selectedSongForEdit = null
+                }
+            )
+        }
+
+        selectedSongForDelete?.let { song ->
+            DeleteSongDialog(
+                songTitle = song.title,
+                onDismiss = { selectedSongForDelete = null },
+                onConfirm = {
+                    viewModel.deleteSong(song)
+                    selectedSongForDelete = null
+                }
+            )
+        }
+
+        var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
+
+        selectedSongForDetails?.let { song ->
+            SongDetailsBottomSheet(
+                song = song,
+                onDismiss = { selectedSongForDetails = null },
+                accentColor = playbackState.accentColor,
+                onArtistClick = { artist ->
+                    // Navigate to artist
+                },
+                onAlbumClick = { album ->
+                    // Navigate to album
+                },
+                onTechnicalInfoClick = {
+                    selectedSongForInfo = song
+                }
+            )
+        }
+
+        selectedSongForInfo?.let { song ->
+            TechnicalInfoBottomSheet(
+                song = song,
+                onDismiss = { selectedSongForInfo = null },
+                accentColor = playbackState.accentColor
+            )
         }
     }
 }
 
 @Composable
-fun SongTile(song: SongEntity, isCurrent: Boolean, isPlaying: Boolean, onClick: () -> Unit) {
+fun SongTile(
+    song: SongEntity,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onOptionsClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -233,7 +358,7 @@ fun SongTile(song: SongEntity, isCurrent: Boolean, isPlaying: Boolean, onClick: 
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.animation.AnimatedVisibility(visible = isPlaying) {
-                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val context = LocalContext.current
                         val gifRequest = remember(context) {
                             coil.request.ImageRequest.Builder(context)
                                 .data("file:///android_asset/android_icons/Playing.gif")
@@ -260,7 +385,7 @@ fun SongTile(song: SongEntity, isCurrent: Boolean, isPlaying: Boolean, onClick: 
                 text = song.title,
                 color = Color.White,
                 fontSize = 16.sp,
-                fontFamily = com.example.looper_android.ui.theme.DmSansFontFamily,
+                fontFamily = DmSansFontFamily,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -269,13 +394,13 @@ fun SongTile(song: SongEntity, isCurrent: Boolean, isPlaying: Boolean, onClick: 
                 text = song.artist ?: "Unknown Artist",
                 color = Color.White.copy(alpha = 0.5f),
                 fontSize = 13.sp,
-                fontFamily = com.example.looper_android.ui.theme.DmSansFontFamily,
+                fontFamily = DmSansFontFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
         
-        androidx.compose.material3.IconButton(onClick = { /* Options */ }) {
+        IconButton(onClick = onOptionsClick) {
             Icon(LucideIcons.MoreVertical, contentDescription = "Options", tint = Color.Gray)
         }
     }
