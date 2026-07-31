@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,25 +19,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.looper_android.data.models.SortOption
 import com.example.looper_android.ui.theme.DmSansFontFamily
-import com.example.looper_android.ui.theme.LucideIcons
 import com.example.looper_android.ui.widgets.PremiumSection
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SortByAlpha
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SortBottomSheet(
     currentSort: SortOption,
+    isAscending: Boolean,
     onSortSelected: (SortOption) -> Unit,
+    onToggleAscending: () -> Unit,
     onDismiss: () -> Unit,
     accentColor: Color = Color(0xFF55DF69)
 ) {
     val haptics = LocalHapticFeedback.current
-    var isAscending by remember { mutableStateOf(currentSort != SortOption.TITLE_DESC && currentSort != SortOption.YEAR_NEWEST) }
-
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -81,22 +75,14 @@ fun SortBottomSheet(
                 TextButton(
                     onClick = {
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        isAscending = !isAscending
-                        val toggledSort = when (currentSort) {
-                            SortOption.TITLE_ASC -> SortOption.TITLE_DESC
-                            SortOption.TITLE_DESC -> SortOption.TITLE_ASC
-                            SortOption.YEAR_NEWEST -> SortOption.YEAR_OLDEST
-                            SortOption.YEAR_OLDEST -> SortOption.YEAR_NEWEST
-                            else -> currentSort
-                        }
-                        onSortSelected(toggledSort)
+                        onToggleAscending()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = accentColor),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (isAscending) LucideIcons.Search else LucideIcons.Settings, // placeholder or arrow icon
-                        contentDescription = null,
+                        imageVector = if (isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = if (isAscending) "Ascending" else "Descending",
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -115,7 +101,7 @@ fun SortBottomSheet(
                 modifier = Modifier.padding(vertical = 12.dp)
             )
 
-            // Inner PremiumSection Box for Sort Options List (Matches Flutter 1-to-1)
+            // Sort Options List
             PremiumSection(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -123,33 +109,17 @@ fun SortBottomSheet(
                 onClick = null
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val sortItems = listOf(
-                        SortOption.DEFAULT,
-                        SortOption.TITLE_ASC,
-                        SortOption.ARTIST_ASC,
-                        SortOption.ALBUM_ASC,
-                        SortOption.DURATION,
-                        SortOption.YEAR_NEWEST
-                    )
+                    val sortItems = SortOption.entries
 
                     sortItems.forEachIndexed { index, option ->
-                        val isSelected = (currentSort == option) || 
-                            (option == SortOption.TITLE_ASC && currentSort == SortOption.TITLE_DESC) ||
-                            (option == SortOption.YEAR_NEWEST && currentSort == SortOption.YEAR_OLDEST)
+                        val isSelected = (currentSort == option)
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                    val finalOption = if (!isAscending) {
-                                        when (option) {
-                                            SortOption.TITLE_ASC -> SortOption.TITLE_DESC
-                                            SortOption.YEAR_NEWEST -> SortOption.YEAR_OLDEST
-                                            else -> option
-                                        }
-                                    } else option
-                                    onSortSelected(finalOption)
+                                    onSortSelected(option)
                                     onDismiss()
                                 }
                                 .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -157,12 +127,15 @@ fun SortBottomSheet(
                         ) {
                             Icon(
                                 imageVector = when (option) {
-                                    SortOption.DEFAULT -> LucideIcons.Library
-                                    SortOption.TITLE_ASC -> Icons.Default.SortByAlpha
-                                    SortOption.ARTIST_ASC -> Icons.Default.Person
-                                    SortOption.ALBUM_ASC -> Icons.Default.Album
-                                    SortOption.DURATION -> Icons.Default.AccessTime
-                                    else -> Icons.Default.CalendarToday
+                                    SortOption.TITLE -> Icons.Default.SortByAlpha
+                                    SortOption.ARTIST -> Icons.Default.Person
+                                    SortOption.ALBUM -> Icons.Default.Album
+                                    SortOption.DATE_ADDED -> Icons.Default.AccessTime
+                                    SortOption.GENRE -> Icons.Default.Category
+                                    SortOption.DURATION -> Icons.Default.Timer
+                                    SortOption.YEAR -> Icons.Default.CalendarToday
+                                    SortOption.MOST_PLAYED -> Icons.Default.Equalizer
+                                    SortOption.RECENTLY_PLAYED -> Icons.Default.History
                                 },
                                 contentDescription = option.label,
                                 tint = if (isSelected) accentColor else Color.White.copy(alpha = 0.9f),

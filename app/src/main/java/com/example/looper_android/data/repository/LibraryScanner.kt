@@ -10,7 +10,10 @@ import com.example.looper_android.data.db.ArtistEntity
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +25,7 @@ class LibraryScanner @Inject constructor(
     private val db: AppDatabase,
     private val tagReader: AudioTagReader
 ) {
+    private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     suspend fun scanMediaStore() = withContext(Dispatchers.IO) {
         val projection = arrayOf(
@@ -139,9 +143,11 @@ class LibraryScanner @Inject constructor(
             }
         }
 
-        // Asynchronously enrich Jaudiotagger metadata (genre, lyrics, full tags) in background
+        // Asynchronously enrich metadata in background scope (non-blocking for splash/initial scan)
         if (songsToEnrich.isNotEmpty()) {
-            enrichMetadataInBackground(songsToEnrich)
+            externalScope.launch {
+                enrichMetadataInBackground(songsToEnrich)
+            }
         }
     }
 

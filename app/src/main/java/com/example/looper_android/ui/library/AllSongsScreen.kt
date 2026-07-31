@@ -46,6 +46,7 @@ fun AllSongsScreen(
 ) {
     val songs by viewModel.sortedSongs.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
+    val isAscending by viewModel.isAscending.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isDbLoaded by viewModel.isDbLoaded.collectAsState()
 
@@ -226,7 +227,9 @@ fun AllSongsScreen(
         if (showSortSheet) {
             SortBottomSheet(
                 currentSort = sortOption,
+                isAscending = isAscending,
                 onSortSelected = { option -> viewModel.setSortOption(option) },
+                onToggleAscending = { viewModel.toggleAscending() },
                 onDismiss = { showSortSheet = false }
             )
         }
