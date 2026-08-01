@@ -6,14 +6,33 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +43,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.composables.icons.lucide.ArrowUpDown
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Shuffle
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.player.DeleteSongDialog
@@ -31,11 +56,9 @@ import com.example.looper_android.ui.player.EditSongSheet
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.SongDetailsBottomSheet
 import com.example.looper_android.ui.player.SongEditViewModel
-import com.example.looper_android.ui.player.SongInfoScreen
 import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
-import com.example.looper_android.ui.theme.LucideIcons
 import com.example.looper_android.ui.widgets.PremiumSection
 
 @Composable
@@ -101,7 +124,7 @@ fun AllSongsScreen(
                     shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
                     onClick = {}
                 ) {
-                    Icon(LucideIcons.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Text(
                     text = "All Songs",
@@ -117,7 +140,7 @@ fun AllSongsScreen(
                     shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 32.dp, bottomEnd = 32.dp),
                     onClick = {}
                 ) {
-                    Icon(LucideIcons.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Lucide.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -149,7 +172,7 @@ fun AllSongsScreen(
                         onClick = { showSortSheet = true }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.FilterList,
+                            imageVector = Lucide.ArrowUpDown,
                             contentDescription = "Sort By",
                             tint = Color(0xFF55DF69),
                             modifier = Modifier.size(18.dp)
@@ -212,12 +235,10 @@ fun AllSongsScreen(
                     viewModel.shuffleAll()
                 }
             ) {
-                coil.compose.AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current)
-                        .data("file:///android_asset/android_icons/shuffle_button_icon.svg")
-                        .build(),
+                Icon(
+                    imageVector = Lucide.Shuffle,
                     contentDescription = "Shuffle",
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+                    tint = Color.White,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -404,7 +425,7 @@ fun SongTile(
         }
         
         IconButton(onClick = onOptionsClick) {
-            Icon(LucideIcons.MoreVertical, contentDescription = "Options", tint = Color.Gray)
+            Icon(Lucide.EllipsisVertical, contentDescription = "Options", tint = Color.Gray)
         }
     }
 }

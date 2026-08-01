@@ -5,8 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +15,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.*
 import com.example.looper_android.data.models.SortOption
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
@@ -81,7 +80,7 @@ fun SortBottomSheet(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        imageVector = if (isAscending) Lucide.ArrowUpAZ else Lucide.ArrowDownZA,
                         contentDescription = if (isAscending) "Ascending" else "Descending",
                         modifier = Modifier.size(18.dp)
                     )
@@ -127,15 +126,15 @@ fun SortBottomSheet(
                         ) {
                             Icon(
                                 imageVector = when (option) {
-                                    SortOption.TITLE -> Icons.Default.SortByAlpha
-                                    SortOption.ARTIST -> Icons.Default.Person
-                                    SortOption.ALBUM -> Icons.Default.Album
-                                    SortOption.DATE_ADDED -> Icons.Default.AccessTime
-                                    SortOption.GENRE -> Icons.Default.Category
-                                    SortOption.DURATION -> Icons.Default.Timer
-                                    SortOption.YEAR -> Icons.Default.CalendarToday
-                                    SortOption.MOST_PLAYED -> Icons.Default.Equalizer
-                                    SortOption.RECENTLY_PLAYED -> Icons.Default.History
+                                    SortOption.TITLE -> Lucide.Type
+                                    SortOption.ARTIST -> Lucide.User
+                                    SortOption.ALBUM -> Lucide.Disc
+                                    SortOption.DATE_ADDED -> Lucide.CalendarPlus
+                                    SortOption.GENRE -> Lucide.Tag
+                                    SortOption.DURATION -> Lucide.Clock
+                                    SortOption.YEAR -> Lucide.Calendar
+                                    SortOption.MOST_PLAYED -> Lucide.Flame
+                                    SortOption.RECENTLY_PLAYED -> Lucide.History
                                 },
                                 contentDescription = option.label,
                                 tint = if (isSelected) accentColor else Color.White.copy(alpha = 0.9f),
@@ -161,7 +160,7 @@ fun SortBottomSheet(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Check,
+                                        imageVector = Lucide.Check,
                                         contentDescription = "Selected",
                                         tint = Color.White,
                                         modifier = Modifier.size(12.dp)

@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.looper_android.ui.components.AnimatedPlayPauseIcon
-import com.example.looper_android.ui.components.AssetSvgIcon
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.theme.DmSansFontFamily
@@ -253,7 +251,7 @@ fun PremiumMusicBar(
                     ) {
                         AnimatedPlayPauseIcon(
                             isPlaying = playbackState.isPlaying,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(22.dp),
                             tint = Color.White
                         )
                     }

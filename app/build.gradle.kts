@@ -91,5 +91,6 @@ dependencies {
     implementation(libs.androidx.glance.material3)
 
     implementation("net.jthink:jaudiotagger:3.0.1")
+    implementation("com.composables:icons-lucide-cmp:2.2.1")
 }
 

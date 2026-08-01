@@ -2,9 +2,9 @@ package com.example.looper_android.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -12,19 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.composables.icons.lucide.*
 import com.example.looper_android.ui.widgets.PremiumSection
-
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import com.example.looper_android.ui.widgets.sharedBoundsOrElement
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -36,19 +30,19 @@ fun PremiumNavbar(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
-    val gap1 by androidx.compose.animation.core.animateDpAsState(
+    val gap1 by animateDpAsState(
         targetValue = if (currentIndex == 0 || currentIndex == 1) 6.dp else 0.dp,
-        animationSpec = androidx.compose.animation.core.tween(300)
+        animationSpec = tween(300)
     )
-    val gap2 by androidx.compose.animation.core.animateDpAsState(
+    val gap2 by animateDpAsState(
         targetValue = if (currentIndex == 1 || currentIndex == 2) 6.dp else 0.dp,
-        animationSpec = androidx.compose.animation.core.tween(300)
+        animationSpec = tween(300)
     )
 
-    val homeRadiusEnd by androidx.compose.animation.core.animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, androidx.compose.animation.core.tween(300))
-    val songsRadiusStart by androidx.compose.animation.core.animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, androidx.compose.animation.core.tween(300))
-    val songsRadiusEnd by androidx.compose.animation.core.animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, androidx.compose.animation.core.tween(300))
-    val libraryRadiusStart by androidx.compose.animation.core.animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, androidx.compose.animation.core.tween(300))
+    val homeRadiusEnd by animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, tween(300))
+    val songsRadiusStart by animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, tween(300))
+    val songsRadiusEnd by animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, tween(300))
+    val libraryRadiusStart by animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, tween(300))
 
     Box(
         modifier = modifier
@@ -71,7 +65,7 @@ fun PremiumNavbar(
                 showRightBorder = currentIndex == 0 || currentIndex == 1,
                 onClick = { onTap(0) }
             ) {
-                NavItem(iconPath = "file:///android_asset/android_icons/home_tab_icon.svg", label = "Home", isSelected = currentIndex == 0)
+                NavItem(icon = Lucide.House, label = "Home", isSelected = currentIndex == 0)
             }
 
             Spacer(modifier = Modifier.width(gap1))
@@ -88,7 +82,7 @@ fun PremiumNavbar(
                 showRightBorder = currentIndex == 1 || currentIndex == 2,
                 onClick = { onTap(1) }
             ) {
-                NavItem(iconPath = "file:///android_asset/android_icons/songs_tab_icon.svg", label = "Songs", isSelected = currentIndex == 1)
+                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = currentIndex == 1)
             }
 
             Spacer(modifier = Modifier.width(gap2))
@@ -104,28 +98,26 @@ fun PremiumNavbar(
                 showLeftBorder = currentIndex == 1 || currentIndex == 2,
                 onClick = { onTap(2) }
             ) {
-                NavItem(iconPath = "file:///android_asset/android_icons/library_tab_icon.svg", label = "Library", isSelected = currentIndex == 2)
+                NavItem(icon = Lucide.Library, label = "Library", isSelected = currentIndex == 2)
             }
         }
     }
 }
 
 @Composable
-fun NavItem(iconPath: String, label: String, isSelected: Boolean) {
+fun NavItem(icon: ImageVector, label: String, isSelected: Boolean) {
     val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "scale")
     val color = if (isSelected) Color(0xFF55DF69) else Color.White.copy(alpha = 0.4f)
     val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(iconPath)
-                .build(),
+        Icon(
+            imageVector = icon,
             contentDescription = label,
             modifier = Modifier
                 .size(17.dp)
                 .scale(scale),
-            colorFilter = ColorFilter.tint(color)
+            tint = color
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(

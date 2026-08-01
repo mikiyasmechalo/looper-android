@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.JostFontFamily
-import com.example.looper_android.ui.theme.PremiumContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

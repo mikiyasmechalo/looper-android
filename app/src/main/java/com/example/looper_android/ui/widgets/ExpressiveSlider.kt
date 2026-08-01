@@ -49,8 +49,14 @@ fun ExpressiveSlider(
 
     var smoothPositionMs by remember { mutableLongStateOf(positionMs) }
 
+    LaunchedEffect(durationMs) {
+        lastSeekProgress = null
+        dragProgress = null
+        smoothPositionMs = 0L
+    }
+
     LaunchedEffect(positionMs, isPlaying) {
-        smoothPositionMs = positionMs
+        smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
         if (isPlaying) {
             var lastRealtime = SystemClock.elapsedRealtime()
             while (isActive) {
@@ -67,6 +73,10 @@ fun ExpressiveSlider(
     }
 
     LaunchedEffect(positionMs) {
+        if (positionMs <= 1000L) {
+            lastSeekProgress = null
+            dragProgress = null
+        }
         lastSeekProgress?.let { seek ->
             val currentProgress = (positionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
             if (kotlin.math.abs(currentProgress - seek) < 0.05f) {
@@ -76,7 +86,8 @@ fun ExpressiveSlider(
     }
 
     val activePositionMs = if (isDragging || lastSeekProgress != null) positionMs else smoothPositionMs
-    val progress = (activePositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    val rawProgress = (activePositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    val progress = if (positionMs > totalDurationMs) 0f else rawProgress
 
     val displayProgress = dragProgress ?: lastSeekProgress ?: progress
     val displayPositionMs = (displayProgress * totalDurationMs).toLong()

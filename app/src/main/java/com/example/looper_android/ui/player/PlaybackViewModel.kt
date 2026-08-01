@@ -18,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -61,6 +60,8 @@ class PlaybackViewModel @Inject constructor(
 
     private var songObserveJob: kotlinx.coroutines.Job? = null
 
+    private var pendingTransition = false
+
     private val playerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             updatePlaybackState()
@@ -75,6 +76,7 @@ class PlaybackViewModel @Inject constructor(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            pendingTransition = false
             if (mediaItem != null) {
                 val songId = mediaItem.mediaId.toLongOrNull() ?: 0L
                 val metadata = mediaItem.mediaMetadata
@@ -93,8 +95,10 @@ class PlaybackViewModel @Inject constructor(
                     dateAdded = System.currentTimeMillis()
                 )
 
+                _currentPosition.value = 0L
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
+                    position = 0L,
                     duration = player.duration.coerceAtLeast(0)
                 )
 
@@ -264,8 +268,8 @@ class PlaybackViewModel @Inject constructor(
         _playbackState.value = _playbackState.value.copy(
             isPlaying = playing,
             isBuffering = buffering,
-            position = player.currentPosition.coerceAtLeast(0L),
-            duration = player.duration.coerceAtLeast(0L),
+            position = if (pendingTransition) _playbackState.value.position else player.currentPosition.coerceAtLeast(0L),
+            duration = if (pendingTransition) _playbackState.value.duration else player.duration.coerceAtLeast(0L),
             isShuffle = player.shuffleModeEnabled,
             repeatMode = when (player.repeatMode) {
                 Player.REPEAT_MODE_ONE -> RepeatMode.ONE
@@ -286,7 +290,7 @@ class PlaybackViewModel @Inject constructor(
         
         viewModelScope.launch {
             while (true) {
-                if (player.isPlaying) {
+                if (player.isPlaying && !pendingTransition) {
                     _currentPosition.value = player.currentPosition.coerceAtLeast(0L)
                     _playbackState.value = _playbackState.value.copy(position = player.currentPosition.coerceAtLeast(0L))
                 }
@@ -310,11 +314,17 @@ class PlaybackViewModel @Inject constructor(
 
     fun skipToNext() {
         if (player.hasNextMediaItem()) {
+            pendingTransition = true
+            _currentPosition.value = 0L
+            _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToNextMediaItem()
         }
     }
 
     fun skipToPrevious() {
+        pendingTransition = true
+        _currentPosition.value = 0L
+        _playbackState.value = _playbackState.value.copy(position = 0L)
         if (player.hasPreviousMediaItem()) {
             player.seekToPreviousMediaItem()
         } else {

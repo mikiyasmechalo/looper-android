@@ -1,45 +1,75 @@
 package com.example.looper_android.ui.player
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.looper_android.data.db.SongEntity
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.ListMusic
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.MicVocal
+import com.composables.icons.lucide.Repeat
+import com.composables.icons.lucide.Repeat1
+import com.composables.icons.lucide.Shuffle
+import com.composables.icons.lucide.SkipBack
+import com.composables.icons.lucide.SkipForward
+import com.composables.icons.lucide.Star
 import com.example.looper_android.ui.components.AnimatedPlayPauseIcon
-import com.example.looper_android.ui.components.AssetSvgIcon
-import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.utils.rememberHapticFeedbackHelper
-import com.example.looper_android.ui.widgets.*
-import kotlin.math.roundToInt
-
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
+import com.example.looper_android.ui.widgets.ExpressiveSlider
+import com.example.looper_android.ui.widgets.GestureArtwork
+import com.example.looper_android.ui.widgets.PremiumSection
+import com.example.looper_android.ui.widgets.SleepTimerClock
+import com.example.looper_android.ui.widgets.sharedBoundsOrElement
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -106,17 +136,18 @@ fun PlayerScreen(
                         isDismissing = false
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        rawVerticalOffset += dragAmount
-                        if (rawVerticalOffset > 60.dp.toPx() && !isDismissing) {
+                        if (dragAmount > 0 || rawVerticalOffset > 0) {
+                            change.consume()
+                            rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
+                        }
+                    },
+                    onDragEnd = {
+                        if (rawVerticalOffset > 80.dp.toPx() && !isDismissing) {
                             isDismissing = true
                             haptics.mediumImpact()
                             onBack()
                         }
-                    },
-                    onDragEnd = {
                         rawVerticalOffset = 0f
-                        isDismissing = false
                     },
                     onDragCancel = {
                         rawVerticalOffset = 0f
@@ -169,11 +200,11 @@ fun PlayerScreen(
                         onBack()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "down_arrow_icon.svg",
+                    Icon(
+                        imageVector = Lucide.ChevronDown,
                         contentDescription = "Close",
                         tint = Color.White,
-                        modifier = Modifier.size(8.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
@@ -230,11 +261,11 @@ fun PlayerScreen(
                             label = state.sleepTimerLabel
                         )
                     } else {
-                        AssetSvgIcon(
-                            assetName = "menu_button_icon.svg",
+                        Icon(
+                            imageVector = Lucide.EllipsisVertical,
                             contentDescription = "More Options",
                             tint = Color.White,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -341,8 +372,8 @@ fun PlayerScreen(
                         viewModel.toggleFavorite()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "liked_icon.svg",
+                    Icon(
+                        imageVector = Lucide.Star,
                         contentDescription = "Favorite",
                         tint = if (state.isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
                         modifier = Modifier.size(24.dp)
@@ -388,11 +419,11 @@ fun PlayerScreen(
                         viewModel.skipToPrevious()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "previous_button_icon.svg",
+                    Icon(
+                        imageVector = Lucide.SkipBack,
                         contentDescription = "Previous",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -428,11 +459,11 @@ fun PlayerScreen(
                         viewModel.skipToNext()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "next_button_icon.svg",
+                    Icon(
+                        imageVector = Lucide.SkipForward,
                         contentDescription = "Next",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -459,11 +490,11 @@ fun PlayerScreen(
                         viewModel.toggleShuffle()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "shuffle_button_icon.svg",
+                    Icon(
+                        imageVector = Lucide.Shuffle,
                         contentDescription = "Shuffle",
                         tint = if (state.isShuffle) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
@@ -480,11 +511,11 @@ fun PlayerScreen(
                         viewModel.nextRepeatMode()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = if (state.repeatMode == RepeatMode.ONE) "repeat_1.svg" else "repeat_mode_icon.svg",
+                    Icon(
+                        imageVector = if (state.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
                         contentDescription = "Repeat",
                         tint = if (state.repeatMode != RepeatMode.OFF) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
@@ -501,11 +532,11 @@ fun PlayerScreen(
                         onNavigateToLyrics()
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "lyrics_button_icon.svg",
+                    Icon(
+                        imageVector = Lucide.MicVocal,
                         contentDescription = "Lyrics",
                         tint = Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
@@ -521,11 +552,11 @@ fun PlayerScreen(
                         showQueueSheet = true
                     }
                 ) {
-                    AssetSvgIcon(
-                        assetName = "queue_icon.svg",
+                    Icon(
+                        imageVector = Lucide.ListMusic,
                         contentDescription = "Queue",
                         tint = Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -547,6 +578,9 @@ fun PlayerScreen(
     }
 
     var showEditSheet by remember { mutableStateOf(false) }
+    var showDetailsSheet by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showTechnicalInfoSheet by remember { mutableStateOf(false) }
     val songEditViewModel: SongEditViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 
     if (showOptionsSheet) {
@@ -554,16 +588,51 @@ fun PlayerScreen(
             song = song,
             onDismiss = { showOptionsSheet = false },
             accentColor = state.accentColor,
+            isFavorite = state.isFavorite,
+            isCurrentlyPlaying = true,
             showSleepTimer = true,
             isSleepTimerActive = state.isSleepTimerActive,
             sleepTimerLabel = state.sleepTimerLabel,
-            onPlayNextClick = { viewModel.addNext(song) },
-            onAddToQueueClick = { viewModel.addToQueue(song) },
-            onFavoriteClick = { viewModel.toggleFavorite(song) },
+            onFavoriteClick = { viewModel.toggleFavorite() },
             onArtistClick = onArtistClick,
             onAlbumClick = onAlbumClick,
             onEqualizerClick = onNavigateToEqualizer,
-            onEditSongClick = { showEditSheet = true }
+            onEditSongClick = { showEditSheet = true },
+            onSongDetailsClick = { showDetailsSheet = true },
+            onDeleteClick = { showDeleteDialog = true }
+        )
+    }
+
+    if (showDetailsSheet) {
+        SongDetailsBottomSheet(
+            song = song,
+            onDismiss = { showDetailsSheet = false },
+            accentColor = state.accentColor,
+            onArtistClick = { artist -> onArtistClick?.invoke(artist) },
+            onAlbumClick = { album -> onAlbumClick?.invoke(album) },
+            onTechnicalInfoClick = {
+                showDetailsSheet = false
+                showTechnicalInfoSheet = true
+            }
+        )
+    }
+
+    if (showTechnicalInfoSheet) {
+        TechnicalInfoBottomSheet(
+            song = song,
+            onDismiss = { showTechnicalInfoSheet = false },
+            accentColor = state.accentColor
+        )
+    }
+
+    if (showDeleteDialog) {
+        DeleteSongDialog(
+            songTitle = song.title,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                viewModel.skipToNext()
+                showDeleteDialog = false
+            }
         )
     }
 
@@ -604,10 +673,22 @@ private fun SafeAreaColumn(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val topInset: androidx.compose.ui.unit.Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    var savedTopPx by remember { mutableStateOf<Float?>(null) }
+    
+    val currentTopPx: Float = with(density) { topInset.toPx() }
+    val saved: Float? = savedTopPx
+    if (saved == null && currentTopPx > 0f) {
+        savedTopPx = currentTopPx
+    }
+    val targetPx: Float = saved ?: currentTopPx
+    val stableTopDp = with(density) { targetPx.toDp() }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .padding(top = stableTopDp)
             .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content

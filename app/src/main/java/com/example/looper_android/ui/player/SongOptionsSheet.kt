@@ -1,36 +1,69 @@
 package com.example.looper_android.ui.player
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.view.HapticFeedbackConstants
-import android.view.View
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -38,14 +71,31 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.AudioLines
+import com.composables.icons.lucide.Calendar
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.CirclePlay
+import com.composables.icons.lucide.Disc
+import com.composables.icons.lucide.Info
+import com.composables.icons.lucide.ListMusic
+import com.composables.icons.lucide.ListPlus
+import com.composables.icons.lucide.MicVocal
+import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Share2
+import com.composables.icons.lucide.SlidersHorizontal
+import com.composables.icons.lucide.SquarePen
+import com.composables.icons.lucide.Star
+import com.composables.icons.lucide.Tag
+import com.composables.icons.lucide.Timer
+import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.User
+import com.composables.icons.lucide.X
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
-import kotlinx.coroutines.launch
 import java.io.File
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,6 +115,7 @@ fun SongOptionsSheet(
     isPureBlack: Boolean = false,
     playlist: Playlist? = null,
     showSleepTimer: Boolean = false,
+    isCurrentlyPlaying: Boolean = false,
     onPlayNextClick: () -> Unit = {},
     onAddToQueueClick: () -> Unit = {},
     onAddToPlaylistClick: () -> Unit = {},
@@ -199,23 +250,25 @@ fun SongOptionsSheet(
                 )
 
                 val options = buildList {
-                    add(OptionTileData("play_circle.svg", null, "Play Next") {
-                        hapticLight()
-                        onPlayNextClick()
-                        onDismiss()
-                    })
-                    add(OptionTileData("list_plus.svg", null, "Add to Queue") {
-                        hapticLight()
-                        onAddToQueueClick()
-                        onDismiss()
-                    })
-                    add(OptionTileData("list_music.svg", null, "Add to Playlists") {
+                    if (!isCurrentlyPlaying) {
+                        add(OptionTileData(null, Lucide.CirclePlay, "Play Next") {
+                            hapticLight()
+                            onPlayNextClick()
+                            onDismiss()
+                        })
+                        add(OptionTileData(null, Lucide.ListPlus, "Add to Queue") {
+                            hapticLight()
+                            onAddToQueueClick()
+                            onDismiss()
+                        })
+                    }
+                    add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
                         hapticLight()
                         onAddToPlaylistClick()
                         onDismiss()
                     })
                     if (showSleepTimer) {
-                        add(OptionTileData("timer.svg", null, if (isSleepTimerActive) sleepTimerLabel else "Sleep Timer") {
+                        add(OptionTileData(null, Lucide.Timer, if (isSleepTimerActive) sleepTimerLabel else "Sleep Timer") {
                             hapticLight()
                             onSleepTimerClick()
                             onDismiss()
@@ -223,7 +276,7 @@ fun SongOptionsSheet(
                     }
                     add(OptionTileData(
                         null,
-                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        Lucide.Star,
                         if (isFavorite) "Remove from Favorites" else "Add to Favorites"
                     ) {
                         hapticLight()
@@ -232,30 +285,31 @@ fun SongOptionsSheet(
                     })
 
                     if (playlist != null) {
-                        add(OptionTileData("trash_2.svg", null, "Remove from Playlist") {
+                        add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
                             hapticMedium()
                             onRemoveFromPlaylistClick()
                             onDismiss()
                         })
                     }
 
-                    add(OptionTileData("edit_3.svg", null, "Edit Song Info") {
+                    add(OptionTileData(null, Lucide.SquarePen, "Edit Song Info") {
                         hapticLight()
                         onEditSongClick()
                         onDismiss()
                     })
-                    add(OptionTileData("sliders.svg", null, "Equalizer") {
+                    add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
                         hapticLight()
                         onEqualizerClick()
                         onDismiss()
                     })
-                    add(OptionTileData("info.svg", null, "Song Details") {
+                    add(OptionTileData(null, Lucide.Info, "Song Details") {
                         hapticLight()
                         onSongDetailsClick()
                         onDismiss()
                     })
-                    add(OptionTileData("share_2.svg", null, "Share") {
+                    add(OptionTileData(null, Lucide.Share2, "Share") {
                         hapticLight()
+                        onDismiss()
                         try {
                             val uri = if (song.path.startsWith("content://")) {
                                 Uri.parse(song.path)
@@ -275,6 +329,7 @@ fun SongOptionsSheet(
                                 type = "audio/*"
                                 putExtra(Intent.EXTRA_STREAM, uri)
                                 putExtra(Intent.EXTRA_SUBJECT, song.title)
+                                putExtra(Intent.EXTRA_TEXT, "${song.title} - ${song.artist ?: "Unknown"}")
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Share Audio"))
@@ -282,9 +337,8 @@ fun SongOptionsSheet(
                             e.printStackTrace()
                         }
                         onShareClick()
-                        onDismiss()
                     })
-                    add(OptionTileData("trash_2.svg", null, "Delete Song") {
+                    add(OptionTileData(null, Lucide.Trash2, "Delete Song") {
                         hapticHeavy()
                         onDeleteClick()
                         onDismiss()
@@ -304,10 +358,9 @@ fun SongOptionsSheet(
                             val (svgAsset, vectorIcon, label, onClick) = option
                             val isDelete = label == "Delete Song"
                             val isRemoveFromPlaylist = label == "Remove from Playlist"
-                            val isFav = label.contains("Favorites") && isFavorite
+                            val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavorite
                             val iconColor = when {
-                                isDelete || isRemoveFromPlaylist -> Color.Red.copy(alpha = 0.9f)
-                                isFav -> Color.Red
+                                isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
                                 else -> accentColor
                             }
 
@@ -322,16 +375,8 @@ fun SongOptionsSheet(
                                     .padding(horizontal = 20.dp, vertical = 18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val svgAsset = option.svgAsset
                                 val vectorIcon: ImageVector? = option.vectorIcon
-                                if (svgAsset != null) {
-                                    com.example.looper_android.ui.components.AssetSvgIcon(
-                                        assetName = svgAsset,
-                                        contentDescription = label,
-                                        tint = iconColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                } else if (vectorIcon != null) {
+                                if (vectorIcon != null) {
                                     Icon(
                                         imageVector = vectorIcon,
                                         contentDescription = label,
@@ -426,6 +471,14 @@ fun EditSongSheet(
 
     val currentArtPath = pickedArtPath ?: song.artPath
 
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            pickedArtPath = it.toString()
+        }
+    }
+
     val sheetBg = Color(0xFF1E1E1E)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -486,8 +539,8 @@ fun EditSongSheet(
                             .background(accentColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        com.example.looper_android.ui.components.AssetSvgIcon(
-                            assetName = "edit_3.svg",
+                        Icon(
+                            imageVector = Lucide.SquarePen,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(22.dp)
@@ -502,13 +555,15 @@ fun EditSongSheet(
                             color = Color.White,
                             fontFamily = DmSansFontFamily,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            fontSize = 18.sp
                         )
                         Text(
-                            text = "Tap a field to edit",
-                            color = Color.White.copy(alpha = 0.38f),
+                            text = song.title,
+                            color = Color.White.copy(alpha = 0.50f),
                             fontFamily = DmSansFontFamily,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -526,7 +581,8 @@ fun EditSongSheet(
                                     pickedArtPath
                                 )
                             }
-                        }
+                        },
+                        enabled = !isSaving
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(
@@ -535,8 +591,8 @@ fun EditSongSheet(
                                 color = Color.White
                             )
                         } else {
-                            com.example.looper_android.ui.components.AssetSvgIcon(
-                                assetName = "check.svg",
+                            Icon(
+                                imageVector = Lucide.Check,
                                 contentDescription = "Save",
                                 tint = accentColor,
                                 modifier = Modifier.size(24.dp)
@@ -553,14 +609,13 @@ fun EditSongSheet(
                             available: androidx.compose.ui.geometry.Offset,
                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
                         ): androidx.compose.ui.geometry.Offset {
-                            val deltaY = available.y
-                            // Swiping down (deltaY > 0) while content is scrolled down (scrollState.value > 0)
-                            if (deltaY > 0 && scrollState.value > 0) {
-                                val scrollNeeded = deltaY.coerceAtMost(scrollState.value.toFloat())
-                                scrollState.dispatchRawDelta(-scrollNeeded)
-                                return androidx.compose.ui.geometry.Offset(0f, deltaY)
+                            val delta = available.y
+                            return if (delta < 0 && scrollState.value < scrollState.maxValue) {
+                                val consumed = -scrollState.dispatchRawDelta(-delta)
+                                androidx.compose.ui.geometry.Offset(0f, -consumed)
+                            } else {
+                                androidx.compose.ui.geometry.Offset.Zero
                             }
-                            return androidx.compose.ui.geometry.Offset.Zero
                         }
                     }
                 }
@@ -569,69 +624,79 @@ fun EditSongSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .nestedScroll(nestedScrollConnection)
                         .verticalScroll(scrollState)
                         .padding(horizontal = 20.dp)
                 ) {
-                    // Artwork
+                    // Artwork Section
                     Box(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .size(120.dp)
+                            .align(Alignment.CenterHorizontally)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.10f),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .clickable { launcher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
+                        val artToDisplay = when {
+                            pickedArtPath == "" -> null
+                            pickedArtPath != null -> pickedArtPath
+                            else -> currentArtPath
+                        }
+
+                        if (!artToDisplay.isNullOrEmpty()) {
+                            OptimizedImage(
+                                url = artToDisplay,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Lucide.Music,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.35f),
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Choose Art",
+                                    color = Color.White.copy(alpha = 0.40f),
+                                    fontFamily = DmSansFontFamily,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        // Edit camera badge overlay
                         Box(
                             modifier = Modifier
-                                .size(180.dp)
-                                .clip(RoundedCornerShape(24.dp))
+                                .align(Alignment.BottomEnd)
+                                .padding(6.dp)
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(accentColor)
                                 .border(
                                     width = 2.dp,
-                                    color = accentColor.copy(alpha = 0.40f),
-                                    shape = RoundedCornerShape(24.dp)
-                                )
-                                .clickable { /* TODO: launch image picker */ }
+                                    color = sheetBg,
+                                    shape = RoundedCornerShape(18.dp)
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (!currentArtPath.isNullOrEmpty()) {
-                                OptimizedImage(
-                                    url = currentArtPath,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.White.copy(alpha = 0.05f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Image,
-                                        contentDescription = null,
-                                        tint = accentColor.copy(alpha = 0.50f),
-                                        modifier = Modifier.size(56.dp)
-                                    )
-                                }
-                            }
-
-                            // Camera badge
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(8.dp)
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(accentColor)
-                                    .border(
-                                        width = 2.dp,
-                                        color = sheetBg,
-                                        shape = RoundedCornerShape(18.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                com.example.looper_android.ui.components.AssetSvgIcon(
-                                    assetName = "camera.svg",
-                                    contentDescription = null,
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Lucide.Camera,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
 
@@ -641,8 +706,8 @@ fun EditSongSheet(
                             onClick = { pickedArtPath = "" },
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
-                            com.example.looper_android.ui.components.AssetSvgIcon(
-                                assetName = "x.svg",
+                            Icon(
+                                imageVector = Lucide.X,
                                 contentDescription = null,
                                 tint = Color.Red.copy(alpha = 0.9f),
                                 modifier = Modifier.size(14.dp)
@@ -667,7 +732,7 @@ fun EditSongSheet(
                         value = title,
                         onValueChange = { title = it },
                         label = "Title *",
-                        svgAsset = "music.svg",
+                        icon = Lucide.Music,
                         accentColor = accentColor
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -675,7 +740,7 @@ fun EditSongSheet(
                         value = artist,
                         onValueChange = { artist = it },
                         label = "Artist",
-                        svgAsset = "mic_2.svg",
+                        icon = Lucide.User,
                         accentColor = accentColor
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -683,7 +748,7 @@ fun EditSongSheet(
                         value = album,
                         onValueChange = { album = it },
                         label = "Album",
-                        svgAsset = "disc.svg",
+                        icon = Lucide.Disc,
                         accentColor = accentColor
                     )
 
@@ -696,7 +761,7 @@ fun EditSongSheet(
                             value = year,
                             onValueChange = { if (it.length <= 4) year = it },
                             label = "Year",
-                            svgAsset = "calendar.svg",
+                            icon = Lucide.Calendar,
                             accentColor = accentColor,
                             keyboardType = KeyboardType.Number,
                             modifier = Modifier.weight(2f)
@@ -706,7 +771,7 @@ fun EditSongSheet(
                             value = genre,
                             onValueChange = { genre = it },
                             label = "Genre",
-                            svgAsset = "tag.svg",
+                            icon = Lucide.Tag,
                             accentColor = accentColor,
                             modifier = Modifier.weight(3f)
                         )
@@ -720,7 +785,7 @@ fun EditSongSheet(
                         value = lyrics,
                         onValueChange = { lyrics = it },
                         label = "Lyrics (Plain text or LRC)",
-                        svgAsset = "file_text.svg",
+                        icon = Lucide.MicVocal,
                         accentColor = accentColor,
                         maxLines = 8,
                         keyboardType = KeyboardType.Text,
@@ -743,8 +808,8 @@ fun EditSongSheet(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        com.example.looper_android.ui.components.AssetSvgIcon(
-                            assetName = "file_audio.svg",
+                        Icon(
+                            imageVector = Lucide.AudioLines,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.38f),
                             modifier = Modifier.size(18.dp)
@@ -796,8 +861,8 @@ fun EditSongSheet(
                                 color = Color.Black
                             )
                         } else {
-                            com.example.looper_android.ui.components.AssetSvgIcon(
-                                assetName = "check.svg",
+                            Icon(
+                                imageVector = Lucide.Check,
                                 contentDescription = null,
                                 tint = Color.Black,
                                 modifier = Modifier.size(20.dp)
@@ -1383,14 +1448,7 @@ private fun EditField(
             }
         } else null,
         leadingIcon = {
-            if (svgAsset != null) {
-                com.example.looper_android.ui.components.AssetSvgIcon(
-                    assetName = svgAsset,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            } else if (icon != null) {
+            if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,

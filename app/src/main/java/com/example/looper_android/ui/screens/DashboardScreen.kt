@@ -1,14 +1,7 @@
 package com.example.looper_android.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,13 +70,25 @@ fun DashboardScreen(
         }
     }
 
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val topInset: androidx.compose.ui.unit.Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    var savedTopPx by remember { mutableStateOf<Float?>(null) }
+    
+    val currentTopPx: Float = with(density) { topInset.toPx() }
+    val saved: Float? = savedTopPx
+    if (saved == null && currentTopPx > 0f) {
+        savedTopPx = currentTopPx
+    }
+    val targetPx: Float = saved ?: currentTopPx
+    val stableTopDp = with(density) { targetPx.toDp() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF11110E))
     ) {
         // Main Tab Content
-        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxSize().padding(top = stableTopDp)) {
             Box(modifier = Modifier.fillMaxSize()
                 .alpha(if (selectedTabIndex == 0) 1f else 0f)
                 .zIndex(if (selectedTabIndex == 0) 1f else 0f)
