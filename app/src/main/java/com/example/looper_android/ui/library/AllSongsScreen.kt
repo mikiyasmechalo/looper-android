@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -154,12 +156,12 @@ fun AllSongsScreen(
                     .background(Color.White.copy(alpha = 0.15f))
             )
 
-            // Songs Header Bar (Matches Flutter songs_list.dart 1-to-1: Song Count + Sort Button)
+            // Songs Header Bar (Song Count + Compact Sort Button)
             if (isDbLoaded) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -169,8 +171,12 @@ fun AllSongsScreen(
                         fontSize = 13.sp,
                         fontFamily = DmSansFontFamily
                     )
-                    IconButton(
-                        onClick = { showSortSheet = true }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showSortSheet = true },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Lucide.ArrowUpDown,
@@ -181,16 +187,52 @@ fun AllSongsScreen(
                     }
                 }
             } else {
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
-            // Song List with PullToRefresh swipe-down gesture
+            // Song List with PullToRefresh swipe-down gesture (120fps butter-smooth drag, 280ms rebound, zero jerk)
             val isRefreshing by viewModel.isLoading.collectAsState()
+            val pullToRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+
+            var wasRefreshing by remember { mutableStateOf(false) }
+            LaunchedEffect(isRefreshing) {
+                if (isRefreshing) {
+                    wasRefreshing = true
+                } else if (wasRefreshing) {
+                    kotlinx.coroutines.delay(150)
+                    wasRefreshing = false
+                }
+            }
+
+            val isActivelyPulling = pullToRefreshState.distanceFraction > 0f && !isRefreshing && !wasRefreshing
+            val targetOffset = if (isActivelyPulling) pullToRefreshState.distanceFraction * 140f else 0f
+
+            val animatedOffsetY by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = targetOffset,
+                animationSpec = if (isActivelyPulling) {
+                    androidx.compose.animation.core.snap()
+                } else {
+                    androidx.compose.animation.core.tween(
+                        durationMillis = 280,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                },
+                label = "pullOffset"
+            )
 
             androidx.compose.material3.pulltorefresh.PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = { viewModel.rescanLibrary() },
-                modifier = Modifier.fillMaxSize()
+                state = pullToRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                        state = pullToRefreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        color = Color(0xFF55DF69)
+                    )
+                }
             ) {
                 if (isLoading && songs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -201,10 +243,14 @@ fun AllSongsScreen(
                         Text("No songs found.", color = Color.Gray)
                     }
                 } else {
-                    val bottomPadding = if (currentSong != null) 260.dp else 180.dp
+                    val bottomPadding = if (currentSong != null) 130.dp else 70.dp
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                translationY = animatedOffsetY
+                            },
+                        contentPadding = PaddingValues(top = 2.dp, bottom = bottomPadding)
                     ) {
                         itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                             val isCurrent = currentSong?.path == song.path
@@ -222,9 +268,9 @@ fun AllSongsScreen(
             }
         }
 
-        // Floating Shuffle Action Button (Matches Flutter android_songs_tab.dart 1-to-1: 40dp right, bottom padded)
+        // Floating Shuffle Action Button (Compact padding)
         val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSong != null) 200.dp else 120.dp,
+            targetValue = if (currentSong != null) 90.dp else 30.dp,
             animationSpec = androidx.compose.animation.core.tween(250),
             label = "fabPadding"
         )
