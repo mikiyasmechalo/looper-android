@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 interface LibraryDao {
 
     // --- Songs ---
+    @Query("SELECT COUNT(*) FROM songs")
+    suspend fun getSongsCount(): Int
+
     @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongs(): Flow<List<SongEntity>>
 

@@ -61,6 +61,7 @@ import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
@@ -183,31 +184,39 @@ fun AllSongsScreen(
                 Spacer(modifier = Modifier.height(48.dp))
             }
 
-            // Song List
-            if (isLoading && songs.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF55DF69))
-                }
-            } else if (songs.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No songs found.", color = Color.Gray)
-                }
-            } else {
-                val bottomPadding = if (currentSong != null) 260.dp else 180.dp
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding)
-                ) {
-                    itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                        val isCurrent = currentSong?.path == song.path
-                        val isPlaying = isCurrent && playbackState.isPlaying
-                        SongTile(
-                            song = song,
-                            isCurrent = isCurrent,
-                            isPlaying = isPlaying,
-                            onClick = { viewModel.playAll(startIndex = index, shuffled = false) },
-                            onOptionsClick = { selectedSongForOptions = song }
-                        )
+            // Song List with PullToRefresh swipe-down gesture
+            val isRefreshing by viewModel.isLoading.collectAsState()
+
+            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.rescanLibrary() },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (isLoading && songs.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFF55DF69))
+                    }
+                } else if (songs.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No songs found.", color = Color.Gray)
+                    }
+                } else {
+                    val bottomPadding = if (currentSong != null) 260.dp else 180.dp
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding)
+                    ) {
+                        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                            val isCurrent = currentSong?.path == song.path
+                            val isPlaying = isCurrent && playbackState.isPlaying
+                            SongTile(
+                                song = song,
+                                isCurrent = isCurrent,
+                                isPlaying = isPlaying,
+                                onClick = { viewModel.playAll(startIndex = index, shuffled = false) },
+                                onOptionsClick = { selectedSongForOptions = song }
+                            )
+                        }
                     }
                 }
             }
@@ -286,6 +295,24 @@ fun AllSongsScreen(
                     selectedSongForDelete = song
                 }
             )
+        }
+
+        val writePermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartIntentSenderForResult()
+        ) { result ->
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
+                songEditViewModel.onPermissionGranted()
+            } else {
+                songEditViewModel.onPermissionDenied()
+            }
+        }
+
+        val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
+        LaunchedEffect(pendingWritePermission) {
+            pendingWritePermission?.let { pending ->
+                val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
+                writePermissionLauncher.launch(request)
+            }
         }
 
         selectedSongForEdit?.let { song ->

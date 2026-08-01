@@ -105,6 +105,19 @@ class AllSongsViewModel @Inject constructor(
         }
     }
 
+    fun rescanLibrary() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                libraryScanner.scanMediaStore(forceDiskRead = true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun loadSongs() {
         if (_songs.value.isNotEmpty()) return
         viewModelScope.launch {

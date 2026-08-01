@@ -27,7 +27,10 @@ class LibraryScanner @Inject constructor(
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    suspend fun scanMediaStore() = withContext(Dispatchers.IO) {
+    suspend fun scanMediaStore(
+        forceDiskRead: Boolean = false,
+        onProgress: ((processed: Int, total: Int, phase: String) -> Unit)? = null
+    ) = withContext(Dispatchers.IO) {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.DATA,
@@ -61,6 +64,9 @@ class LibraryScanner @Inject constructor(
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
 
+            val totalSongs = cursor.count
+            var scannedCount = 0
+
             db.withTransaction {
                 val processedAlbums = mutableSetOf<String>()
                 val processedArtists = mutableSetOf<String>()
@@ -79,13 +85,14 @@ class LibraryScanner @Inject constructor(
                     val albumId = cursor.getLong(albumIdColumn)
 
                     val albumArtUri = ContentUris.withAppendedId(
-                        android.net.Uri.parse("content://media/external/audio/albumart"),
+                        MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
                         albumId
                     ).toString()
 
-                    val songTitle = existing?.title ?: mediaStoreTitle
-                    val songArtist = existing?.artist ?: mediaStoreArtist
-                    val songAlbum = existing?.album ?: mediaStoreAlbum
+                    // Always prefer updated MediaStore values over stale existing DB fields
+                    val songTitle = if (mediaStoreTitle.isNotBlank() && !mediaStoreTitle.equals("<unknown>", ignoreCase = true)) mediaStoreTitle else (existing?.title ?: mediaStoreTitle)
+                    val songArtist = if (mediaStoreArtist.isNotBlank() && !mediaStoreArtist.equals("<unknown>", ignoreCase = true)) mediaStoreArtist else (existing?.artist ?: mediaStoreArtist)
+                    val songAlbum = if (mediaStoreAlbum.isNotBlank() && !mediaStoreAlbum.equals("<unknown>", ignoreCase = true)) mediaStoreAlbum else (existing?.album ?: mediaStoreAlbum)
 
                     val song = SongEntity(
                         id = existing?.id ?: 0,
@@ -95,15 +102,15 @@ class LibraryScanner @Inject constructor(
                         albumArtist = existing?.albumArtist ?: songArtist,
                         album = songAlbum,
                         genre = existing?.genre,
-                        duration = mediaStoreDuration,
-                        trackNumber = existing?.trackNumber ?: mediaStoreTrack,
-                        year = existing?.year ?: if (mediaStoreYear > 0) mediaStoreYear else null,
-                        artPath = albumArtUri,
+                        duration = if (mediaStoreDuration > 0) mediaStoreDuration else (existing?.duration ?: 0),
+                        trackNumber = if (mediaStoreTrack > 0) mediaStoreTrack else existing?.trackNumber,
+                        year = if (mediaStoreYear > 0) mediaStoreYear else existing?.year,
+                        lyrics = existing?.lyrics,
+                        artPath = existing?.artPath ?: albumArtUri,
                         dateAdded = dateAdded,
                         playCount = existing?.playCount ?: 0,
                         lastPlayed = existing?.lastPlayed,
                         isFavorite = existing?.isFavorite ?: false,
-                        lyrics = existing?.lyrics,
                         hasCustomEqualizer = existing?.hasCustomEqualizer ?: false,
                         equalizerGains = existing?.equalizerGains
                     )
@@ -115,6 +122,8 @@ class LibraryScanner @Inject constructor(
                     }
 
                     songsToEnrich.add(song)
+                    scannedCount++
+                    onProgress?.invoke(scannedCount, totalSongs, "Discovering songs...")
 
                     if (songAlbum !in processedAlbums) {
                         processedAlbums.add(songAlbum)
@@ -143,27 +152,27 @@ class LibraryScanner @Inject constructor(
             }
         }
 
-        // Asynchronously enrich metadata in background scope (non-blocking for splash/initial scan)
+        // Asynchronously enrich ID3 metadata in background scope (non-blocking)
         if (songsToEnrich.isNotEmpty()) {
             externalScope.launch {
-                enrichMetadataInBackground(songsToEnrich)
+                enrichMetadataInBackground(songsToEnrich, forceDiskRead)
             }
         }
     }
 
-    private suspend fun enrichMetadataInBackground(songs: List<SongEntity>) = withContext(Dispatchers.IO) {
+    private suspend fun enrichMetadataInBackground(songs: List<SongEntity>, forceDiskRead: Boolean = false) = withContext(Dispatchers.IO) {
         for (song in songs) {
             try {
-                if (song.genre == null || song.lyrics == null || song.year == null) {
+                if (forceDiskRead || song.genre == null || song.lyrics == null || song.year == null) {
                     val embedded = tagReader.read(song.path)
                     val updated = song.copy(
                         title = embedded.title ?: song.title,
                         artist = embedded.artist ?: song.artist,
                         album = embedded.album ?: song.album,
                         albumArtist = embedded.albumArtist ?: song.albumArtist,
-                        genre = song.genre ?: embedded.genre,
-                        lyrics = song.lyrics ?: embedded.lyrics,
-                        year = song.year ?: embedded.year
+                        genre = embedded.genre ?: song.genre,
+                        lyrics = embedded.lyrics ?: song.lyrics,
+                        year = embedded.year ?: song.year
                     )
                     if (updated != song) {
                         libraryDao.updateSong(updated)

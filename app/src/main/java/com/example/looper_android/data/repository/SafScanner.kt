@@ -28,13 +28,21 @@ class SafScanner @Inject constructor(
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val supportedExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus")
 
-    suspend fun scanDirectory(folderUri: Uri) = scanFolder(folderUri)
+    suspend fun scanDirectory(
+        folderUri: Uri,
+        onProgress: ((processed: Int, total: Int, phase: String) -> Unit)? = null
+    ) = scanFolder(folderUri, onProgress)
 
-    suspend fun scanFolder(folderUri: Uri) = withContext(Dispatchers.IO) {
+    suspend fun scanFolder(
+        folderUri: Uri,
+        onProgress: ((processed: Int, total: Int, phase: String) -> Unit)? = null
+    ) = withContext(Dispatchers.IO) {
         val rootDir = DocumentFile.fromTreeUri(context, folderUri) ?: return@withContext
         val processedAlbums = mutableSetOf<String>()
         val processedArtists = mutableSetOf<String>()
         val songsToEnrich = mutableListOf<SongEntity>()
+
+        onProgress?.invoke(0, 0, "Scanning SAF folder...")
 
         db.withTransaction {
             suspend fun traverse(directory: DocumentFile) {
@@ -105,6 +113,8 @@ class SafScanner @Inject constructor(
                                     )
                                 )
                             }
+
+                            onProgress?.invoke(songsToEnrich.size, songsToEnrich.size, "Scanning SAF folder...")
                         }
                     }
                 }

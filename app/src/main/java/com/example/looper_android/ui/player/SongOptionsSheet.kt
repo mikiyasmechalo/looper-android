@@ -25,6 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
@@ -468,6 +470,18 @@ fun EditSongSheet(
     var lyrics by remember(song) { mutableStateOf(song.lyrics ?: "") }
     var pickedArtPath by remember(song) { mutableStateOf<String?>(null) } // null = unchanged
     var isSaving by remember { mutableStateOf(false) }
+
+    val songEditViewModel: SongEditViewModel = hiltViewModel()
+    LaunchedEffect(song) {
+        songEditViewModel.refreshSongFromDisk(song) { fresh ->
+            title = fresh.title
+            artist = fresh.artist ?: ""
+            album = fresh.album ?: ""
+            year = if (fresh.year != null && fresh.year > 0) fresh.year.toString() else ""
+            genre = fresh.genre ?: ""
+            lyrics = fresh.lyrics ?: ""
+        }
+    }
 
     val currentArtPath = pickedArtPath ?: song.artPath
 

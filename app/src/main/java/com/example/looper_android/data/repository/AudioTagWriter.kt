@@ -1,8 +1,13 @@
 package com.example.looper_android.data.repository
 
+import android.app.PendingIntent
+import android.app.RecoverableSecurityException
+import android.content.ContentUris
 import android.content.Context
+import android.content.IntentSender
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
@@ -17,9 +22,20 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+sealed interface WriteResult {
+    object Success : WriteResult
+    data class RequiresPermission(
+        val intentSender: IntentSender,
+        val pendingPathOrUri: String,
+        val pendingEdit: AudioTagWriter.TagEdit
+    ) : WriteResult
+    data class Failure(val error: Throwable) : WriteResult
+}
+
 @Singleton
 class AudioTagWriter @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val safPermissionRepo: SafPermissionRepository
 ) {
     companion object {
         private const val TAG = "AudioTagWriter"
@@ -38,80 +54,150 @@ class AudioTagWriter @Inject constructor(
     )
 
     /**
-     * For MediaStore files where you have a direct filesystem path.
-     * Includes fallback to MediaStore Content Uri if Scoped Storage blocks direct File writing.
+     * Writes tag edits physically to file.
+     * Uses persistent SAF directory tree if available, or direct file write.
+     * Falls back to MediaStore.createWriteRequest system permission prompt on API 30+.
      */
-    suspend fun write(path: String, edit: TagEdit): Boolean = withContext(Dispatchers.IO) {
+    suspend fun write(path: String, edit: TagEdit): WriteResult = withContext(Dispatchers.IO) {
+        // PATH 1: SAF Document URI directly (content://)
+        if (path.startsWith("content://")) {
+            return@withContext writeViaUri(Uri.parse(path), path, edit)
+        }
+
+        // PATH 2: Check if file path is covered by any granted SAF tree folder
+        val treeUri = safPermissionRepo.isPathOrUriCovered(path)
+        if (treeUri != null) {
+            val docUri = safPermissionRepo.buildDocumentUriFromPath(treeUri, path)
+            if (docUri != null) {
+                Log.d(TAG, "Writing via SAF tree document URI for path: $path")
+                val safResult = writeViaUri(docUri, path, edit)
+                if (safResult is WriteResult.Success) {
+                    refreshMediaStore(path)
+                    return@withContext safResult
+                }
+            }
+        }
+
+        // PATH 3: Direct file system write (pre-Android 10 or writable storage)
         val file = File(path)
-        if (!file.exists()) {
-            Log.e(TAG, "File does not exist at path: $path")
-            return@withContext false
+        if (file.exists()) {
+            try {
+                val audioFile = AudioFileIO.read(file)
+                val tag = audioFile.tagOrCreateAndSetDefault
+                applyTagEdit(tag, edit)
+                AudioFileIO.write(audioFile)
+                refreshMediaStore(path)
+                return@withContext WriteResult.Success
+            } catch (e: Exception) {
+                Log.w(TAG, "Direct write failed for $path (${e.javaClass.simpleName}): ${e.message}")
+            }
         }
 
-        // Try direct file system write first
-        try {
-            val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
-
-            applyTagEdit(tag, edit)
-            AudioFileIO.write(audioFile)
-
-            refreshMediaStore(path)
-            return@withContext true
-        } catch (e: Exception) {
-            Log.w(TAG, "Direct file write failed for path $path: ${e.message}. Attempting MediaStore URI fallback.")
-        }
-
-        // Scoped Storage fallback: query MediaStore Content Uri for path and write via stream
+        // PATH 4: Resolve MediaStore content URI and write via stream (will trigger single-file dialog if out of scope)
         val contentUri = getUriFromPath(path)
         if (contentUri != null) {
-            return@withContext write(contentUri, edit)
+            val res = writeViaUri(contentUri, path, edit)
+            if (res !is WriteResult.Failure) return@withContext res
         }
 
-        Log.e(TAG, "Failed to write tags for path: $path and no ContentUri fallback available.")
-        false
+        // Fallback: If MediaStore resolution or stream write failed on API 30+, build write request for content URI
+        if (contentUri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            buildCreateWriteRequest(listOf(contentUri), path, edit)?.let {
+                return@withContext it
+            }
+        }
+
+        Log.e(TAG, "No write path available for: $path")
+        WriteResult.Failure(IllegalStateException("Cannot write tags: file not accessible"))
     }
 
-    /**
-     * For SAF DocumentFile URIs or MediaStore Content URIs (Android 10+ scoped storage).
-     * Streams to a temp file, edits, then streams back.
-     */
-    suspend fun write(uri: Uri, edit: TagEdit): Boolean = withContext(Dispatchers.IO) {
-        val ext = resolveAudioExtension(uri)
-        val tempFile = File(context.cacheDir, "tag_write_${System.currentTimeMillis()}.$ext")
+    suspend fun write(uri: Uri, edit: TagEdit): WriteResult = withContext(Dispatchers.IO) {
+        writeViaUri(uri, uri.toString(), edit)
+    }
 
-        try {
-            // 1. Copy original to temp
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
-            } ?: run {
-                Log.e(TAG, "Failed to open input stream for URI: $uri")
-                return@withContext false
+    private suspend fun writeViaUri(uri: Uri, pathForFallback: String, edit: TagEdit): WriteResult =
+        withContext(Dispatchers.IO) {
+            val ext = resolveAudioExtension(uri)
+            val tempFile = File(context.cacheDir, "tag_write_${System.currentTimeMillis()}.$ext")
+            try {
+                // 1. Copy original → temp file
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                } ?: run {
+                    Log.w(TAG, "Cannot open input stream for $uri. Requesting write permission.")
+                    val contentUri = if (uri.scheme == "content" && uri.authority == "media") uri else getUriFromPath(pathForFallback)
+                    if (contentUri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        return@withContext buildCreateWriteRequest(listOf(contentUri), pathForFallback, edit)
+                            ?: WriteResult.Failure(IllegalStateException("Cannot open input stream for $uri"))
+                    }
+                    return@withContext WriteResult.Failure(IllegalStateException("Cannot open input stream for $uri"))
+                }
+
+                // 2. Apply edits on temp file
+                val audioFile = AudioFileIO.read(tempFile)
+                val tag = audioFile.tagOrCreateAndSetDefault
+                applyTagEdit(tag, edit)
+                AudioFileIO.write(audioFile)
+
+                // 3. Write back via content resolver (mode "rwt" = read-write-truncate)
+                context.contentResolver.openOutputStream(uri, "rwt")?.use { output ->
+                    tempFile.inputStream().use { input -> input.copyTo(output) }
+                } ?: run {
+                    Log.w(TAG, "Cannot open output stream for $uri. Requesting write permission.")
+                    val contentUri = if (uri.scheme == "content" && uri.authority == "media") uri else getUriFromPath(pathForFallback)
+                    if (contentUri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        return@withContext buildCreateWriteRequest(listOf(contentUri), pathForFallback, edit)
+                            ?: WriteResult.Failure(IllegalStateException("Cannot open output stream for $uri"))
+                    }
+                    return@withContext WriteResult.Failure(IllegalStateException("Cannot open output stream for $uri"))
+                }
+
+                WriteResult.Success
+
+            } catch (e: RecoverableSecurityException) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WriteResult.RequiresPermission(
+                        intentSender = e.userAction.actionIntent.intentSender,
+                        pendingPathOrUri = pathForFallback,
+                        pendingEdit = edit
+                    )
+                } else {
+                    WriteResult.Failure(e)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Exception writing to $uri (${e.javaClass.simpleName}): ${e.message}")
+                val contentUri = if (uri.scheme == "content" && uri.authority == "media") uri else getUriFromPath(pathForFallback)
+                if (contentUri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    buildCreateWriteRequest(listOf(contentUri), pathForFallback, edit)
+                        ?: WriteResult.Failure(e)
+                } else {
+                    WriteResult.Failure(e)
+                }
+            } finally {
+                tempFile.delete()
             }
-
-            // 2. Edit temp file
-            val audioFile = AudioFileIO.read(tempFile)
-            val tag = audioFile.tagOrCreateAndSetDefault
-
-            applyTagEdit(tag, edit)
-            AudioFileIO.write(audioFile)
-
-            // 3. Copy temp back to original URI
-            val mode = if (uri.scheme == "content") "rwt" else "w"
-            context.contentResolver.openOutputStream(uri, mode)?.use { output ->
-                tempFile.inputStream().use { input -> input.copyTo(output) }
-            } ?: run {
-                Log.e(TAG, "Failed to open output stream for URI: $uri")
-                return@withContext false
-            }
-
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error writing tags to URI $uri", e)
-            false
-        } finally {
-            tempFile.delete()
         }
+
+    private fun buildCreateWriteRequest(
+        uris: List<Uri>,
+        pathOrUri: String,
+        edit: TagEdit
+    ): WriteResult.RequiresPermission? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val pi: PendingIntent = MediaStore.createWriteRequest(
+                    context.contentResolver, uris
+                )
+                WriteResult.RequiresPermission(
+                    intentSender = pi.intentSender,
+                    pendingPathOrUri = pathOrUri,
+                    pendingEdit = edit
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to build createWriteRequest", e)
+                null
+            }
+        } else null
     }
 
     private fun applyTagEdit(tag: Tag, edit: TagEdit) {
@@ -145,7 +231,6 @@ class AudioTagWriter @Inject constructor(
     }
 
     private fun resolveAudioExtension(uri: Uri): String {
-        // 1. Try DocumentFile name
         try {
             val docFile = DocumentFile.fromSingleUri(context, uri)
             val ext = docFile?.name?.substringAfterLast('.', "")?.lowercase()
@@ -154,7 +239,6 @@ class AudioTagWriter @Inject constructor(
             }
         } catch (_: Exception) {}
 
-        // 2. Try OpenableColumns.DISPLAY_NAME query
         try {
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
@@ -170,7 +254,6 @@ class AudioTagWriter @Inject constructor(
             }
         } catch (_: Exception) {}
 
-        // 3. Check MIME type
         try {
             val mimeType = context.contentResolver.getType(uri)
             if (mimeType != null) {
@@ -184,19 +267,11 @@ class AudioTagWriter @Inject constructor(
             }
         } catch (_: Exception) {}
 
-        // 4. Try last path segment
-        val lastPath = uri.lastPathSegment
-        if (lastPath != null) {
-            val ext = lastPath.substringAfterLast('.', "").lowercase()
-            if (ext in VALID_AUDIO_EXTENSIONS) {
-                return ext
-            }
-        }
-
         return "mp3"
     }
 
     private fun getUriFromPath(path: String): Uri? {
+        if (path.isBlank()) return null
         val projection = arrayOf(MediaStore.Audio.Media._ID)
         val selection = "${MediaStore.Audio.Media.DATA} = ?"
         val selectionArgs = arrayOf(path)
@@ -212,7 +287,7 @@ class AudioTagWriter @Inject constructor(
                     val idColumn = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
                     if (idColumn != -1) {
                         val id = cursor.getLong(idColumn)
-                        android.content.ContentUris.withAppendedId(
+                        ContentUris.withAppendedId(
                             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                             id
                         )

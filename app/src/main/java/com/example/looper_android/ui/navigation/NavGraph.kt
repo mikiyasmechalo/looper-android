@@ -1,16 +1,14 @@
 package com.example.looper_android.ui.navigation
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import android.content.Context
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,6 +17,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.PlayerScreen
 import com.example.looper_android.ui.screens.DashboardScreen
+import com.example.looper_android.ui.welcome.WelcomeScreen
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -26,11 +25,32 @@ fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
     playbackViewModel: PlaybackViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val isWelcomeBypassed = remember {
+        val prefs = context.getSharedPreferences("app_settings_prefs", Context.MODE_PRIVATE)
+        prefs.getBoolean("is_welcome_bypassed", false)
+    }
+
+    val startDestination = if (isWelcomeBypassed) "dashboard" else "welcome"
+
     SharedTransitionLayout {
         NavHost(
             navController = navController,
-            startDestination = "dashboard"
+            startDestination = startDestination
         ) {
+            composable(
+                route = "welcome",
+                enterTransition = { fadeIn(animationSpec = tween(400)) },
+                exitTransition = { fadeOut(animationSpec = tween(400)) }
+            ) {
+                WelcomeScreen(
+                    onNavigateToDashboard = {
+                        navController.navigate("dashboard") {
+                            popUpTo("welcome") { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable(
                 route = "dashboard",
                 enterTransition = { fadeIn(animationSpec = tween(400)) },
