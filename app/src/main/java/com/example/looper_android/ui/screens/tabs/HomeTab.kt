@@ -72,12 +72,15 @@ import kotlin.math.abs
 fun HomeTab(
     viewModel: HomeViewModel = hiltViewModel(),
     songEditViewModel: SongEditViewModel = hiltViewModel(),
+    allSongsViewModel: com.example.looper_android.ui.library.AllSongsViewModel = hiltViewModel(),
     onNavigateToSearch: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToSongs: () -> Unit = {},
     onNavigateToArtists: () -> Unit = {},
     onNavigateToAlbums: () -> Unit = {},
-    onNavigateToGenres: () -> Unit = {}
+    onNavigateToGenres: () -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
@@ -86,6 +89,9 @@ fun HomeTab(
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
     var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
 
     Column(
         modifier = Modifier
@@ -239,9 +245,18 @@ fun HomeTab(
             song = song,
             accentColor = playbackState.accentColor,
             onDismiss = { selectedSongForOptions = null },
+            isFavorite = song.isFavorite,
+            onPlayNextClick = { playbackViewModel.addNext(song) },
+            onAddToQueueClick = { playbackViewModel.addToQueue(song) },
+            onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
             onEditSongClick = {
                 selectedSongForEdit = song
-                selectedSongForOptions = null
+            },
+            onSongDetailsClick = {
+                selectedSongForDetails = song
+            },
+            onDeleteClick = {
+                selectedSongForDelete = song
             }
         )
     }
@@ -264,6 +279,42 @@ fun HomeTab(
                 )
                 selectedSongForEdit = null
             }
+        )
+    }
+
+    selectedSongForDelete?.let { song ->
+        com.example.looper_android.ui.player.DeleteSongDialog(
+            songTitle = song.title,
+            onDismiss = { selectedSongForDelete = null },
+            onConfirm = {
+                allSongsViewModel.deleteSong(song)
+                selectedSongForDelete = null
+            }
+        )
+    }
+
+    selectedSongForDetails?.let { song ->
+        com.example.looper_android.ui.player.SongDetailsBottomSheet(
+            song = song,
+            onDismiss = { selectedSongForDetails = null },
+            accentColor = playbackState.accentColor,
+            onArtistClick = { artist ->
+                selectedSongForDetails = null
+                onNavigateToArtist(artist)
+            },
+            onAlbumClick = { album ->
+                selectedSongForDetails = null
+                onNavigateToAlbum(album)
+            },
+            onTechnicalInfoClick = { selectedSongForInfo = song }
+        )
+    }
+
+    selectedSongForInfo?.let { song ->
+        com.example.looper_android.ui.player.TechnicalInfoBottomSheet(
+            song = song,
+            onDismiss = { selectedSongForInfo = null },
+            accentColor = playbackState.accentColor
         )
     }
 }

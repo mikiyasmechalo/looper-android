@@ -1,5 +1,6 @@
 package com.example.looper_android.ui.screens
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -138,9 +139,27 @@ fun DashboardScreen(
                     },
                     onNavigateToArtists = { navController.navigate("category/artists") },
                     onNavigateToAlbums = { navController.navigate("category/albums") },
-                    onNavigateToGenres = { navController.navigate("category/genres") }
+                    onNavigateToGenres = { navController.navigate("category/genres") },
+                    onNavigateToArtist = { artist ->
+                        val encoded = Uri.encode(artist)
+                        navController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onNavigateToAlbum = { album ->
+                        val encoded = Uri.encode(album)
+                        navController.navigate("collection_detail/album/$encoded")
+                    }
                 )
-                1 -> AllSongsScreen(onShufflePlayClick = {})
+                1 -> AllSongsScreen(
+                    onShufflePlayClick = {},
+                    onNavigateToArtist = { artist ->
+                        val encoded = Uri.encode(artist)
+                        navController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onNavigateToAlbum = { album ->
+                        val encoded = Uri.encode(album)
+                        navController.navigate("collection_detail/album/$encoded")
+                    }
+                )
                 2 -> LibraryTab(
                     onNavigateToCategory = { categoryKey ->
                         navController.navigate("category/$categoryKey")

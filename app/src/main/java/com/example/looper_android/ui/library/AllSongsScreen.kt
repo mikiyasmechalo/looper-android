@@ -68,7 +68,9 @@ import com.example.looper_android.ui.widgets.PremiumSection
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
     songEditViewModel: SongEditViewModel = hiltViewModel(),
-    onShufflePlayClick: () -> Unit
+    onShufflePlayClick: () -> Unit,
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {}
 ) {
     val songs by viewModel.sortedSongs.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
@@ -399,10 +401,12 @@ fun AllSongsScreen(
                 onDismiss = { selectedSongForDetails = null },
                 accentColor = playbackState.accentColor,
                 onArtistClick = { artist ->
-                    // Navigate to artist
+                    selectedSongForDetails = null
+                    onNavigateToArtist(artist)
                 },
                 onAlbumClick = { album ->
-                    // Navigate to album
+                    selectedSongForDetails = null
+                    onNavigateToAlbum(album)
                 },
                 onTechnicalInfoClick = {
                     selectedSongForInfo = song
@@ -426,8 +430,19 @@ fun SongTile(
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
-    onOptionsClick: () -> Unit
+    onOptionsClick: () -> Unit,
+    showAlbumInSubtitle: Boolean = true
 ) {
+    val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+    val albumName = song.album?.trim()?.ifBlank { null }
+    val subtitleText = remember(song.artist, song.album, showAlbumInSubtitle) {
+        if (showAlbumInSubtitle && !albumName.isNullOrEmpty() && !albumName.equals("Unknown Album", ignoreCase = true)) {
+            "$artistName • $albumName"
+        } else {
+            artistName
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -486,7 +501,7 @@ fun SongTile(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = song.artist ?: "Unknown Artist",
+                text = subtitleText,
                 color = Color.White.copy(alpha = 0.5f),
                 fontSize = 13.sp,
                 fontFamily = DmSansFontFamily,

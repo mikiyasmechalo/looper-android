@@ -126,8 +126,16 @@ fun QueueBottomSheet(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                val queueArtistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                                val queueAlbumName = song.album?.trim()?.ifBlank { null }
+                                val queueSubtitleText = if (!queueAlbumName.isNullOrEmpty() && !queueAlbumName.equals("Unknown Album", ignoreCase = true)) {
+                                    "$queueArtistName • $queueAlbumName"
+                                } else {
+                                    queueArtistName
+                                }
+
                                 Text(
-                                    text = song.artist ?: "Unknown Artist",
+                                    text = queueSubtitleText,
                                     color = Color.White.copy(alpha = 0.5f),
                                     fontFamily = JostFontFamily,
                                     fontSize = 14.sp,

@@ -273,7 +273,17 @@ fun AppNavGraph(
                     popEnterTransition = horizontalSharedAxisPopEnter,
                     popExitTransition = horizontalSharedAxisPopExit
                 ) {
-                    FavoritesScreen(onBackClick = { navController.popBackStack() })
+                    FavoritesScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onNavigateToArtist = { artist ->
+                            val encoded = Uri.encode(artist)
+                            navController.navigate("collection_detail/artist/$encoded")
+                        },
+                        onNavigateToAlbum = { album ->
+                            val encoded = Uri.encode(album)
+                            navController.navigate("collection_detail/album/$encoded")
+                        }
+                    )
                 }
 
                 composable(
@@ -283,7 +293,17 @@ fun AppNavGraph(
                     popEnterTransition = horizontalSharedAxisPopEnter,
                     popExitTransition = horizontalSharedAxisPopExit
                 ) {
-                    HistoryScreen(onBackClick = { navController.popBackStack() })
+                    HistoryScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onNavigateToArtist = { artist ->
+                            val encoded = Uri.encode(artist)
+                            navController.navigate("collection_detail/artist/$encoded")
+                        },
+                        onNavigateToAlbum = { album ->
+                            val encoded = Uri.encode(album)
+                            navController.navigate("collection_detail/album/$encoded")
+                        }
+                    )
                 }
 
                 // Collection Detail route with Flutter Horizontal Shared Axis transitions
@@ -305,7 +325,15 @@ fun AppNavGraph(
                     CollectionDetailScreen(
                         title = title,
                         type = type,
-                        onBackClick = { navController.popBackStack() }
+                        onBackClick = { navController.popBackStack() },
+                        onNavigateToArtist = { artist ->
+                            val encoded = Uri.encode(artist)
+                            navController.navigate("collection_detail/artist/$encoded")
+                        },
+                        onNavigateToAlbum = { album ->
+                            val encoded = Uri.encode(album)
+                            navController.navigate("collection_detail/album/$encoded")
+                        }
                     )
                 }
 
