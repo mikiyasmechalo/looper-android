@@ -29,6 +29,9 @@ interface LibraryDao {
     @Update
     suspend fun updateSong(song: SongEntity)
 
+    @Query("UPDATE songs SET playCount = playCount + 1, lastPlayed = :lastPlayed WHERE id = :id")
+    suspend fun incrementPlayCount(id: Long, lastPlayed: Long = System.currentTimeMillis())
+
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: Long)
 
@@ -58,13 +61,4 @@ interface LibraryDao {
     // --- Playlists ---
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE ASC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPlaylist(playlist: PlaylistEntity)
-
-    @Update
-    suspend fun updatePlaylist(playlist: PlaylistEntity)
-
-    @Query("DELETE FROM playlists WHERE id = :id")
-    suspend fun deletePlaylist(id: Long)
 }

@@ -89,17 +89,18 @@ class LibraryScanner @Inject constructor(
                         albumId
                     ).toString()
 
-                    // Always prefer updated MediaStore values over stale existing DB fields
                     val songTitle = if (mediaStoreTitle.isNotBlank() && !mediaStoreTitle.equals("<unknown>", ignoreCase = true)) mediaStoreTitle else (existing?.title ?: mediaStoreTitle)
                     val songArtist = if (mediaStoreArtist.isNotBlank() && !mediaStoreArtist.equals("<unknown>", ignoreCase = true)) mediaStoreArtist else (existing?.artist ?: mediaStoreArtist)
                     val songAlbum = if (mediaStoreAlbum.isNotBlank() && !mediaStoreAlbum.equals("<unknown>", ignoreCase = true)) mediaStoreAlbum else (existing?.album ?: mediaStoreAlbum)
+
+                    val effectiveArtist = existing?.albumArtist?.trim()?.ifBlank { null } ?: songArtist
 
                     val song = SongEntity(
                         id = existing?.id ?: 0,
                         path = path,
                         title = songTitle,
                         artist = songArtist,
-                        albumArtist = existing?.albumArtist ?: songArtist,
+                        albumArtist = effectiveArtist,
                         album = songAlbum,
                         genre = existing?.genre,
                         duration = if (mediaStoreDuration > 0) mediaStoreDuration else (existing?.duration ?: 0),
@@ -130,7 +131,7 @@ class LibraryScanner @Inject constructor(
                         libraryDao.insertAlbum(
                             AlbumEntity(
                                 name = songAlbum,
-                                artist = songArtist,
+                                artist = effectiveArtist,
                                 artPath = albumArtUri,
                                 year = song.year,
                                 dateAdded = dateAdded
@@ -138,11 +139,11 @@ class LibraryScanner @Inject constructor(
                         )
                     }
 
-                    if (songArtist !in processedArtists) {
-                        processedArtists.add(songArtist)
+                    if (effectiveArtist !in processedArtists) {
+                        processedArtists.add(effectiveArtist)
                         libraryDao.insertArtist(
                             ArtistEntity(
-                                name = songArtist,
+                                name = effectiveArtist,
                                 artPath = null,
                                 artistImageUrl = null
                             )
@@ -163,19 +164,30 @@ class LibraryScanner @Inject constructor(
     private suspend fun enrichMetadataInBackground(songs: List<SongEntity>, forceDiskRead: Boolean = false) = withContext(Dispatchers.IO) {
         for (song in songs) {
             try {
-                if (forceDiskRead || song.genre == null || song.lyrics == null || song.year == null) {
+                if (forceDiskRead || song.genre == null || song.lyrics == null || song.year == null || song.albumArtist == null) {
                     val embedded = tagReader.read(song.path)
+                    val updatedAlbumArtist = embedded.albumArtist?.trim()?.ifBlank { null } ?: song.albumArtist ?: song.artist
                     val updated = song.copy(
                         title = embedded.title ?: song.title,
                         artist = embedded.artist ?: song.artist,
                         album = embedded.album ?: song.album,
-                        albumArtist = embedded.albumArtist ?: song.albumArtist,
+                        albumArtist = updatedAlbumArtist,
                         genre = embedded.genre ?: song.genre,
                         lyrics = embedded.lyrics ?: song.lyrics,
                         year = embedded.year ?: song.year
                     )
                     if (updated != song) {
                         libraryDao.updateSong(updated)
+                        // Also insert artist entity for new albumArtist if needed
+                        if (updatedAlbumArtist != null) {
+                            libraryDao.insertArtist(
+                                ArtistEntity(
+                                    name = updatedAlbumArtist,
+                                    artPath = null,
+                                    artistImageUrl = null
+                                )
+                            )
+                        }
                     }
                 }
             } catch (_: Exception) { }

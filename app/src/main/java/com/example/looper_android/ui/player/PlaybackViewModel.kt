@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -57,6 +58,8 @@ class PlaybackViewModel @Inject constructor(
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+
+    private var lastIncrementedSongId: Long? = null
 
     private var songObserveJob: kotlinx.coroutines.Job? = null
 
@@ -102,20 +105,26 @@ class PlaybackViewModel @Inject constructor(
                     duration = player.duration.coerceAtLeast(0)
                 )
 
+                if (songId > 0L && songId != lastIncrementedSongId) {
+                    lastIncrementedSongId = songId
+                    viewModelScope.launch(Dispatchers.IO) {
+                        libraryDao.incrementPlayCount(songId)
+                    }
+                }
+
                 songObserveJob?.cancel()
                 songObserveJob = viewModelScope.launch(Dispatchers.IO) {
-                    libraryDao.getSongById(songId).collect { dbSong ->
-                        val targetSong = dbSong ?: instantSong
-                        val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
-                        val accent = extractAccentColor(targetSong)
+                    val dbSong = libraryDao.getSongById(songId).firstOrNull()
+                    val targetSong = dbSong ?: instantSong
+                    val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
+                    val accent = extractAccentColor(targetSong)
 
-                        _playbackState.value = _playbackState.value.copy(
-                            currentSong = targetSong,
-                            isFavorite = targetSong.isFavorite,
-                            audioQualityText = dbQualityText,
-                            accentColor = accent
-                        )
-                    }
+                    _playbackState.value = _playbackState.value.copy(
+                        currentSong = targetSong,
+                        isFavorite = targetSong.isFavorite,
+                        audioQualityText = dbQualityText,
+                        accentColor = accent
+                    )
                 }
             } else {
                 _playbackState.value = _playbackState.value.copy(currentSong = null)

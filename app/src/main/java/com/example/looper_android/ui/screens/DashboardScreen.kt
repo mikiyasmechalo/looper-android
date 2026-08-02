@@ -1,23 +1,41 @@
 package com.example.looper_android.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.looper_android.ui.components.PremiumNavbar
 import com.example.looper_android.ui.library.AllSongsScreen
 import com.example.looper_android.ui.screens.tabs.HomeTab
 import com.example.looper_android.ui.screens.tabs.LibraryTab
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -27,7 +45,11 @@ fun DashboardScreen(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
-    var selectedTabIndex by remember { mutableIntStateOf(1) } // Default to Songs Tab
+    // Default screen is Home tab (index 0), remembered across screen transitions/player closes
+    var selectedTabIndex by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    val pagerState = rememberPagerState(initialPage = selectedTabIndex, pageCount = { 3 })
+    val coroutineScope = rememberCoroutineScope()
+
     val allSongsViewModel: com.example.looper_android.ui.library.AllSongsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -70,6 +92,11 @@ fun DashboardScreen(
         }
     }
 
+    // Synchronize pager swipe with selectedTabIndex
+    LaunchedEffect(pagerState.currentPage) {
+        selectedTabIndex = pagerState.currentPage
+    }
+
     val density = androidx.compose.ui.platform.LocalDensity.current
     val topInset: androidx.compose.ui.unit.Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     var savedTopPx by remember { mutableStateOf<Float?>(null) }
@@ -87,25 +114,23 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(Color(0xFF11110E))
     ) {
-        // Main Tab Content
-        Box(modifier = Modifier.fillMaxSize().padding(top = stableTopDp)) {
-            Box(modifier = Modifier.fillMaxSize()
-                .alpha(if (selectedTabIndex == 0) 1f else 0f)
-                .zIndex(if (selectedTabIndex == 0) 1f else 0f)
-            ) {
-                HomeTab()
-            }
-            Box(modifier = Modifier.fillMaxSize()
-                .alpha(if (selectedTabIndex == 1) 1f else 0f)
-                .zIndex(if (selectedTabIndex == 1) 1f else 0f)
-            ) {
-                AllSongsScreen(onShufflePlayClick = {})
-            }
-            Box(modifier = Modifier.fillMaxSize()
-                .alpha(if (selectedTabIndex == 2) 1f else 0f)
-                .zIndex(if (selectedTabIndex == 2) 1f else 0f)
-            ) {
-                LibraryTab()
+        // Main Tab Content with Horizontal Page Transition
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = stableTopDp)
+        ) { page ->
+            when (page) {
+                0 -> HomeTab(
+                    onNavigateToSongs = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(1)
+                        }
+                    }
+                )
+                1 -> AllSongsScreen(onShufflePlayClick = {})
+                2 -> LibraryTab()
             }
         }
 
@@ -114,7 +139,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(240.dp) // Taller gradient for mini player
+                .height(240.dp)
                 .background(
                     Brush.verticalGradient(
                         0.0f to Color.Transparent,
@@ -141,7 +166,11 @@ fun DashboardScreen(
             
             PremiumNavbar(
                 currentIndex = selectedTabIndex,
-                onTap = { selectedTabIndex = it },
+                onTap = { index ->
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(index)
+                    }
+                },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope
             )

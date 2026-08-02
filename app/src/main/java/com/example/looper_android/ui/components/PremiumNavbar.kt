@@ -1,7 +1,7 @@
 package com.example.looper_android.ui.components
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -30,19 +30,8 @@ fun PremiumNavbar(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
-    val gap1 by animateDpAsState(
-        targetValue = if (currentIndex == 0 || currentIndex == 1) 6.dp else 0.dp,
-        animationSpec = tween(300)
-    )
-    val gap2 by animateDpAsState(
-        targetValue = if (currentIndex == 1 || currentIndex == 2) 6.dp else 0.dp,
-        animationSpec = tween(300)
-    )
-
-    val homeRadiusEnd by animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, tween(300))
-    val songsRadiusStart by animateDpAsState(if (currentIndex == 2) 0.dp else 12.dp, tween(300))
-    val songsRadiusEnd by animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, tween(300))
-    val libraryRadiusStart by animateDpAsState(if (currentIndex == 0) 0.dp else 12.dp, tween(300))
+    val selectedBg = Color(0xFF2A2A2A)
+    val unselectedBg = Color(0xFF1E1E1E)
 
     Box(
         modifier = modifier
@@ -52,53 +41,148 @@ fun PremiumNavbar(
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // HOME (Morphs to Shuffle button in PlayerScreen)
-            PremiumSection(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
-                shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = homeRadiusEnd, bottomEnd = homeRadiusEnd),
-                backgroundColor = if (currentIndex == 0) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
-                showRightBorder = currentIndex == 0 || currentIndex == 1,
-                onClick = { onTap(0) }
-            ) {
-                NavItem(icon = Lucide.House, label = "Home", isSelected = currentIndex == 0)
-            }
+            when (currentIndex) {
+                0 -> {
+                    // Home is selected (Pill 1)
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
+                        backgroundColor = selectedBg,
+                        onClick = { onTap(0) }
+                    ) {
+                        NavItem(icon = Lucide.House, label = "Home", isSelected = true)
+                    }
 
-            Spacer(modifier = Modifier.width(gap1))
+                    Spacer(modifier = Modifier.width(6.dp))
 
-            // SONGS (Morphs to Repeat button in PlayerScreen)
-            PremiumSection(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
-                shape = RoundedCornerShape(topStart = songsRadiusStart, bottomStart = songsRadiusStart, topEnd = songsRadiusEnd, bottomEnd = songsRadiusEnd),
-                backgroundColor = if (currentIndex == 1) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
-                showLeftBorder = currentIndex == 0 || currentIndex == 1,
-                showRightBorder = currentIndex == 1 || currentIndex == 2,
-                onClick = { onTap(1) }
-            ) {
-                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = currentIndex == 1)
-            }
+                    // Combined unselected section for Songs & Library (No seam!)
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(2f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
+                        backgroundColor = unselectedBg
+                    ) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { onTap(1) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false)
+                            }
 
-            Spacer(modifier = Modifier.width(gap2))
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { onTap(2) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                NavItem(icon = Lucide.Library, label = "Library", isSelected = false)
+                            }
+                        }
+                    }
+                }
+                1 -> {
+                    // Songs is selected (Pill 2 in middle)
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
+                        backgroundColor = unselectedBg,
+                        onClick = { onTap(0) }
+                    ) {
+                        NavItem(icon = Lucide.House, label = "Home", isSelected = false)
+                    }
 
-            // LIBRARY (Morphs to Lyrics button in PlayerScreen)
-            PremiumSection(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
-                shape = RoundedCornerShape(topStart = libraryRadiusStart, bottomStart = libraryRadiusStart, topEnd = 36.dp, bottomEnd = 36.dp),
-                backgroundColor = if (currentIndex == 2) Color(0xFF2A2A2A) else Color(0xFF1E1E1E),
-                showLeftBorder = currentIndex == 1 || currentIndex == 2,
-                onClick = { onTap(2) }
-            ) {
-                NavItem(icon = Lucide.Library, label = "Library", isSelected = currentIndex == 2)
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(12.dp),
+                        backgroundColor = selectedBg,
+                        onClick = { onTap(1) }
+                    ) {
+                        NavItem(icon = Lucide.Music2, label = "Songs", isSelected = true)
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
+                        backgroundColor = unselectedBg,
+                        onClick = { onTap(2) }
+                    ) {
+                        NavItem(icon = Lucide.Library, label = "Library", isSelected = false)
+                    }
+                }
+                else -> {
+                    // Library is selected (Pill 3)
+                    // Combined unselected section for Home & Songs (No seam!)
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(2f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
+                        backgroundColor = unselectedBg
+                    ) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { onTap(0) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                NavItem(icon = Lucide.House, label = "Home", isSelected = false)
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { onTap(1) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    PremiumSection(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
+                        shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
+                        backgroundColor = selectedBg,
+                        onClick = { onTap(2) }
+                    ) {
+                        NavItem(icon = Lucide.Library, label = "Library", isSelected = true)
+                    }
+                }
             }
         }
     }
@@ -106,7 +190,7 @@ fun PremiumNavbar(
 
 @Composable
 fun NavItem(icon: ImageVector, label: String, isSelected: Boolean) {
-    val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "scale")
+    val scale = if (isSelected) 1.1f else 1f
     val color = if (isSelected) Color(0xFF55DF69) else Color.White.copy(alpha = 0.4f)
     val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
