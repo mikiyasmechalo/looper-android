@@ -269,10 +269,11 @@ fun Modifier.sharedBoundsOrElement(
     animatedVisibilityScope: AnimatedVisibilityScope?,
     clipShape: androidx.compose.ui.graphics.Shape? = null
 ): Modifier {
+    val base = if (clipShape != null) this.clip(clipShape) else this
     return if (sharedTransitionScope != null && animatedVisibilityScope != null) {
         with(sharedTransitionScope) {
             val contentState = rememberSharedContentState(key = key)
-            val boundsModifier = this@sharedBoundsOrElement.sharedBounds(
+            base.sharedBounds(
                 sharedContentState = contentState,
                 animatedVisibilityScope = animatedVisibilityScope,
                 boundsTransform = { _, _ ->
@@ -282,13 +283,8 @@ fun Modifier.sharedBoundsOrElement(
                     )
                 }
             )
-            if (clipShape != null) {
-                boundsModifier.clip(clipShape)
-            } else {
-                boundsModifier
-            }
         }
     } else {
-        this
+        base
     }
 }

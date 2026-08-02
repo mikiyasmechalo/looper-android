@@ -434,6 +434,34 @@ class PlaybackViewModel @Inject constructor(
         player.addMediaItem(mediaItem)
     }
 
+    fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false) {
+        if (songs.isEmpty()) return
+        if (disableShuffleMode) {
+            player.shuffleModeEnabled = false
+        }
+        val mediaItems = songs.map { song ->
+            val mediaUri = Uri.parse(song.path)
+            MediaItem.Builder()
+                .setMediaId(song.id.toString())
+                .setUri(mediaUri)
+                .setMediaMetadata(
+                    androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist ?: "Unknown Artist")
+                        .setAlbumTitle(song.album ?: "Unknown Album")
+                        .setArtworkUri(song.artPath?.let { Uri.parse(it) })
+                        .build()
+                )
+                .build()
+        }
+
+        player.stop()
+        player.clearMediaItems()
+        player.setMediaItems(mediaItems, initialIndex.coerceIn(songs.indices), 0L)
+        player.prepare()
+        player.play()
+    }
+
     fun clearQueue() {
         player.stop()
         player.clearMediaItems()

@@ -43,10 +43,10 @@ fun DashboardScreen(
     navController: NavController,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
-    playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+    selectedTabIndex: Int = 0,
+    onTabSelected: (Int) -> Unit = {}
 ) {
-    // Default screen is Home tab (index 0), remembered across screen transitions/player closes
-    var selectedTabIndex by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val pagerState = rememberPagerState(initialPage = selectedTabIndex, pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
 
@@ -92,9 +92,17 @@ fun DashboardScreen(
         }
     }
 
+    LaunchedEffect(selectedTabIndex) {
+        if (pagerState.currentPage != selectedTabIndex) {
+            pagerState.scrollToPage(selectedTabIndex)
+        }
+    }
+
     // Synchronize pager swipe with selectedTabIndex
     LaunchedEffect(pagerState.currentPage) {
-        selectedTabIndex = pagerState.currentPage
+        if (selectedTabIndex != pagerState.currentPage) {
+            onTabSelected(pagerState.currentPage)
+        }
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -127,53 +135,18 @@ fun DashboardScreen(
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(1)
                         }
-                    }
+                    },
+                    onNavigateToArtists = { navController.navigate("category/artists") },
+                    onNavigateToAlbums = { navController.navigate("category/albums") },
+                    onNavigateToGenres = { navController.navigate("category/genres") }
                 )
                 1 -> AllSongsScreen(onShufflePlayClick = {})
-                2 -> LibraryTab()
-            }
-        }
-
-        // Gradient fading bottom to black behind navbar (like Flutter)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(240.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0.0f to Color.Transparent,
-                        0.35f to Color.Black.copy(alpha = 0.45f),
-                        0.7f to Color.Black.copy(alpha = 0.8f),
-                        1.0f to Color.Black
-                    )
-                )
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp, top = 2.dp)
-        ) {
-            com.example.looper_android.ui.widgets.PremiumMusicBar(
-                viewModel = playbackViewModel,
-                onNavigateToPlayer = { navController.navigate("player") },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope
-            )
-            
-            PremiumNavbar(
-                currentIndex = selectedTabIndex,
-                onTap = { index ->
-                    coroutineScope.launch {
-                        pagerState.animateScrollToPage(index)
+                2 -> LibraryTab(
+                    onNavigateToCategory = { categoryKey ->
+                        navController.navigate("category/$categoryKey")
                     }
-                },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope
-            )
+                )
+            }
         }
     }
 }

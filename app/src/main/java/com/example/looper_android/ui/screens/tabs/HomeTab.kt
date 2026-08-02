@@ -143,9 +143,7 @@ fun HomeTab(
         )
 
         if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF55DF69))
-            }
+            com.example.looper_android.ui.components.PremiumLoadingView()
         } else if (uiState.quickPicks.isEmpty() && uiState.topSongs.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No songs found", color = Color.Gray)

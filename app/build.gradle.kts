@@ -92,5 +92,6 @@ dependencies {
 
     implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("com.composables:icons-lucide-cmp:2.2.1")
+    implementation("com.airbnb.android:lottie-compose:6.4.0")
 }
 

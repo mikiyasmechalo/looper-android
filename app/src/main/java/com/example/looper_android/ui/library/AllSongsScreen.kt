@@ -234,10 +234,8 @@ fun AllSongsScreen(
                     )
                 }
             ) {
-                if (isLoading && songs.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF55DF69))
-                    }
+                if ((!isDbLoaded || isLoading) && songs.isEmpty()) {
+                    com.example.looper_android.ui.components.PremiumLoadingView()
                 } else if (songs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No songs found.", color = Color.Gray)
