@@ -65,8 +65,7 @@ fun PremiumNavbar(
                     PremiumSection(
                         modifier = Modifier
                             .weight(2f)
-                            .fillMaxHeight()
-                            .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
+                            .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
                         backgroundColor = unselectedBg
                     ) {
@@ -75,6 +74,7 @@ fun PremiumNavbar(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope)
                                     .clickable { onTap(1) },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -85,6 +85,7 @@ fun PremiumNavbar(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope)
                                     .clickable { onTap(2) },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -141,8 +142,7 @@ fun PremiumNavbar(
                     PremiumSection(
                         modifier = Modifier
                             .weight(2f)
-                            .fillMaxHeight()
-                            .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
+                            .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
                         backgroundColor = unselectedBg
                     ) {
@@ -151,6 +151,7 @@ fun PremiumNavbar(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope)
                                     .clickable { onTap(0) },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -161,6 +162,7 @@ fun PremiumNavbar(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope)
                                     .clickable { onTap(1) },
                                 contentAlignment = Alignment.Center
                             ) {

@@ -42,6 +42,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.looper_android.ui.components.PremiumNavbar
@@ -139,6 +140,33 @@ fun DashboardScreen(
     // Synchronize pager swipe with selectedTabIndex
     LaunchedEffect(pagerState.currentPage) {
         selectedTabIndex = pagerState.currentPage
+    }
+    // 1. Observe back stack changes safely
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+
+    // 2. Safely retrieve the parent back stack entry as a nullable type
+    val dashboardEntry = remember(currentBackStackEntry) {
+        runCatching { navController.getBackStackEntry("dashboard") }.getOrNull()
+    }
+
+    // 3. Collect StateFlow safely using safe calls (?.let)
+    val navigateTo by remember(dashboardEntry) {
+        dashboardEntry?.savedStateHandle?.getStateFlow<String?>("navigate_to", null)
+    }?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    // 4. Handle navigation effect
+    LaunchedEffect(navigateTo) {
+        navigateTo?.let { navString ->
+            // Use safe call when updating savedStateHandle
+            dashboardEntry?.savedStateHandle?.set("navigate_to", null)
+
+            val parts = navString.split(":", limit = 2)
+            if (parts.size == 2) {
+                val type = parts[0]
+                val value = Uri.encode(parts[1])
+                childNavController.navigate("collection_detail/$type/$value")
+            }
+        }
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current

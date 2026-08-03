@@ -338,27 +338,29 @@ fun PlayerScreen(
                     val showAlbum = !albumName.isNullOrEmpty() && !albumName.equals("Unknown Album", ignoreCase = true)
 
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.sharedBoundsOrElement(
-                            key = "song_artist",
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = subtitleText,
+                            text = artistName,
                             color = Color.White.copy(alpha = 0.60f),
                             fontFamily = DmSansFontFamily,
                             fontSize = 16.sp,
                             letterSpacing = 0.2.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable {
-                                song.artist?.let {
-                                    onBack()
-                                    onArtistClick(it)
+                            modifier = Modifier
+                                .sharedBoundsOrElement(
+                                    key = "song_artist",
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedVisibilityScope = animatedVisibilityScope
+                                )
+                                .clickable {
+                                    song.artist?.let {
+                                        onBack()
+                                        onArtistClick(it)
+                                    }
                                 }
-                            }
+                                .weight(1f, fill = false)
                         )
                         if (showAlbum && albumName != null) {
                             Text(
@@ -375,10 +377,12 @@ fun PlayerScreen(
                                 letterSpacing = 0.2.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.clickable {
-                                    onBack()
-                                    onAlbumClick(albumName)
-                                }
+                                modifier = Modifier
+                                    .clickable {
+                                        onBack()
+                                        onAlbumClick(albumName)
+                                    }
+                                    .weight(1f, fill = false)
                             )
                         }
                     }
@@ -629,11 +633,9 @@ fun PlayerScreen(
             sleepTimerLabel = state.sleepTimerLabel,
             onFavoriteClick = { viewModel.toggleFavorite() },
             onArtistClick = { artist ->
-                onBack()
                 onArtistClick(artist)
             },
             onAlbumClick = { album ->
-                onBack()
                 onAlbumClick(album)
             },
             onEqualizerClick = onNavigateToEqualizer,
@@ -649,11 +651,9 @@ fun PlayerScreen(
             onDismiss = { showDetailsSheet = false },
             accentColor = state.accentColor,
             onArtistClick = { artist ->
-                onBack()
                 onArtistClick(artist)
             },
             onAlbumClick = { album ->
-                onBack()
                 onAlbumClick(album)
             },
             onTechnicalInfoClick = {

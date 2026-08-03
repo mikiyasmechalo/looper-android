@@ -84,12 +84,12 @@ fun AppNavGraph(
                     onNavigateToLyrics = { navController.navigate("lyrics") },
                     onNavigateToEqualizer = { navController.navigate("equalizer") },
                     onArtistClick = { artist ->
-                        val encoded = Uri.encode(artist)
-                        navController.navigate("collection_detail/artist/$encoded")
+                        navController.getBackStackEntry("dashboard").savedStateHandle["navigate_to"] = "artist:$artist"
+                        navController.popBackStack("dashboard", inclusive = false)
                     },
                     onAlbumClick = { album ->
-                        val encoded = Uri.encode(album)
-                        navController.navigate("collection_detail/album/$encoded")
+                        navController.getBackStackEntry("dashboard").savedStateHandle["navigate_to"] = "album:$album"
+                        navController.popBackStack("dashboard", inclusive = false)
                     }
                 )
             }
