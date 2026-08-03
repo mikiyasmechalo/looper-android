@@ -92,10 +92,6 @@ fun CollectionDetailScreen(
     var showSortSheet by remember { mutableStateOf(false) }
     var showCollectionOptionsSheet by remember { mutableStateOf(false) }
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
 
     LaunchedEffect(title, type) {
         viewModel.initCollection(title, type)
@@ -286,15 +282,14 @@ fun CollectionDetailScreen(
     // Sort Bottom Sheet
     if (showSortSheet) {
         val songSortOptions = mutableListOf(
-            CategorySortOptionItem(SongSortOption.TITLE, "Title", Lucide.Type)
+            CategorySortOptionItem(SongSortOption.TITLE, "Title", Lucide.Type),
+            CategorySortOptionItem(SongSortOption.TRACK_NUMBER, "Track Number", Lucide.ListOrdered)
         )
-        if (type.equals("artist", ignoreCase = true)) {
+        if (!type.equals("album", ignoreCase = true)) {
             songSortOptions.add(CategorySortOptionItem(SongSortOption.ALBUM, "Album", Lucide.Disc))
         }
         songSortOptions.addAll(
             listOf(
-                CategorySortOptionItem(SongSortOption.TRACK_NUMBER, "Track Number", Lucide.ListOrdered),
-                CategorySortOptionItem(SongSortOption.ALBUM, "Album", Lucide.Disc),
                 CategorySortOptionItem(SongSortOption.DURATION, "Duration", Lucide.Clock),
                 CategorySortOptionItem(SongSortOption.DATE_ADDED, "Date Added", Lucide.CalendarPlus),
                 CategorySortOptionItem(SongSortOption.YEAR, "Year", Lucide.Calendar)
@@ -332,102 +327,16 @@ fun CollectionDetailScreen(
         )
     }
 
-    // Permission launcher for song metadata edits
-    val writePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            songEditViewModel.onPermissionGranted()
-        } else {
-            songEditViewModel.onPermissionDenied()
-        }
-    }
-
-    val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
-    LaunchedEffect(pendingWritePermission) {
-        pendingWritePermission?.let { pending ->
-            val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
-            writePermissionLauncher.launch(request)
-        }
-    }
-
     // Individual Track 3-Dot Options Sheet
     selectedSongForOptions?.let { song ->
         SongOptionsSheet(
             song = song,
             accentColor = playbackState.accentColor,
             onDismiss = { selectedSongForOptions = null },
-            isFavorite = song.isFavorite,
-            onPlayNextClick = { playbackViewModel.addNext(song) },
-            onAddToQueueClick = { playbackViewModel.addToQueue(song) },
-            onAddToPlaylistClick = {},
-            onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
-            onEditSongClick = { selectedSongForEdit = song },
-            onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song },
+            showGoToArtist = (type != "artist"),
+            showGoToAlbum = (type != "album"),
             onArtistClick = onNavigateToArtist,
             onAlbumClick = onNavigateToAlbum
-        )
-    }
-
-    // Edit Song Sheet
-    selectedSongForEdit?.let { song ->
-        EditSongSheet(
-            song = song,
-            onDismiss = { selectedSongForEdit = null },
-            accentColor = playbackState.accentColor,
-            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                songEditViewModel.saveEdit(
-                    song = song,
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newYear = if (newYear > 0) newYear else null,
-                    newGenre = newGenre,
-                    newLyrics = newLyrics,
-                    newArtPath = newArtPath
-                )
-                selectedSongForEdit = null
-            }
-        )
-    }
-
-    // Delete Song Confirmation Dialog
-    selectedSongForDelete?.let { song ->
-        DeleteSongDialog(
-            songTitle = song.title,
-            onDismiss = { selectedSongForDelete = null },
-            onConfirm = {
-                allSongsViewModel.deleteSong(song)
-                selectedSongForDelete = null
-            }
-        )
-    }
-
-    // Song Details Bottom Sheet
-    selectedSongForDetails?.let { song ->
-        SongDetailsBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForDetails = null },
-            accentColor = playbackState.accentColor,
-            onArtistClick = { artist ->
-                selectedSongForDetails = null
-                onNavigateToArtist(artist)
-            },
-            onAlbumClick = { album ->
-                selectedSongForDetails = null
-                onNavigateToAlbum(album)
-            },
-            onTechnicalInfoClick = { selectedSongForInfo = song }
-        )
-    }
-
-    // Technical Audio Details Sheet
-    selectedSongForInfo?.let { song ->
-        TechnicalInfoBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForInfo = null },
-            accentColor = playbackState.accentColor
         )
     }
 }

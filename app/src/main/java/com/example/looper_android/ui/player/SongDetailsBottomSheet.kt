@@ -29,6 +29,8 @@ import com.example.looper_android.ui.widgets.PremiumSection
 fun SongDetailsBottomSheet(
     song: SongEntity,
     onDismiss: () -> Unit,
+    showGoToArtist: Boolean = true,
+    showGoToAlbum: Boolean = true,
     onArtistClick: (String) -> Unit,
     onAlbumClick: (String) -> Unit,
     onTechnicalInfoClick: () -> Unit,
@@ -103,7 +105,7 @@ fun SongDetailsBottomSheet(
             DetailRow(
                 label = "Artist",
                 value = artistName,
-                isClickable = song.artist != null,
+                isClickable = showGoToArtist && song.artist != null,
                 onClick = {
                     song.artist?.let {
                         onArtistClick(it)
@@ -118,7 +120,7 @@ fun SongDetailsBottomSheet(
             DetailRow(
                 label = "Album Artist",
                 value = albumArtistName,
-                isClickable = song.albumArtist != null || song.artist != null,
+                isClickable = showGoToArtist && (song.albumArtist != null || song.artist != null),
                 onClick = {
                     val target = song.albumArtist ?: song.artist
                     target?.let {
@@ -134,7 +136,7 @@ fun SongDetailsBottomSheet(
             DetailRow(
                 label = "Album",
                 value = albumName,
-                isClickable = song.album != null,
+                isClickable = showGoToAlbum && song.album != null,
                 onClick = {
                     song.album?.let {
                         onAlbumClick(it)

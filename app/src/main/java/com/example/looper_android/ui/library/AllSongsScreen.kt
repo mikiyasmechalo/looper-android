@@ -16,14 +16,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -53,13 +54,8 @@ import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Shuffle
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
-import com.example.looper_android.ui.player.DeleteSongDialog
-import com.example.looper_android.ui.player.EditSongSheet
 import com.example.looper_android.ui.player.PlaybackViewModel
-import com.example.looper_android.ui.player.SongDetailsBottomSheet
-import com.example.looper_android.ui.player.SongEditViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
-import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 
@@ -67,8 +63,6 @@ import com.example.looper_android.ui.widgets.PremiumSection
 @Composable
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
-    songEditViewModel: SongEditViewModel = hiltViewModel(),
-    onShufflePlayClick: () -> Unit,
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {}
 ) {
@@ -84,7 +78,6 @@ fun AllSongsScreen(
 
     var showSortSheet by remember { mutableStateOf(false) }
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -243,8 +236,9 @@ fun AllSongsScreen(
                         Text("No songs found.", color = Color.Gray)
                     }
                 } else {
+                    val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     val bottomPadding by androidx.compose.animation.core.animateDpAsState(
-                        targetValue = if (currentSong != null) 210.dp else 140.dp,
+                        targetValue = if (currentSong != null) (190.dp + bottomInsets) else (120.dp + bottomInsets),
                         animationSpec = androidx.compose.animation.core.tween(250),
                         label = "bottomPadding"
                     )
@@ -273,8 +267,9 @@ fun AllSongsScreen(
         }
 
         // Floating Shuffle Action Button (Compact padding)
+        val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSong != null) 205.dp else 140.dp,
+            targetValue = if (currentSong != null) (185.dp + bottomInsets) else (120.dp + bottomInsets),
             animationSpec = androidx.compose.animation.core.tween(250),
             label = "fabPadding"
         )
@@ -314,117 +309,13 @@ fun AllSongsScreen(
             )
         }
 
-        var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
-        var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
-
         selectedSongForOptions?.let { song ->
             SongOptionsSheet(
                 song = song,
                 onDismiss = { selectedSongForOptions = null },
                 accentColor = playbackState.accentColor,
-                isFavorite = song.isFavorite,
-                onPlayNextClick = {
-                    playbackViewModel.addNext(song)
-                },
-                onAddToQueueClick = {
-                    playbackViewModel.addToQueue(song)
-                },
-                onAddToPlaylistClick = {
-                    // Add to Playlist action
-                },
-                onFavoriteClick = {
-                    viewModel.updateSong(song.copy(isFavorite = !song.isFavorite))
-                },
-                onEditSongClick = {
-                    selectedSongForEdit = song
-                },
-                onSongDetailsClick = {
-                    selectedSongForDetails = song
-                },
-                onDeleteClick = {
-                    selectedSongForDelete = song
-                },
                 onArtistClick = onNavigateToArtist,
                 onAlbumClick = onNavigateToAlbum
-            )
-        }
-
-        val writePermissionLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.StartIntentSenderForResult()
-        ) { result ->
-            if (result.resultCode == android.app.Activity.RESULT_OK) {
-                songEditViewModel.onPermissionGranted()
-            } else {
-                songEditViewModel.onPermissionDenied()
-            }
-        }
-
-        val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
-        LaunchedEffect(pendingWritePermission) {
-            pendingWritePermission?.let { pending ->
-                val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
-                writePermissionLauncher.launch(request)
-            }
-        }
-
-        selectedSongForEdit?.let { song ->
-            EditSongSheet(
-                song = song,
-                onDismiss = { selectedSongForEdit = null },
-                accentColor = playbackState.accentColor,
-                onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                    songEditViewModel.saveEdit(
-                        song = song,
-                        newTitle = newTitle,
-                        newArtist = newArtist,
-                        newAlbum = newAlbum,
-                        newYear = if (newYear > 0) newYear else null,
-                        newGenre = newGenre,
-                        newLyrics = newLyrics,
-                        newArtPath = newArtPath
-                    )
-                    selectedSongForEdit = null
-                }
-            )
-        }
-
-        selectedSongForDelete?.let { song ->
-            DeleteSongDialog(
-                songTitle = song.title,
-                onDismiss = { selectedSongForDelete = null },
-                onConfirm = {
-                    viewModel.deleteSong(song)
-                    selectedSongForDelete = null
-                }
-            )
-        }
-
-        var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
-
-        selectedSongForDetails?.let { song ->
-            SongDetailsBottomSheet(
-                song = song,
-                onDismiss = { selectedSongForDetails = null },
-                accentColor = playbackState.accentColor,
-                onArtistClick = { artist ->
-                    selectedSongForDetails = null
-                    onNavigateToArtist(artist)
-                },
-                onAlbumClick = { album ->
-                    selectedSongForDetails = null
-                    onNavigateToAlbum(album)
-                },
-                onTechnicalInfoClick = {
-                    selectedSongForInfo = song
-                }
-            )
-        }
-
-        selectedSongForInfo?.let { song ->
-            TechnicalInfoBottomSheet(
-                song = song,
-                onDismiss = { selectedSongForInfo = null },
-                accentColor = playbackState.accentColor
             )
         }
     }

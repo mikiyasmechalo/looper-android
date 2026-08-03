@@ -16,20 +16,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.LaunchedEffect
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
@@ -55,6 +52,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -76,7 +75,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.Lucide
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.composables.icons.lucide.AudioLines
 import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.Camera
@@ -86,6 +85,7 @@ import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.ListPlus
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Share2
@@ -102,40 +102,60 @@ import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 import java.io.File
+import com.example.looper_android.ui.library.AllSongsViewModel
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API (matches Flutter's showSongOptionsBottomSheet)
 // ─────────────────────────────────────────────────────────────────────────────
+
+enum class ActiveSheet {
+    OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongOptionsSheet(
     song: SongEntity,
     onDismiss: () -> Unit,
-    isFavorite: Boolean = false,
-    isSleepTimerActive: Boolean = false,
-    sleepTimerLabel: String = "Sleep Timer",
     accentColor: Color = Color(0xFF55DF69),
     useBlur: Boolean = false,
     isPureBlack: Boolean = false,
-    playlist: Playlist? = null,
-    showSleepTimer: Boolean = false,
+    playlist: com.example.looper_android.data.db.PlaylistEntity? = null,
     isCurrentlyPlaying: Boolean = false,
-    onPlayNextClick: () -> Unit = {},
-    onAddToQueueClick: () -> Unit = {},
-    onAddToPlaylistClick: () -> Unit = {},
-    onFavoriteClick: () -> Unit = {},
-    onSleepTimerClick: () -> Unit = {},
-    onEditSongClick: () -> Unit = {},
-    onEqualizerClick: () -> Unit = {},
-    onSongDetailsClick: () -> Unit = {},
-    onTechnicalInfoClick: () -> Unit = {},
-    onShareClick: () -> Unit = {},
-    onDeleteClick: () -> Unit = {},
-    onRemoveFromPlaylistClick: () -> Unit = {},
+    showGoToArtist: Boolean = true,
+    showGoToAlbum: Boolean = true,
     onArtistClick: ((String) -> Unit)? = null,
     onAlbumClick: ((String) -> Unit)? = null,
 ) {
+    val playbackViewModel: PlaybackViewModel = hiltViewModel()
+    val allSongsViewModel: AllSongsViewModel = hiltViewModel()
+    val songEditViewModel: SongEditViewModel = hiltViewModel()
+
+    val writePermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            songEditViewModel.onPermissionGranted()
+        } else {
+            songEditViewModel.onPermissionDenied()
+        }
+    }
+
+    val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
+    LaunchedEffect(pendingWritePermission) {
+        pendingWritePermission?.let { pending ->
+            val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
+            writePermissionLauncher.launch(request)
+        }
+    }
+
+    val playbackState by playbackViewModel.playbackState.collectAsState()
+    val isFavorite = song.isFavorite
+    val showSleepTimer = playbackState.isSleepTimerActive
+    val sleepTimerLabel = playbackState.sleepTimerLabel
+
+    var activeSheet by remember { mutableStateOf<ActiveSheet?>(ActiveSheet.OPTIONS) }
+
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -164,7 +184,9 @@ fun SongOptionsSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    when (activeSheet) {
+        ActiveSheet.OPTIONS -> {
+            ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetBg,
@@ -263,23 +285,23 @@ fun SongOptionsSheet(
                     if (!isCurrentlyPlaying) {
                         add(OptionTileData(null, Lucide.CirclePlay, "Play Next") {
                             hapticLight()
-                            onPlayNextClick()
+                            playbackViewModel.addNext(song)
                             onDismiss()
                         })
                         add(OptionTileData(null, Lucide.ListPlus, "Add to Queue") {
                             hapticLight()
-                            onAddToQueueClick()
+                            playbackViewModel.addToQueue(song)
                             onDismiss()
                         })
                     }
-                    if (onArtistClick != null && !song.artist.isNullOrBlank()) {
+                    if (showGoToArtist && onArtistClick != null && !song.artist.isNullOrBlank()) {
                         add(OptionTileData(null, Lucide.User, "Go to Artist") {
                             hapticLight()
                             onDismiss()
                             onArtistClick(song.artist!!)
                         })
                     }
-                    if (onAlbumClick != null && !song.album.isNullOrBlank()) {
+                    if (showGoToAlbum && onAlbumClick != null && !song.album.isNullOrBlank()) {
                         add(OptionTileData(null, Lucide.Disc, "Go to Album") {
                             hapticLight()
                             onDismiss()
@@ -288,13 +310,13 @@ fun SongOptionsSheet(
                     }
                     add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
                         hapticLight()
-                        onAddToPlaylistClick()
+                        // TODO: Implement Add to Playlist
                         onDismiss()
                     })
                     if (showSleepTimer) {
-                        add(OptionTileData(null, Lucide.Timer, if (isSleepTimerActive) sleepTimerLabel else "Sleep Timer") {
+                        add(OptionTileData(null, Lucide.Timer, if (showSleepTimer) sleepTimerLabel else "Sleep Timer") {
                             hapticLight()
-                            onSleepTimerClick()
+                            // TODO: Implement Sleep Timer dialog
                             onDismiss()
                         })
                     }
@@ -304,32 +326,30 @@ fun SongOptionsSheet(
                         if (isFavorite) "Remove from Favorites" else "Add to Favorites"
                     ) {
                         hapticLight()
-                        onFavoriteClick()
+                        allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite))
                         onDismiss()
                     })
 
                     if (playlist != null) {
                         add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
                             hapticMedium()
-                            onRemoveFromPlaylistClick()
+                            // TODO: Implement Remove from Playlist
                             onDismiss()
                         })
                     }
 
                     add(OptionTileData(null, Lucide.SquarePen, "Edit Song Info") {
                         hapticLight()
-                        onEditSongClick()
-                        onDismiss()
+                        activeSheet = ActiveSheet.EDIT
                     })
                     add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
                         hapticLight()
-                        onEqualizerClick()
+                        // TODO: Implement Equalizer
                         onDismiss()
                     })
                     add(OptionTileData(null, Lucide.Info, "Song Details") {
                         hapticLight()
-                        onSongDetailsClick()
-                        onDismiss()
+                        activeSheet = ActiveSheet.DETAILS
                     })
                     add(OptionTileData(null, Lucide.Share2, "Share") {
                         hapticLight()
@@ -360,12 +380,10 @@ fun SongOptionsSheet(
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
-                        onShareClick()
                     })
                     add(OptionTileData(null, Lucide.Trash2, "Delete Song") {
                         hapticHeavy()
-                        onDeleteClick()
-                        onDismiss()
+                        activeSheet = ActiveSheet.DELETE
                     })
                 }
 
@@ -459,6 +477,69 @@ fun SongOptionsSheet(
         } else {
             content()
         }
+    }
+}
+        ActiveSheet.EDIT -> {
+            EditSongSheet(
+                song = song,
+                accentColor = accentColor,
+                onDismiss = onDismiss,
+                onSave = { title, artist, album, year, genre, lyrics, artPath ->
+                    songEditViewModel.saveEdit(
+                        song = song,
+                        newTitle = title,
+                        newArtist = artist,
+                        newAlbum = album,
+                        newYear = if (year > 0) year else null,
+                        newGenre = genre,
+                        newLyrics = lyrics,
+                        newArtPath = artPath
+                    )
+                    onDismiss()
+                }
+            )
+        }
+        ActiveSheet.DELETE -> {
+            DeleteSongDialog(
+                songTitle = song.title,
+                onDismiss = { activeSheet = ActiveSheet.OPTIONS },
+                onConfirm = {
+                    if (isCurrentlyPlaying) {
+                        playbackViewModel.skipToNext()
+                    }
+                    allSongsViewModel.deleteSong(song)
+                    onDismiss()
+                }
+            )
+        }
+        ActiveSheet.DETAILS -> {
+            SongDetailsBottomSheet(
+                song = song,
+                onDismiss = onDismiss,
+                accentColor = accentColor,
+                showGoToArtist = showGoToArtist,
+                showGoToAlbum = showGoToAlbum,
+                onArtistClick = { artist ->
+                    onDismiss()
+                    onArtistClick?.invoke(artist)
+                },
+                onAlbumClick = { album ->
+                    onDismiss()
+                    onAlbumClick?.invoke(album)
+                },
+                onTechnicalInfoClick = {
+                    activeSheet = ActiveSheet.TECH_INFO
+                }
+            )
+        }
+        ActiveSheet.TECH_INFO -> {
+            TechnicalInfoBottomSheet(
+                song = song,
+                onDismiss = { activeSheet = ActiveSheet.DETAILS },
+                accentColor = accentColor
+            )
+        }
+        null -> {}
     }
 }
 
@@ -1369,10 +1450,10 @@ fun SleepTimerSheet(
 
 @Composable
 fun PlaylistSelectorDialog(
-    playlists: List<Playlist>,
+    playlists: List<com.example.looper_android.data.db.PlaylistEntity>,
     accentColor: Color = Color(0xFF55DF69),
     onDismiss: () -> Unit,
-    onPlaylistSelected: (Playlist) -> Unit
+    onPlaylistSelected: (com.example.looper_android.data.db.PlaylistEntity) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1537,11 +1618,3 @@ private fun TimerChip(
     }
 }
 
-// ─── Data classes ────────────────────────────────────────────────────────────
-
-data class Playlist(
-    val id: Long = 0,
-    val name: String,
-    val songPaths: MutableList<String> = mutableListOf(),
-    var dateModified: Long = System.currentTimeMillis()
-)

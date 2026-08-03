@@ -60,7 +60,7 @@ import com.example.looper_android.data.db.ArtistEntity
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.library.SongTile
-import com.example.looper_android.ui.player.EditSongSheet
+
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.SongEditViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
@@ -71,7 +71,6 @@ import kotlin.math.abs
 @Composable
 fun HomeTab(
     viewModel: HomeViewModel = hiltViewModel(),
-    songEditViewModel: SongEditViewModel = hiltViewModel(),
     onNavigateToSearch: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToSongs: () -> Unit = {},
@@ -85,7 +84,6 @@ fun HomeTab(
     val currentSong = playbackState.currentSong
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
 
     Column(
         modifier = Modifier
@@ -238,32 +236,7 @@ fun HomeTab(
         SongOptionsSheet(
             song = song,
             accentColor = playbackState.accentColor,
-            onDismiss = { selectedSongForOptions = null },
-            onEditSongClick = {
-                selectedSongForEdit = song
-                selectedSongForOptions = null
-            }
-        )
-    }
-
-    selectedSongForEdit?.let { song ->
-        EditSongSheet(
-            song = song,
-            onDismiss = { selectedSongForEdit = null },
-            accentColor = playbackState.accentColor,
-            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                songEditViewModel.saveEdit(
-                    song = song,
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newYear = if (newYear > 0) newYear else null,
-                    newGenre = newGenre,
-                    newLyrics = newLyrics,
-                    newArtPath = newArtPath
-                )
-                selectedSongForEdit = null
-            }
+            onDismiss = { selectedSongForOptions = null }
         )
     }
 }

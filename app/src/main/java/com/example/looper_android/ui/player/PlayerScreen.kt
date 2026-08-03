@@ -615,111 +615,21 @@ fun PlayerScreen(
         )
     }
 
-    var showEditSheet by remember { mutableStateOf(false) }
-    var showDetailsSheet by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showTechnicalInfoSheet by remember { mutableStateOf(false) }
-    val songEditViewModel: SongEditViewModel = androidx.hilt.navigation.compose.hiltViewModel()
-
     if (showOptionsSheet) {
         SongOptionsSheet(
             song = song,
             onDismiss = { showOptionsSheet = false },
             accentColor = state.accentColor,
-            isFavorite = state.isFavorite,
             isCurrentlyPlaying = true,
-            showSleepTimer = true,
-            isSleepTimerActive = state.isSleepTimerActive,
-            sleepTimerLabel = state.sleepTimerLabel,
-            onFavoriteClick = { viewModel.toggleFavorite() },
             onArtistClick = { artist ->
                 onArtistClick(artist)
             },
             onAlbumClick = { album ->
                 onAlbumClick(album)
-            },
-            onEqualizerClick = onNavigateToEqualizer,
-            onEditSongClick = { showEditSheet = true },
-            onSongDetailsClick = { showDetailsSheet = true },
-            onDeleteClick = { showDeleteDialog = true }
-        )
-    }
-
-    if (showDetailsSheet) {
-        SongDetailsBottomSheet(
-            song = song,
-            onDismiss = { showDetailsSheet = false },
-            accentColor = state.accentColor,
-            onArtistClick = { artist ->
-                onArtistClick(artist)
-            },
-            onAlbumClick = { album ->
-                onAlbumClick(album)
-            },
-            onTechnicalInfoClick = {
-                showDetailsSheet = false
-                showTechnicalInfoSheet = true
             }
         )
     }
 
-    if (showTechnicalInfoSheet) {
-        TechnicalInfoBottomSheet(
-            song = song,
-            onDismiss = { showTechnicalInfoSheet = false },
-            accentColor = state.accentColor
-        )
-    }
-
-    if (showDeleteDialog) {
-        DeleteSongDialog(
-            songTitle = song.title,
-            onDismiss = { showDeleteDialog = false },
-            onConfirm = {
-                viewModel.skipToNext()
-                showDeleteDialog = false
-            }
-        )
-    }
-
-    val writePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            songEditViewModel.onPermissionGranted()
-        } else {
-            songEditViewModel.onPermissionDenied()
-        }
-    }
-
-    val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
-    LaunchedEffect(pendingWritePermission) {
-        pendingWritePermission?.let { pending ->
-            val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
-            writePermissionLauncher.launch(request)
-        }
-    }
-
-    if (showEditSheet) {
-        EditSongSheet(
-            song = song,
-            onDismiss = { showEditSheet = false },
-            accentColor = state.accentColor,
-            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                songEditViewModel.saveEdit(
-                    song = song,
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newYear = if (newYear > 0) newYear else null,
-                    newGenre = newGenre,
-                    newLyrics = newLyrics,
-                    newArtPath = newArtPath
-                )
-                showEditSheet = false
-            }
-        )
-    }
 }
 
 @Composable

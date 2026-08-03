@@ -211,7 +211,7 @@ fun DashboardScreen(
                             onNavigateToAlbums = { childNavController.navigate("category/albums") },
                             onNavigateToGenres = { childNavController.navigate("category/genres") }
                         )
-                        1 -> AllSongsScreen(onShufflePlayClick = {})
+                        1 -> AllSongsScreen()
                         2 -> LibraryTab(
                             onNavigateToCategory = { categoryKey ->
                                 childNavController.navigate("category/$categoryKey")
@@ -341,7 +341,15 @@ fun DashboardScreen(
                 CollectionDetailScreen(
                     title = title,
                     type = type,
-                    onBackClick = { childNavController.popBackStack() }
+                    onBackClick = { childNavController.popBackStack() },
+                    onNavigateToArtist = { artist ->
+                        val encoded = Uri.encode(artist)
+                        childNavController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onNavigateToAlbum = { album ->
+                        val encoded = Uri.encode(album)
+                        childNavController.navigate("collection_detail/album/$encoded")
+                    }
                 )
             }
         }

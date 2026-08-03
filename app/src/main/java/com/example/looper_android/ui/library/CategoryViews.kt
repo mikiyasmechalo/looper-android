@@ -963,10 +963,6 @@ fun HistoryScreen(
     val playbackState by playbackViewModel.playbackState.collectAsState()
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
@@ -1011,72 +1007,8 @@ fun HistoryScreen(
             song = song,
             accentColor = playbackState.accentColor,
             onDismiss = { selectedSongForOptions = null },
-            isFavorite = song.isFavorite,
-            onPlayNextClick = { playbackViewModel.addNext(song) },
-            onAddToQueueClick = { playbackViewModel.addToQueue(song) },
-            onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
-            onEditSongClick = { selectedSongForEdit = song },
-            onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song },
             onArtistClick = onNavigateToArtist,
             onAlbumClick = onNavigateToAlbum
-        )
-    }
-
-    selectedSongForEdit?.let { song ->
-        com.example.looper_android.ui.player.EditSongSheet(
-            song = song,
-            onDismiss = { selectedSongForEdit = null },
-            accentColor = playbackState.accentColor,
-            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                songEditViewModel.saveEdit(
-                    song = song,
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newYear = if (newYear > 0) newYear else null,
-                    newGenre = newGenre,
-                    newLyrics = newLyrics,
-                    newArtPath = newArtPath
-                )
-                selectedSongForEdit = null
-            }
-        )
-    }
-
-    selectedSongForDelete?.let { song ->
-        com.example.looper_android.ui.player.DeleteSongDialog(
-            songTitle = song.title,
-            onDismiss = { selectedSongForDelete = null },
-            onConfirm = {
-                allSongsViewModel.deleteSong(song)
-                selectedSongForDelete = null
-            }
-        )
-    }
-
-    selectedSongForDetails?.let { song ->
-        com.example.looper_android.ui.player.SongDetailsBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForDetails = null },
-            accentColor = playbackState.accentColor,
-            onArtistClick = { artist ->
-                selectedSongForDetails = null
-                onNavigateToArtist(artist)
-            },
-            onAlbumClick = { album ->
-                selectedSongForDetails = null
-                onNavigateToAlbum(album)
-            },
-            onTechnicalInfoClick = { selectedSongForInfo = song }
-        )
-    }
-
-    selectedSongForInfo?.let { song ->
-        com.example.looper_android.ui.player.TechnicalInfoBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForInfo = null },
-            accentColor = playbackState.accentColor
         )
     }
 }
@@ -1096,11 +1028,6 @@ fun FavoritesScreen(
     val playbackState by playbackViewModel.playbackState.collectAsState()
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
-    var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
-
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
@@ -1134,72 +1061,8 @@ fun FavoritesScreen(
             song = song,
             accentColor = playbackState.accentColor,
             onDismiss = { selectedSongForOptions = null },
-            isFavorite = song.isFavorite,
-            onPlayNextClick = { playbackViewModel.addNext(song) },
-            onAddToQueueClick = { playbackViewModel.addToQueue(song) },
-            onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
-            onEditSongClick = { selectedSongForEdit = song },
-            onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song },
             onArtistClick = onNavigateToArtist,
             onAlbumClick = onNavigateToAlbum
-        )
-    }
-
-    selectedSongForEdit?.let { song ->
-        com.example.looper_android.ui.player.EditSongSheet(
-            song = song,
-            onDismiss = { selectedSongForEdit = null },
-            accentColor = playbackState.accentColor,
-            onSave = { newTitle, newArtist, newAlbum, newYear, newGenre, newLyrics, newArtPath ->
-                songEditViewModel.saveEdit(
-                    song = song,
-                    newTitle = newTitle,
-                    newArtist = newArtist,
-                    newAlbum = newAlbum,
-                    newYear = if (newYear > 0) newYear else null,
-                    newGenre = newGenre,
-                    newLyrics = newLyrics,
-                    newArtPath = newArtPath
-                )
-                selectedSongForEdit = null
-            }
-        )
-    }
-
-    selectedSongForDelete?.let { song ->
-        com.example.looper_android.ui.player.DeleteSongDialog(
-            songTitle = song.title,
-            onDismiss = { selectedSongForDelete = null },
-            onConfirm = {
-                allSongsViewModel.deleteSong(song)
-                selectedSongForDelete = null
-            }
-        )
-    }
-
-    selectedSongForDetails?.let { song ->
-        com.example.looper_android.ui.player.SongDetailsBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForDetails = null },
-            accentColor = playbackState.accentColor,
-            onArtistClick = { artist ->
-                selectedSongForDetails = null
-                onNavigateToArtist(artist)
-            },
-            onAlbumClick = { album ->
-                selectedSongForDetails = null
-                onNavigateToAlbum(album)
-            },
-            onTechnicalInfoClick = { selectedSongForInfo = song }
-        )
-    }
-
-    selectedSongForInfo?.let { song ->
-        com.example.looper_android.ui.player.TechnicalInfoBottomSheet(
-            song = song,
-            onDismiss = { selectedSongForInfo = null },
-            accentColor = playbackState.accentColor
         )
     }
 }
