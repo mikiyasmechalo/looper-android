@@ -61,10 +61,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.gif)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.documentfile:documentfile:1.0.1")
     testImplementation(libs.junit)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
@@ -90,8 +88,7 @@ dependencies {
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
-    implementation("net.jthink:jaudiotagger:3.0.1")
-    implementation("com.composables:icons-lucide-cmp:2.2.1")
-    implementation("com.airbnb.android:lottie-compose:6.4.0")
+    implementation(libs.jaudiotagger)
+    implementation(libs.icons.lucide.cmp)
 }
 

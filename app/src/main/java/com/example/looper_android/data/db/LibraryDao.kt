@@ -14,10 +14,10 @@ interface LibraryDao {
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongsCount(): Int
 
-    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongs(): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE isFavorite = 1 ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs WHERE isFavorite = 1 ORDER BY title COLLATE NOCASE ASC")
     fun getFavoriteSongs(): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE path = :path LIMIT 1")
@@ -26,11 +26,20 @@ interface LibraryDao {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     fun getSongById(id: Long): Flow<SongEntity?>
 
+    @Query("SELECT lyrics FROM songs WHERE id = :id LIMIT 1")
+    suspend fun getSongLyricsById(id: Long): String?
+
+    @Query("SELECT lyrics FROM songs WHERE path = :path LIMIT 1")
+    suspend fun getSongLyricsByPath(path: String): String?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSong(song: SongEntity): Long
 
     @Update
     suspend fun updateSong(song: SongEntity)
+
+    @Update
+    suspend fun updateSongs(songs: List<SongEntity>)
 
     @Query("UPDATE songs SET playCount = playCount + 1, lastPlayed = :lastPlayed WHERE id = :id")
     suspend fun incrementPlayCount(id: Long, lastPlayed: Long = System.currentTimeMillis())

@@ -236,14 +236,18 @@ fun AllSongsScreen(
                     )
                 }
             ) {
-                if ((!isDbLoaded || isLoading) && songs.isEmpty()) {
-                    com.example.looper_android.ui.components.PremiumLoadingView()
+                if (isLoading && songs.isEmpty()) {
+                    com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING MUSIC LIBRARY")
                 } else if (songs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No songs found.", color = Color.Gray)
                     }
                 } else {
-                    val bottomPadding = if (currentSong != null) 130.dp else 70.dp
+                    val bottomPadding by androidx.compose.animation.core.animateDpAsState(
+                        targetValue = if (currentSong != null) 210.dp else 140.dp,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "bottomPadding"
+                    )
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -270,7 +274,7 @@ fun AllSongsScreen(
 
         // Floating Shuffle Action Button (Compact padding)
         val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSong != null) 90.dp else 30.dp,
+            targetValue = if (currentSong != null) 205.dp else 140.dp,
             animationSpec = androidx.compose.animation.core.tween(250),
             label = "fabPadding"
         )
@@ -339,7 +343,9 @@ fun AllSongsScreen(
                 },
                 onDeleteClick = {
                     selectedSongForDelete = song
-                }
+                },
+                onArtistClick = onNavigateToArtist,
+                onAlbumClick = onNavigateToAlbum
             )
         }
 

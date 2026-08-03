@@ -242,7 +242,7 @@ private fun RecentlyPlayedHorizontalSection(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState)
-            .padding(start = 24.dp, end = 24.dp),
+            .padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Row 1

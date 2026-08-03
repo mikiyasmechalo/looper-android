@@ -1,6 +1,6 @@
 package com.example.looper_android.ui.library
 
- import androidx.compose.foundation.background
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,16 +64,21 @@ import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.List
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Shuffle
+import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Trash2
 import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.User
- import com.example.looper_android.data.db.SongEntity
- import com.example.looper_android.ui.components.OptimizedImage
+import com.example.looper_android.data.db.AlbumEntity
+import com.example.looper_android.data.db.ArtistEntity
+import com.example.looper_android.data.db.PlaylistEntity
+import com.example.looper_android.data.db.SongEntity
+import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.player.PlaybackViewModel
- import com.example.looper_android.ui.player.SongOptionsSheet
- import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.player.SongOptionsSheet
+import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 import kotlin.math.abs
 
@@ -138,7 +143,7 @@ fun AlbumsScreen(
 ) {
     val albums by viewModel.albums.collectAsState()
     val albumSongCounts by viewModel.albumSongCounts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val isAscending by viewModel.isAscending.collectAsState()
@@ -213,7 +218,7 @@ fun AlbumsScreen(
             }
         )
 
-        if (isLoading && albums.isEmpty()) {
+        if (!isDbLoaded && albums.isEmpty()) {
             com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING ALBUMS")
         } else if (albums.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -359,7 +364,7 @@ fun ArtistsScreen(
 ) {
     val artists by viewModel.artists.collectAsState()
     val songCounts by viewModel.artistSongCounts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val isAscending by viewModel.isAscending.collectAsState()
@@ -437,7 +442,7 @@ fun ArtistsScreen(
             }
         )
 
-        if (isLoading && artists.isEmpty()) {
+        if (!isDbLoaded && artists.isEmpty()) {
             com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING ARTISTS")
         } else if (artists.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1012,7 +1017,9 @@ fun HistoryScreen(
             onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
             onEditSongClick = { selectedSongForEdit = song },
             onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song }
+            onDeleteClick = { selectedSongForDelete = song },
+            onArtistClick = onNavigateToArtist,
+            onAlbumClick = onNavigateToAlbum
         )
     }
 
@@ -1133,7 +1140,9 @@ fun FavoritesScreen(
             onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
             onEditSongClick = { selectedSongForEdit = song },
             onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song }
+            onDeleteClick = { selectedSongForDelete = song },
+            onArtistClick = onNavigateToArtist,
+            onAlbumClick = onNavigateToAlbum
         )
     }
 

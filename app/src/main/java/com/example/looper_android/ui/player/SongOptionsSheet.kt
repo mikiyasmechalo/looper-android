@@ -227,11 +227,18 @@ fun SongOptionsSheet(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = song.artist ?: "Unknown Artist",
-                            color = Color.White.copy(alpha = 0.54f),
+                            color = if (onArtistClick != null && !song.artist.isNullOrBlank()) accentColor else Color.White.copy(alpha = 0.54f),
                             fontFamily = DmSansFontFamily,
                             fontSize = 13.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (onArtistClick != null && !song.artist.isNullOrBlank()) {
+                                Modifier.clickable {
+                                    hapticLight()
+                                    onDismiss()
+                                    onArtistClick(song.artist!!)
+                                }
+                            } else Modifier
                         )
                     }
                 }
@@ -262,6 +269,20 @@ fun SongOptionsSheet(
                             hapticLight()
                             onAddToQueueClick()
                             onDismiss()
+                        })
+                    }
+                    if (onArtistClick != null && !song.artist.isNullOrBlank()) {
+                        add(OptionTileData(null, Lucide.User, "Go to Artist") {
+                            hapticLight()
+                            onDismiss()
+                            onArtistClick(song.artist!!)
+                        })
+                    }
+                    if (onAlbumClick != null && !song.album.isNullOrBlank()) {
+                        add(OptionTileData(null, Lucide.Disc, "Go to Album") {
+                            hapticLight()
+                            onDismiss()
+                            onAlbumClick(song.album!!)
                         })
                     }
                     add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {

@@ -333,24 +333,55 @@ fun PlayerScreen(
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = subtitleText,
-                        color = Color.White.copy(alpha = 0.60f),
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 16.sp,
-                        letterSpacing = 0.2.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .clickable {
-                                song.artist?.let { onArtistClick(it) }
+                    val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                    val albumName = song.album?.trim()?.ifBlank { null }
+                    val showAlbum = !albumName.isNullOrEmpty() && !albumName.equals("Unknown Album", ignoreCase = true)
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.sharedBoundsOrElement(
+                            key = "song_artist",
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope
+                        )
+                    ) {
+                        Text(
+                            text = subtitleText,
+                            color = Color.White.copy(alpha = 0.60f),
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 16.sp,
+                            letterSpacing = 0.2.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable {
+                                song.artist?.let {
+                                    onBack()
+                                    onArtistClick(it)
+                                }
                             }
-                            .sharedBoundsOrElement(
-                                key = "song_artist",
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedVisibilityScope = animatedVisibilityScope
+                        )
+                        if (showAlbum && albumName != null) {
+                            Text(
+                                text = " • ",
+                                color = Color.White.copy(alpha = 0.40f),
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 16.sp
                             )
-                    )
+                            Text(
+                                text = albumName,
+                                color = Color.White.copy(alpha = 0.60f),
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 16.sp,
+                                letterSpacing = 0.2.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable {
+                                    onBack()
+                                    onAlbumClick(albumName)
+                                }
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -597,8 +628,14 @@ fun PlayerScreen(
             isSleepTimerActive = state.isSleepTimerActive,
             sleepTimerLabel = state.sleepTimerLabel,
             onFavoriteClick = { viewModel.toggleFavorite() },
-            onArtistClick = onArtistClick,
-            onAlbumClick = onAlbumClick,
+            onArtistClick = { artist ->
+                onBack()
+                onArtistClick(artist)
+            },
+            onAlbumClick = { album ->
+                onBack()
+                onAlbumClick(album)
+            },
             onEqualizerClick = onNavigateToEqualizer,
             onEditSongClick = { showEditSheet = true },
             onSongDetailsClick = { showDetailsSheet = true },
@@ -611,8 +648,14 @@ fun PlayerScreen(
             song = song,
             onDismiss = { showDetailsSheet = false },
             accentColor = state.accentColor,
-            onArtistClick = { artist -> onArtistClick?.invoke(artist) },
-            onAlbumClick = { album -> onAlbumClick?.invoke(album) },
+            onArtistClick = { artist ->
+                onBack()
+                onArtistClick(artist)
+            },
+            onAlbumClick = { album ->
+                onBack()
+                onAlbumClick(album)
+            },
             onTechnicalInfoClick = {
                 showDetailsSheet = false
                 showTechnicalInfoSheet = true

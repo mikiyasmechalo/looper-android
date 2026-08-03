@@ -12,7 +12,6 @@ import com.example.looper_android.data.db.QueueDao
 import com.example.looper_android.data.db.QueueEntity
 import com.example.looper_android.data.db.QueueItemEntity
 import com.example.looper_android.data.db.SongEntity
-import com.example.looper_android.data.repository.LibraryRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +35,6 @@ class QueueManager @Inject constructor(
     private val queueDao: QueueDao,
     private val player: Player,
     private val libraryDao: LibraryDao,
-    private val libraryRepository: LibraryRepository,
     @ApplicationContext private val context: Context
 ) {
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -48,7 +46,7 @@ class QueueManager @Inject constructor(
 
     init {
         scope.launch(Dispatchers.IO) {
-            libraryRepository.allSongs.collectLatest { songs ->
+            libraryDao.getAllSongs().collectLatest { songs ->
                 if (songs.isNotEmpty()) {
                     val items = withContext(Dispatchers.Default) {
                         songs.map { buildMediaItem(it) }

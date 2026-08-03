@@ -27,10 +27,63 @@ class LibraryScanner @Inject constructor(
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * Fast lookup for MediaStore genres across all audio files on device.
+     */
+    private fun fetchMediaStoreGenreMap(): Map<Long, String> {
+        val genreMap = mutableMapOf<Long, String>()
+        try {
+            val uri = MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME)
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Genres._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Genres.NAME)
+                while (cursor.moveToNext()) {
+                    val genreId = cursor.getLong(idCol)
+                    val genreName = cursor.getString(nameCol) ?: continue
+                    if (genreName.isNotBlank() && !genreName.equals("<unknown>", ignoreCase = true)) {
+                        try {
+                            val membersUri = MediaStore.Audio.Genres.Members.getContentUri("external", genreId)
+                            val membersProj = arrayOf(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                            context.contentResolver.query(membersUri, membersProj, null, null, null)?.use { mCursor ->
+                                val audioIdCol = mCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres.Members.AUDIO_ID)
+                                while (mCursor.moveToNext()) {
+                                    val audioId = mCursor.getLong(audioIdCol)
+                                    genreMap[audioId] = genreName
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            try {
+                val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.GENRE)
+                val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+                context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, null, null)?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val genreCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.GENRE)
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idCol)
+                        val genre = cursor.getString(genreCol)
+                        if (!genre.isNullOrBlank() && !genre.equals("<unknown>", ignoreCase = true)) {
+                            genreMap[id] = genre
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        return genreMap
+    }
+
     suspend fun scanMediaStore(
         forceDiskRead: Boolean = false,
         onProgress: ((processed: Int, total: Int, phase: String) -> Unit)? = null
     ) = withContext(Dispatchers.IO) {
+        val mediaStoreGenreMap = fetchMediaStoreGenreMap()
+
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.DATA,
@@ -54,6 +107,7 @@ class LibraryScanner @Inject constructor(
             null,
             null
         )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -72,6 +126,7 @@ class LibraryScanner @Inject constructor(
                 val processedArtists = mutableSetOf<String>()
 
                 while (cursor.moveToNext()) {
+                    val mediaId = cursor.getLong(idColumn)
                     val path = cursor.getString(dataColumn) ?: continue
                     val existing = libraryDao.getSongByPath(path)
 
@@ -83,6 +138,8 @@ class LibraryScanner @Inject constructor(
                     val mediaStoreYear = cursor.getInt(yearColumn)
                     val dateAdded = cursor.getLong(dateAddedColumn) * 1000L
                     val albumId = cursor.getLong(albumIdColumn)
+
+                    val discoveredGenre = mediaStoreGenreMap[mediaId] ?: existing?.genre
 
                     val albumArtUri = ContentUris.withAppendedId(
                         MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
@@ -102,7 +159,7 @@ class LibraryScanner @Inject constructor(
                         artist = songArtist,
                         albumArtist = effectiveArtist,
                         album = songAlbum,
-                        genre = existing?.genre,
+                        genre = discoveredGenre,
                         duration = if (mediaStoreDuration > 0) mediaStoreDuration else (existing?.duration ?: 0),
                         trackNumber = if (mediaStoreTrack > 0) mediaStoreTrack else existing?.trackNumber,
                         year = if (mediaStoreYear > 0) mediaStoreYear else existing?.year,
@@ -153,7 +210,7 @@ class LibraryScanner @Inject constructor(
             }
         }
 
-        // Asynchronously enrich ID3 metadata in background scope (non-blocking)
+        // Asynchronously enrich ID3 metadata in background scope (non-blocking batch update)
         if (songsToEnrich.isNotEmpty()) {
             externalScope.launch {
                 enrichMetadataInBackground(songsToEnrich, forceDiskRead)
@@ -162,6 +219,8 @@ class LibraryScanner @Inject constructor(
     }
 
     private suspend fun enrichMetadataInBackground(songs: List<SongEntity>, forceDiskRead: Boolean = false) = withContext(Dispatchers.IO) {
+        val updatedBatch = mutableListOf<SongEntity>()
+
         for (song in songs) {
             try {
                 if (forceDiskRead || song.genre == null || song.lyrics == null || song.year == null || song.albumArtist == null) {
@@ -177,8 +236,7 @@ class LibraryScanner @Inject constructor(
                         year = embedded.year ?: song.year
                     )
                     if (updated != song) {
-                        libraryDao.updateSong(updated)
-                        // Also insert artist entity for new albumArtist if needed
+                        updatedBatch.add(updated)
                         if (updatedAlbumArtist != null) {
                             libraryDao.insertArtist(
                                 ArtistEntity(
@@ -191,6 +249,11 @@ class LibraryScanner @Inject constructor(
                     }
                 }
             } catch (_: Exception) { }
+        }
+
+        // Batch update Room DB in 1 single transaction so UI emits ONLY ONCE
+        if (updatedBatch.isNotEmpty()) {
+            libraryDao.updateSongs(updatedBatch)
         }
     }
 }

@@ -47,13 +47,14 @@ import com.composables.icons.lucide.CalendarPlus
 import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.EllipsisVertical
-import com.composables.icons.lucide.Hash
+import com.composables.icons.lucide.ListOrdered
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.Type
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
+import com.example.looper_android.ui.components.PremiumLoadingView
 import com.example.looper_android.ui.player.DeleteSongDialog
 import com.example.looper_android.ui.player.EditSongSheet
 import com.example.looper_android.ui.player.PlaybackViewModel
@@ -64,7 +65,7 @@ import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 
-enum class SongSortOption { TITLE, TRACK_NUMBER, DURATION, DATE_ADDED, YEAR, ALBUM }
+enum class SongSortOption { TITLE, ALBUM, TRACK_NUMBER, DURATION, DATE_ADDED, YEAR }
 
 @Composable
 fun CollectionDetailScreen(
@@ -77,187 +78,146 @@ fun CollectionDetailScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     allSongsViewModel: AllSongsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
+    viewModel: CollectionDetailViewModel = hiltViewModel(),
     songEditViewModel: SongEditViewModel = hiltViewModel()
 ) {
-    val allSongs by allSongsViewModel.songs.collectAsState()
-    val isDbLoaded by allSongsViewModel.isDbLoaded.collectAsState()
+    val isDbLoaded by viewModel.isDbLoaded.collectAsState()
+    val collectionSongs by viewModel.collectionSongs.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
+    val isAscending by viewModel.isAscending.collectAsState()
+    
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
 
-    var sortOption by remember { mutableStateOf(SongSortOption.TITLE) }
-    var isAscending by remember { mutableStateOf(true) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showCollectionOptionsSheet by remember { mutableStateOf(false) }
-    
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
     var selectedSongForEdit by remember { mutableStateOf<SongEntity?>(null) }
     var selectedSongForDetails by remember { mutableStateOf<SongEntity?>(null) }
     var selectedSongForInfo by remember { mutableStateOf<SongEntity?>(null) }
     var selectedSongForDelete by remember { mutableStateOf<SongEntity?>(null) }
 
-    val collectionSongs = remember(allSongs, title, type, sortOption, isAscending) {
-        val filtered = when (type) {
-            "album" -> allSongs.filter { (it.album ?: "Unknown Album").equals(title, ignoreCase = true) }
-            "artist" -> allSongs.filter { 
-                val songArtist = it.artist?.trim()
-                val albumArtist = it.albumArtist?.trim()
-                (songArtist != null && songArtist.equals(title, ignoreCase = true)) || 
-                (albumArtist != null && albumArtist.equals(title, ignoreCase = true))
-            }
-            "playlist" -> allSongs.filter { it.isFavorite }
-            "genre" -> allSongs.filter { (it.genre ?: "Unknown Genre").equals(title, ignoreCase = true) }
-            "folder" -> allSongs.filter { song ->
-                val parentPath = java.io.File(song.path).parent ?: ""
-                val folderName = java.io.File(parentPath).name.ifBlank { parentPath }
-                folderName.equals(title, ignoreCase = true) || parentPath.equals(title, ignoreCase = true)
-            }
-            else -> allSongs
-        }
-
-        val sorted = filtered.toMutableList()
-        when (sortOption) {
-            SongSortOption.TITLE -> if (isAscending) sorted.sortBy { it.title.lowercase() } else sorted.sortByDescending { it.title.lowercase() }
-            SongSortOption.TRACK_NUMBER -> if (isAscending) sorted.sortBy { it.trackNumber ?: 0 } else sorted.sortByDescending { it.trackNumber ?: 0 }
-            SongSortOption.DURATION -> if (isAscending) sorted.sortBy { it.duration } else sorted.sortByDescending { it.duration }
-            SongSortOption.DATE_ADDED -> if (isAscending) sorted.sortBy { it.dateAdded ?: 0L } else sorted.sortByDescending { it.dateAdded ?: 0L }
-            SongSortOption.YEAR -> if (isAscending) sorted.sortBy { it.year ?: 0 } else sorted.sortByDescending { it.year ?: 0 }
-            SongSortOption.ALBUM -> if (isAscending) sorted.sortBy { it.album?.lowercase() ?: "" } else sorted.sortByDescending { it.album?.lowercase() ?: "" }
-        }
-        sorted
+    LaunchedEffect(title, type) {
+        viewModel.initCollection(title, type)
     }
 
-    val displayArt = remember(collectionSongs, artPath) {
-        artPath ?: collectionSongs.firstOrNull { !it.artPath.isNullOrEmpty() }?.artPath
-    }
-
-    val albumArtistName = remember(collectionSongs) {
-        collectionSongs.firstOrNull()?.albumArtist?.trim()?.ifBlank { null }
-            ?: collectionSongs.firstOrNull()?.artist?.trim()?.ifBlank { null }
-            ?: "Unknown Artist"
-    }
-
-    val headerSubtitleText = remember(type, albumArtistName, collectionSongs.size) {
-        if (type == "album") {
-            "$albumArtistName • ${collectionSongs.size} tracks"
-        } else {
-            "${collectionSongs.size} tracks"
-        }
-    }
-
+    val displayArt = artPath ?: collectionSongs.firstOrNull { !it.artPath.isNullOrEmpty() }?.artPath
     val bottomPadding = if (currentSong != null) 200.dp else 140.dp
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
-            .statusBarsPadding()
     ) {
-        // App Bar
+        // Top Back Button Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             PremiumSection(
-                width = 40.dp,
-                height = 40.dp,
+                width = 44.dp,
+                height = 44.dp,
                 backgroundColor = Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
                 onClick = onBackClick
             ) {
-                Icon(Lucide.ArrowLeft, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = Lucide.ArrowLeft,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontFamily = DmSansFontFamily,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
 
         if (!isDbLoaded && collectionSongs.isEmpty()) {
-            com.example.looper_android.ui.components.PremiumLoadingView()
+            PremiumLoadingView(message = "LOADING COLLECTION")
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Centered Hero Header Section (Flutter style)
+                // Hero Header (Cover image centered, text & buttons left-aligned)
                 item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 24.dp, top = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.Start
                     ) {
-                        // Centered Album Artwork Card
+                        // Centered artwork image container
                         Box(
-                            modifier = Modifier
-                                .size(210.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            OptimizedImage(
-                                url = displayArt,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(140.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                            ) {
+                                OptimizedImage(
+                                    url = displayArt,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Collection Title
-                        Text(
-                            text = title,
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Collection Subtitle (Artist • Track Count)
-                        Text(
-                            text = headerSubtitleText,
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 14.sp,
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Medium
-                        )
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons Row (Play, Shuffle, Sort, 3-Dot)
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = DmSansFontFamily,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Text(
+                            text = "${collectionSongs.size} ${if (collectionSongs.size == 1) "track" else "tracks"}",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 16.sp,
+                            fontFamily = DmSansFontFamily
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Action Bar
                         Row(
-                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Play All Button
                             PremiumSection(
-                                width = 110.dp,
                                 height = 44.dp,
-                                backgroundColor = Color(0xFF55DF69),
-                                shape = RoundedCornerShape(22.dp),
+                                backgroundColor = Color.White.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(12.dp),
                                 onClick = {
                                     if (collectionSongs.isNotEmpty()) {
                                         playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0)
                                     }
                                 }
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Lucide.Play, contentDescription = "Play", tint = Color.Black, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Play", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Lucide.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Text(
+                                        text = "Play All",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = DmSansFontFamily
+                                    )
                                 }
                             }
 
@@ -271,7 +231,7 @@ fun CollectionDetailScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 onClick = {
                                     if (collectionSongs.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(collectionSongs.shuffled(), initialIndex = 0)
+                                        playbackViewModel.setPlaylist(collectionSongs.shuffled(), initialIndex = 0, disableShuffleMode = false)
                                     }
                                 }
                             ) {
@@ -314,7 +274,7 @@ fun CollectionDetailScreen(
                         song = song,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { playbackViewModel.setPlaylist(collectionSongs, initialIndex = index) },
+                        onClick = { playbackViewModel.setPlaylist(collectionSongs, initialIndex = index, disableShuffleMode = true) },
                         onOptionsClick = { selectedSongForOptions = song },
                         showAlbumInSubtitle = (type != "album")
                     )
@@ -325,20 +285,28 @@ fun CollectionDetailScreen(
 
     // Sort Bottom Sheet
     if (showSortSheet) {
-        val songSortOptions = listOf(
-            CategorySortOptionItem(SongSortOption.TITLE, "Title", Lucide.Type),
-            CategorySortOptionItem(SongSortOption.TRACK_NUMBER, "Track Number", Lucide.Hash),
-            CategorySortOptionItem(SongSortOption.DURATION, "Duration", Lucide.Clock),
-            CategorySortOptionItem(SongSortOption.DATE_ADDED, "Date Added", Lucide.CalendarPlus),
-            CategorySortOptionItem(SongSortOption.YEAR, "Year", Lucide.Calendar),
-            CategorySortOptionItem(SongSortOption.ALBUM, "Album", Lucide.Disc)
+        val songSortOptions = mutableListOf(
+            CategorySortOptionItem(SongSortOption.TITLE, "Title", Lucide.Type)
         )
+        if (type.equals("artist", ignoreCase = true)) {
+            songSortOptions.add(CategorySortOptionItem(SongSortOption.ALBUM, "Album", Lucide.Disc))
+        }
+        songSortOptions.addAll(
+            listOf(
+                CategorySortOptionItem(SongSortOption.TRACK_NUMBER, "Track Number", Lucide.ListOrdered),
+                CategorySortOptionItem(SongSortOption.ALBUM, "Album", Lucide.Disc),
+                CategorySortOptionItem(SongSortOption.DURATION, "Duration", Lucide.Clock),
+                CategorySortOptionItem(SongSortOption.DATE_ADDED, "Date Added", Lucide.CalendarPlus),
+                CategorySortOptionItem(SongSortOption.YEAR, "Year", Lucide.Calendar)
+            )
+        )
+
         CategorySortBottomSheet(
             options = songSortOptions,
             selectedOption = sortOption,
             isAscending = isAscending,
-            onOptionSelected = { sortOption = it },
-            onToggleAscending = { isAscending = !isAscending },
+            onOptionSelected = { viewModel.setSortOption(it) },
+            onToggleAscending = { viewModel.toggleAscending() },
             onDismiss = { showSortSheet = false },
             accentColor = playbackState.accentColor
         )
@@ -396,7 +364,9 @@ fun CollectionDetailScreen(
             onFavoriteClick = { allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite)) },
             onEditSongClick = { selectedSongForEdit = song },
             onSongDetailsClick = { selectedSongForDetails = song },
-            onDeleteClick = { selectedSongForDelete = song }
+            onDeleteClick = { selectedSongForDelete = song },
+            onArtistClick = onNavigateToArtist,
+            onAlbumClick = onNavigateToAlbum
         )
     }
 

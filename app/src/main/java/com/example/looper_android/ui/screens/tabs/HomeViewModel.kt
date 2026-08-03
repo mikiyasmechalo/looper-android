@@ -6,7 +6,6 @@ import com.example.looper_android.data.db.AlbumEntity
 import com.example.looper_android.data.db.ArtistEntity
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
-import com.example.looper_android.data.repository.LibraryRepository
 import com.example.looper_android.domain.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +36,6 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
-    private val libraryRepository: LibraryRepository,
     private val queueManager: QueueManager
 ) : ViewModel() {
 
@@ -49,14 +47,10 @@ class HomeViewModel @Inject constructor(
 
     init {
         combine(
-            libraryRepository.allSongs,
-            libraryRepository.allAlbums,
-            libraryRepository.allArtists,
-            libraryRepository.isDbLoaded
-        ) { songs, albums, artists, isDbLoaded ->
-            if (!isDbLoaded) {
-                return@combine HomeUiState(isLoading = true)
-            }
+            libraryDao.getAllSongs(),
+            libraryDao.getAllAlbums(),
+            libraryDao.getAllArtists()
+        ) { songs, albums, artists ->
             if (songs.isEmpty()) {
                 return@combine HomeUiState(isLoading = false)
             }

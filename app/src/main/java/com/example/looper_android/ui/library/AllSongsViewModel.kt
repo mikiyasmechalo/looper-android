@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.data.models.SortOption
-import com.example.looper_android.data.repository.LibraryRepository
 import com.example.looper_android.data.repository.LibraryScanner
 import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.domain.QueueManager
@@ -25,7 +24,6 @@ import javax.inject.Inject
 @HiltViewModel
 class AllSongsViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
-    private val libraryRepository: LibraryRepository,
     private val libraryScanner: LibraryScanner,
     private val safScanner: SafScanner,
     private val queueManager: QueueManager
@@ -59,12 +57,14 @@ class AllSongsViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val isDbLoaded: StateFlow<Boolean> = libraryRepository.isDbLoaded
+    private val _isDbLoaded = MutableStateFlow(false)
+    val isDbLoaded: StateFlow<Boolean> = _isDbLoaded.asStateFlow()
 
     init {
-        libraryRepository.allSongs
+        libraryDao.getAllSongs()
             .onEach { 
                 _songs.value = it 
+                _isDbLoaded.value = true
             }
             .catch { it.printStackTrace() }
             .launchIn(viewModelScope)

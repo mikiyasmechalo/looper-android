@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
-import com.example.looper_android.data.repository.LibraryRepository
 import com.example.looper_android.domain.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +21,6 @@ data class LibraryUiState(
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
-    private val libraryRepository: LibraryRepository,
     private val queueManager: QueueManager
 ) : ViewModel() {
 
@@ -30,7 +28,7 @@ class LibraryViewModel @Inject constructor(
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
     init {
-        libraryRepository.allSongs.onEach { songs ->
+        libraryDao.getAllSongs().onEach { songs ->
             val recent = songs
                 .filter { it.lastPlayed != null }
                 .sortedByDescending { it.lastPlayed }
