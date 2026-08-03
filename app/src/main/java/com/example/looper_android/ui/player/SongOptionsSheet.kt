@@ -13,10 +13,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -164,9 +167,19 @@ fun SongOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.Transparent,
+        containerColor = sheetBg,
+        contentColor = Color.White,
         scrimColor = Color.Black.copy(alpha = 0.54f),
-        dragHandle = { /* handled in content */ },
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.24f))
+            )
+        },
         properties = ModalBottomSheetProperties(
             shouldDismissOnBackPress = true,
 //            isFocusable = true
@@ -180,19 +193,7 @@ fun SongOptionsSheet(
                         color = sheetBg,
                         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
                     )
-                    .padding(bottom = 8.dp)
             ) {
-                // ── Drag handle ──────────────────────────────────────────
-                Box(
-                    modifier = Modifier
-                        .padding(top = 12.dp, bottom = 8.dp)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.24f))
-                        .align(Alignment.CenterHorizontally)
-                )
-
                 // ── Header ───────────────────────────────────────────────
                 Row(
                     modifier = Modifier
@@ -368,70 +369,77 @@ fun SongOptionsSheet(
                     })
                 }
 
-                PremiumSection(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    backgroundColor = Color(0xFF1E1E1E),
-                    onClick = null
+                        .weight(1f, fill = false),
+                    contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        options.forEachIndexed { index, option ->
-                            val (svgAsset, vectorIcon, label, onClick) = option
-                            val isDelete = label == "Delete Song"
-                            val isRemoveFromPlaylist = label == "Remove from Playlist"
-                            val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavorite
-                            val iconColor = when {
-                                isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
-                                else -> accentColor
-                            }
+                    item {
+                        PremiumSection(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            backgroundColor = Color(0xFF1E1E1E),
+                            onClick = null
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                options.forEachIndexed { index, option ->
+                                    val (svgAsset, vectorIcon, label, onClick) = option
+                                    val isDelete = label == "Delete Song"
+                                    val isRemoveFromPlaylist = label == "Remove from Playlist"
+                                    val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavorite
+                                    val iconColor = when {
+                                        isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
+                                        else -> accentColor
+                                    }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = ripple(bounded = true, radius = 300.dp),
-                                        onClick = onClick
-                                    )
-                                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val vectorIcon: ImageVector? = option.vectorIcon
-                                if (vectorIcon != null) {
-                                    Icon(
-                                        imageVector = vectorIcon,
-                                        contentDescription = label,
-                                        tint = iconColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = ripple(bounded = true, radius = 300.dp),
+                                                onClick = onClick
+                                            )
+                                            .padding(horizontal = 20.dp, vertical = 15.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val vectorIcon: ImageVector? = option.vectorIcon
+                                        if (vectorIcon != null) {
+                                            Icon(
+                                                imageVector = vectorIcon,
+                                                contentDescription = label,
+                                                tint = iconColor,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        Text(
+                                            text = label,
+                                            color = Color.White,
+                                            fontFamily = DmSansFontFamily,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    if (index < options.lastIndex) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(horizontal = 20.dp),
+                                            thickness = 0.8.dp,
+                                            color = Color.White.copy(alpha = 0.04f)
+                                        )
+                                    }
                                 }
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Text(
-                                    text = label,
-                                    color = Color.White,
-                                    fontFamily = DmSansFontFamily,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 16.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            if (index < options.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 20.dp),
-                                    thickness = 0.8.dp,
-                                    color = Color.White.copy(alpha = 0.04f)
-                                )
                             }
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
