@@ -9,7 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,16 +22,26 @@ import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.JostFontFamily
 
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.looper_android.ui.widgets.QueueSwitcher
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueBottomSheet(
     queue: List<SongEntity>,
     currentSong: SongEntity?,
     onDismiss: () -> Unit,
-    onSongSelect: (SongEntity) -> Unit
+    onSongSelect: (SongEntity) -> Unit,
+    playbackViewModel: PlaybackViewModel = hiltViewModel()
 ) {
+    val allQueues by playbackViewModel.allQueues.collectAsState()
+    val playbackState by playbackViewModel.playbackState.collectAsState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        modifier = Modifier.fillMaxSize(),
         containerColor = Color(0xFF141414),
         scrimColor = Color.Black.copy(alpha = 0.6f),
         dragHandle = {
@@ -47,6 +57,7 @@ fun QueueBottomSheet(
     ) {
         Column(
             modifier = Modifier
+                .fillMaxHeight()
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 8.dp)
         ) {
@@ -55,12 +66,16 @@ fun QueueBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Playing Queue",
-                    color = Color.White,
-                    fontFamily = JostFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                QueueSwitcher(
+                    queues = allQueues,
+                    activeQueueId = playbackState.activeQueueId,
+                    onQueueSelected = { queueId ->
+                        playbackViewModel.switchToQueue(queueId)
+                    },
+                    onDeleteQueue = { queueId ->
+                        playbackViewModel.deleteQueue(queueId)
+                    },
+                    accentColor = playbackState.accentColor
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(
@@ -89,16 +104,16 @@ fun QueueBottomSheet(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxHeight(0.7f),
+                    modifier = Modifier.fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(queue) { index, song ->
+                    itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
                         val isPlayingThis = song.id == currentSong?.id
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isPlayingThis) Color(0xFF55DF69).copy(alpha = 0.15f) else Color.Transparent)
+                                .background(if (isPlayingThis) playbackState.accentColor.copy(alpha = 0.15f) else Color.Transparent)
                                 .clickable { onSongSelect(song) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -119,7 +134,7 @@ fun QueueBottomSheet(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = song.title,
-                                    color = if (isPlayingThis) Color(0xFF55DF69) else Color.White,
+                                    color = if (isPlayingThis) playbackState.accentColor else Color.White,
                                     fontFamily = JostFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,

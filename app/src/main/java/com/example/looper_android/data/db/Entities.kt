@@ -3,14 +3,35 @@ package com.example.looper_android.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+/**
+ * Lightweight projection of SongEntity used for fast diffing during MediaStore scan.
+ * Only includes fields needed to detect changes and preserve user data.
+ */
+data class SongDiffData(
+    val path: String,
+    val id: Long,
+    val artPath: String?,
+    val albumArtist: String?,
+    val lyrics: String?,
+    val genre: String?,
+    val playCount: Int,
+    val lastPlayed: Long?,
+    val isFavorite: Boolean,
+    val hasCustomEqualizer: Boolean,
+    val equalizerGains: String?,
+    val year: Int?
+)
+
 @Entity(tableName = "queues")
 data class QueueEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val isActive: Boolean = false,
     val currentItemIndex: Int = 0,
-    val currentPlaybackPositionMs: Long = 0
+    val currentPlaybackPositionMs: Long = 0,
+    val shuffleState: Boolean = false,
+    val lastPlayedAt: Long = System.currentTimeMillis(),
+    val isPermanent: Boolean = false
 )
 
 @Entity(tableName = "queue_items")

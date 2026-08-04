@@ -58,7 +58,7 @@ fun PremiumMusicBar(
     }
 
     AnimatedVisibility(
-        visible = song != null,
+        visible = song != null && playbackState.isSongReady,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
         modifier = modifier

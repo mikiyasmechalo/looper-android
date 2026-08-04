@@ -117,7 +117,7 @@ enum class ActiveSheet {
 fun SongOptionsSheet(
     song: SongEntity,
     onDismiss: () -> Unit,
-    accentColor: Color = Color(0xFF55DF69),
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     useBlur: Boolean = false,
     isPureBlack: Boolean = false,
     playlist: com.example.looper_android.data.db.PlaylistEntity? = null,
@@ -551,7 +551,7 @@ fun SongOptionsSheet(
 @Composable
 fun EditSongSheet(
     song: SongEntity,
-    accentColor: Color = Color(0xFF55DF69),
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     useBlur: Boolean = false,
     isPureBlack: Boolean = false,
     onDismiss: () -> Unit,
@@ -1101,7 +1101,7 @@ fun DeleteSongDialog(
 fun SleepTimerSheet(
     isTimerActive: Boolean = false,
     activeLabel: String = "",
-    accentColor: Color = Color(0xFF55DF69),
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     useBlur: Boolean = false,
     isPureBlack: Boolean = false,
     onDismiss: () -> Unit,
@@ -1451,7 +1451,7 @@ fun SleepTimerSheet(
 @Composable
 fun PlaylistSelectorDialog(
     playlists: List<com.example.looper_android.data.db.PlaylistEntity>,
-    accentColor: Color = Color(0xFF55DF69),
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     onDismiss: () -> Unit,
     onPlaylistSelected: (com.example.looper_android.data.db.PlaylistEntity) -> Unit
 ) {

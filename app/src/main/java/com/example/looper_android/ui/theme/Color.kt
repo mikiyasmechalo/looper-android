@@ -2,7 +2,10 @@ package com.example.looper_android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+import androidx.compose.runtime.compositionLocalOf
+
 val BrandAccent = Color(0xFF55DF69)
+val LocalAccentColor = compositionLocalOf { BrandAccent }
 val PremiumDeepBlack = Color(0xFF11110E)
 val PremiumContainer = Color(0xFF1E1E1E)
 

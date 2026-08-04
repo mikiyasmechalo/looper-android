@@ -96,10 +96,13 @@ fun DashboardScreen(
     val childNavController = rememberNavController()
 
     val allSongsViewModel: com.example.looper_android.ui.library.AllSongsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val homeViewModel: com.example.looper_android.ui.screens.tabs.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val libraryViewModel: com.example.looper_android.ui.screens.tabs.LibraryViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     
     val context = androidx.compose.ui.platform.LocalContext.current
     val isDbLoaded by allSongsViewModel.isDbLoaded.collectAsState()
     val songs by allSongsViewModel.songs.collectAsState()
+    val playbackState by playbackViewModel.playbackState.collectAsState()
     
     var hasPermission by remember {
         androidx.compose.runtime.mutableStateOf(
@@ -111,79 +114,48 @@ fun DashboardScreen(
         )
     }
 
-    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasPermission = isGranted
-        if (isGranted) {
-            allSongsViewModel.loadSongs()
-        }
-    }
-
     LaunchedEffect(Unit) {
         if (!hasPermission) {
-            val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                android.Manifest.permission.READ_MEDIA_AUDIO
-            } else {
-                android.Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-            permissionLauncher.launch(permission)
-        }
-    }
-
-    LaunchedEffect(hasPermission, isDbLoaded) {
-        if (hasPermission && isDbLoaded && songs.isEmpty()) {
-            allSongsViewModel.loadSongs()
-        }
-    }
-
-    // Synchronize pager swipe with selectedTabIndex
-    LaunchedEffect(pagerState.currentPage) {
-        selectedTabIndex = pagerState.currentPage
-    }
-    // 1. Observe back stack changes safely
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-
-    // 2. Safely retrieve the parent back stack entry as a nullable type
-    val dashboardEntry = remember(currentBackStackEntry) {
-        runCatching { navController.getBackStackEntry("dashboard") }.getOrNull()
-    }
-
-    // 3. Collect StateFlow safely using safe calls (?.let)
-    val navigateTo by remember(dashboardEntry) {
-        dashboardEntry?.savedStateHandle?.getStateFlow<String?>("navigate_to", null)
-    }?.collectAsState() ?: remember { mutableStateOf(null) }
-
-    // 4. Handle navigation effect
-    LaunchedEffect(navigateTo) {
-        navigateTo?.let { navString ->
-            // Use safe call when updating savedStateHandle
-            dashboardEntry?.savedStateHandle?.set("navigate_to", null)
-
-            val parts = navString.split(":", limit = 2)
-            if (parts.size == 2) {
-                val type = parts[0]
-                val value = Uri.encode(parts[1])
-                childNavController.navigate("collection_detail/$type/$value")
+            navController.navigate("permission") {
+                popUpTo("dashboard") { inclusive = true }
             }
         }
     }
 
+    if (!hasPermission) return
+
+    val currentBackStack by childNavController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStack?.destination?.route
+
+    // Sync selectedTabIndex with Pager (only when on "tabs" route)
+    LaunchedEffect(pagerState.currentPage, currentRoute) {
+        if (currentRoute == "tabs" || currentRoute == null) {
+            selectedTabIndex = pagerState.currentPage
+        }
+    }
+
+    // Determine padding based on current route
+    val isTopLevel = currentRoute == "tabs" || currentRoute == null
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val topInset: androidx.compose.ui.unit.Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    var savedTopPx by remember { mutableStateOf<Float?>(null) }
+    val topInsets = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val currentTopPx = with(density) { topInsets.toPx() }
     
-    val currentTopPx: Float = with(density) { topInset.toPx() }
-    val saved: Float? = savedTopPx
+    // Remember the top inset pixels
+    var saved by remember { androidx.compose.runtime.mutableStateOf<Float?>(null) }
+    var savedTopPx by remember { androidx.compose.runtime.mutableStateOf(0f) }
+    
     if (saved == null && currentTopPx > 0f) {
         savedTopPx = currentTopPx
     }
     val targetPx: Float = saved ?: currentTopPx
     val stableTopDp = with(density) { targetPx.toDp() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
             .background(Color(0xFF11110E))
     ) {
         // Content area with nested NavHost for sub-routes (Albums, Artists, Detail views)
@@ -202,6 +174,7 @@ fun DashboardScreen(
                 ) { page ->
                     when (page) {
                         0 -> HomeTab(
+                            viewModel = homeViewModel,
                             onNavigateToSongs = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(1)
@@ -209,10 +182,25 @@ fun DashboardScreen(
                             },
                             onNavigateToArtists = { childNavController.navigate("category/artists") },
                             onNavigateToAlbums = { childNavController.navigate("category/albums") },
-                            onNavigateToGenres = { childNavController.navigate("category/genres") }
+                            onNavigateToGenres = { childNavController.navigate("category/genres") },
+                            onArtistClick = { artistName ->
+                                val encoded = android.net.Uri.encode(artistName)
+                                childNavController.navigate("collection_detail/artist/$encoded")
+                            },
+                            onAlbumClick = { albumName ->
+                                val encoded = android.net.Uri.encode(albumName)
+                                childNavController.navigate("collection_detail/album/$encoded")
+                            },
+                            onGenreClick = { genreName ->
+                                val encoded = android.net.Uri.encode(genreName)
+                                childNavController.navigate("collection_detail/genre/$encoded")
+                            }
                         )
-                        1 -> AllSongsScreen()
+                        1 -> AllSongsScreen(
+                            viewModel = allSongsViewModel
+                        )
                         2 -> LibraryTab(
+                            viewModel = libraryViewModel,
                             onNavigateToCategory = { categoryKey ->
                                 childNavController.navigate("category/$categoryKey")
                             }
@@ -283,6 +271,19 @@ fun DashboardScreen(
                         val encoded = Uri.encode(folder)
                         childNavController.navigate("collection_detail/folder/$encoded")
                     }
+                )
+            }
+            
+            composable(
+                route = "category/queue",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition }
+            ) {
+                com.example.looper_android.ui.library.QueuesScreen(
+                    onBackClick = { childNavController.popBackStack() },
+                    viewModel = playbackViewModel
                 )
             }
 
@@ -395,9 +396,11 @@ fun DashboardScreen(
                         pagerState.animateScrollToPage(index)
                     }
                 },
+                accentColor = playbackState.accentColor,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope
             )
         }
     }
+}
 }

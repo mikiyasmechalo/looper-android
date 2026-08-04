@@ -8,6 +8,7 @@ import com.example.looper_android.data.db.AlbumEntity
 import com.example.looper_android.data.db.AppDatabase
 import com.example.looper_android.data.db.ArtistEntity
 import com.example.looper_android.data.db.LibraryDao
+import com.example.looper_android.data.db.SongDiffData
 import com.example.looper_android.data.db.SongEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -98,6 +99,17 @@ class LibraryScanner @Inject constructor(
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+
+        // OPTIMIZATION: Load all existing songs into memory as a map (1 query instead of N queries)
+        val existingByPath: Map<String, SongDiffData> = libraryDao.getAllSongsForDiff()
+            .associateBy { it.path }
+
+        val songsToInsert = mutableListOf<SongEntity>()
+        val songsToUpdate = mutableListOf<SongEntity>()
+        val albumsToInsert = mutableListOf<AlbumEntity>()
+        val artistsToInsert = mutableListOf<ArtistEntity>()
+        val processedAlbums = mutableSetOf<String>()
+        val processedArtists = mutableSetOf<String>()
         val songsToEnrich = mutableListOf<SongEntity>()
 
         context.contentResolver.query(
@@ -121,93 +133,96 @@ class LibraryScanner @Inject constructor(
             val totalSongs = cursor.count
             var scannedCount = 0
 
-            db.withTransaction {
-                val processedAlbums = mutableSetOf<String>()
-                val processedArtists = mutableSetOf<String>()
+            while (cursor.moveToNext()) {
+                val mediaId = cursor.getLong(idColumn)
+                val path = cursor.getString(dataColumn) ?: continue
+                val existing = existingByPath[path]
 
-                while (cursor.moveToNext()) {
-                    val mediaId = cursor.getLong(idColumn)
-                    val path = cursor.getString(dataColumn) ?: continue
-                    val existing = libraryDao.getSongByPath(path)
+                val mediaStoreTitle = cursor.getString(titleColumn) ?: "Unknown"
+                val mediaStoreArtist = cursor.getString(artistColumn) ?: "Unknown Artist"
+                val mediaStoreAlbum = cursor.getString(albumColumn) ?: "Unknown Album"
+                val mediaStoreDuration = cursor.getInt(durationColumn)
+                val mediaStoreTrack = cursor.getInt(trackColumn)
+                val mediaStoreYear = cursor.getInt(yearColumn)
+                val dateAdded = cursor.getLong(dateAddedColumn) * 1000L
+                val albumId = cursor.getLong(albumIdColumn)
 
-                    val mediaStoreTitle = cursor.getString(titleColumn) ?: "Unknown"
-                    val mediaStoreArtist = cursor.getString(artistColumn) ?: "Unknown Artist"
-                    val mediaStoreAlbum = cursor.getString(albumColumn) ?: "Unknown Album"
-                    val mediaStoreDuration = cursor.getInt(durationColumn)
-                    val mediaStoreTrack = cursor.getInt(trackColumn)
-                    val mediaStoreYear = cursor.getInt(yearColumn)
-                    val dateAdded = cursor.getLong(dateAddedColumn) * 1000L
-                    val albumId = cursor.getLong(albumIdColumn)
+                val discoveredGenre = mediaStoreGenreMap[mediaId] ?: existing?.genre
 
-                    val discoveredGenre = mediaStoreGenreMap[mediaId] ?: existing?.genre
+                val albumArtUri = ContentUris.withAppendedId(
+                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                    albumId
+                ).toString()
 
-                    val albumArtUri = ContentUris.withAppendedId(
-                        MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                        albumId
-                    ).toString()
+                val songTitle = if (mediaStoreTitle.isNotBlank() && !mediaStoreTitle.equals("<unknown>", ignoreCase = true)) mediaStoreTitle else "Unknown"
+                val songArtist = if (mediaStoreArtist.isNotBlank() && !mediaStoreArtist.equals("<unknown>", ignoreCase = true)) mediaStoreArtist else "Unknown Artist"
+                val songAlbum = if (mediaStoreAlbum.isNotBlank() && !mediaStoreAlbum.equals("<unknown>", ignoreCase = true)) mediaStoreAlbum else "Unknown Album"
 
-                    val songTitle = if (mediaStoreTitle.isNotBlank() && !mediaStoreTitle.equals("<unknown>", ignoreCase = true)) mediaStoreTitle else (existing?.title ?: mediaStoreTitle)
-                    val songArtist = if (mediaStoreArtist.isNotBlank() && !mediaStoreArtist.equals("<unknown>", ignoreCase = true)) mediaStoreArtist else (existing?.artist ?: mediaStoreArtist)
-                    val songAlbum = if (mediaStoreAlbum.isNotBlank() && !mediaStoreAlbum.equals("<unknown>", ignoreCase = true)) mediaStoreAlbum else (existing?.album ?: mediaStoreAlbum)
+                val effectiveArtist = existing?.albumArtist?.trim()?.ifBlank { null } ?: songArtist
 
-                    val effectiveArtist = existing?.albumArtist?.trim()?.ifBlank { null } ?: songArtist
+                val song = SongEntity(
+                    id = existing?.id ?: 0,
+                    path = path,
+                    title = songTitle,
+                    artist = songArtist,
+                    albumArtist = effectiveArtist,
+                    album = songAlbum,
+                    genre = discoveredGenre,
+                    duration = if (mediaStoreDuration > 0) mediaStoreDuration else 0,
+                    trackNumber = if (mediaStoreTrack > 0) mediaStoreTrack else null,
+                    year = if (mediaStoreYear > 0) mediaStoreYear else existing?.year,
+                    lyrics = existing?.lyrics,
+                    artPath = existing?.artPath ?: albumArtUri,
+                    dateAdded = dateAdded,
+                    playCount = existing?.playCount ?: 0,
+                    lastPlayed = existing?.lastPlayed,
+                    isFavorite = existing?.isFavorite ?: false,
+                    hasCustomEqualizer = existing?.hasCustomEqualizer ?: false,
+                    equalizerGains = existing?.equalizerGains
+                )
 
-                    val song = SongEntity(
-                        id = existing?.id ?: 0,
-                        path = path,
-                        title = songTitle,
-                        artist = songArtist,
-                        albumArtist = effectiveArtist,
-                        album = songAlbum,
-                        genre = discoveredGenre,
-                        duration = if (mediaStoreDuration > 0) mediaStoreDuration else (existing?.duration ?: 0),
-                        trackNumber = if (mediaStoreTrack > 0) mediaStoreTrack else existing?.trackNumber,
-                        year = if (mediaStoreYear > 0) mediaStoreYear else existing?.year,
-                        lyrics = existing?.lyrics,
-                        artPath = existing?.artPath ?: albumArtUri,
-                        dateAdded = dateAdded,
-                        playCount = existing?.playCount ?: 0,
-                        lastPlayed = existing?.lastPlayed,
-                        isFavorite = existing?.isFavorite ?: false,
-                        hasCustomEqualizer = existing?.hasCustomEqualizer ?: false,
-                        equalizerGains = existing?.equalizerGains
+                if (existing == null) {
+                    songsToInsert.add(song)
+                } else {
+                    songsToUpdate.add(song)
+                }
+
+                songsToEnrich.add(song)
+                scannedCount++
+                onProgress?.invoke(scannedCount, totalSongs, "Discovering songs...")
+
+                if (songAlbum !in processedAlbums) {
+                    processedAlbums.add(songAlbum)
+                    albumsToInsert.add(
+                        AlbumEntity(
+                            name = songAlbum,
+                            artist = effectiveArtist,
+                            artPath = albumArtUri,
+                            year = song.year,
+                            dateAdded = dateAdded
+                        )
                     )
+                }
 
-                    if (existing == null) {
-                        libraryDao.insertSong(song)
-                    } else {
-                        libraryDao.updateSong(song)
-                    }
-
-                    songsToEnrich.add(song)
-                    scannedCount++
-                    onProgress?.invoke(scannedCount, totalSongs, "Discovering songs...")
-
-                    if (songAlbum !in processedAlbums) {
-                        processedAlbums.add(songAlbum)
-                        libraryDao.insertAlbum(
-                            AlbumEntity(
-                                name = songAlbum,
-                                artist = effectiveArtist,
-                                artPath = albumArtUri,
-                                year = song.year,
-                                dateAdded = dateAdded
-                            )
+                if (effectiveArtist !in processedArtists) {
+                    processedArtists.add(effectiveArtist)
+                    artistsToInsert.add(
+                        ArtistEntity(
+                            name = effectiveArtist,
+                            artPath = null,
+                            artistImageUrl = null
                         )
-                    }
-
-                    if (effectiveArtist !in processedArtists) {
-                        processedArtists.add(effectiveArtist)
-                        libraryDao.insertArtist(
-                            ArtistEntity(
-                                name = effectiveArtist,
-                                artPath = null,
-                                artistImageUrl = null
-                            )
-                        )
-                    }
+                    )
                 }
             }
+        }
+
+        // OPTIMIZATION: Single bulk transaction for all DB writes
+        db.withTransaction {
+            if (songsToInsert.isNotEmpty()) libraryDao.insertSongs(songsToInsert)
+            if (songsToUpdate.isNotEmpty()) libraryDao.updateSongs(songsToUpdate)
+            if (albumsToInsert.isNotEmpty()) libraryDao.insertAlbums(albumsToInsert)
+            if (artistsToInsert.isNotEmpty()) libraryDao.insertArtists(artistsToInsert)
         }
 
         // Asynchronously enrich ID3 metadata in background scope (non-blocking batch update)
@@ -217,6 +232,7 @@ class LibraryScanner @Inject constructor(
             }
         }
     }
+
 
     private suspend fun enrichMetadataInBackground(songs: List<SongEntity>, forceDiskRead: Boolean = false) = withContext(Dispatchers.IO) {
         val updatedBatch = mutableListOf<SongEntity>()

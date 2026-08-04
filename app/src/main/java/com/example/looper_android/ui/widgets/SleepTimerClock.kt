@@ -21,7 +21,7 @@ import com.example.looper_android.ui.theme.JostFontFamily
 fun SleepTimerClock(
     progress: Float, // 0.0f to 1.0f
     label: String,
-    color: Color = Color(0xFF55DF69),
+    color: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     modifier: Modifier = Modifier
 ) {
     val sizeDp = 28.dp

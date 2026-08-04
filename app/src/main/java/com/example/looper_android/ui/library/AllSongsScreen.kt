@@ -75,6 +75,7 @@ fun AllSongsScreen(
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
+    val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
     var showSortSheet by remember { mutableStateOf(false) }
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
@@ -176,7 +177,7 @@ fun AllSongsScreen(
                         Icon(
                             imageVector = Lucide.ArrowUpDown,
                             contentDescription = "Sort By",
-                            tint = Color(0xFF55DF69),
+                            tint = playbackState.accentColor,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -225,21 +226,20 @@ fun AllSongsScreen(
                         state = pullToRefreshState,
                         isRefreshing = isRefreshing,
                         modifier = Modifier.align(Alignment.TopCenter),
-                        color = Color(0xFF55DF69)
+                        color = com.example.looper_android.ui.theme.LocalAccentColor.current
                     )
                 }
             ) {
-                if (isLoading && songs.isEmpty()) {
-                    com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING MUSIC LIBRARY")
-                } else if (songs.isEmpty()) {
+                if (songs.isEmpty() && !isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No songs found.", color = Color.Gray)
                     }
                 } else {
                     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val targetBottomPadding = if (isMiniPlayerVisible) (190.dp + bottomInsets) else (120.dp + bottomInsets)
                     val bottomPadding by androidx.compose.animation.core.animateDpAsState(
-                        targetValue = if (currentSong != null) (190.dp + bottomInsets) else (120.dp + bottomInsets),
-                        animationSpec = androidx.compose.animation.core.tween(250),
+                        targetValue = targetBottomPadding,
+                        animationSpec = androidx.compose.animation.core.tween(300),
                         label = "bottomPadding"
                     )
                     LazyColumn(
@@ -268,11 +268,7 @@ fun AllSongsScreen(
 
         // Floating Shuffle Action Button (Compact padding)
         val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val fabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSong != null) (185.dp + bottomInsets) else (120.dp + bottomInsets),
-            animationSpec = androidx.compose.animation.core.tween(250),
-            label = "fabPadding"
-        )
+        val fabBottomPadding = if (currentSong != null) (185.dp + bottomInsets) else (120.dp + bottomInsets)
 
         Box(
             modifier = Modifier

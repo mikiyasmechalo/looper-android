@@ -1,12 +1,12 @@
 package com.example.looper_android.domain
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MediaSource
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.QueueDao
 import com.example.looper_android.data.db.QueueEntity
@@ -16,8 +16,15 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -39,10 +46,44 @@ class QueueManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.Main)
     private val mediaSourceFactory by lazy { DefaultMediaSourceFactory(context) }
+    private val prefs: SharedPreferences = context.getSharedPreferences("looper_queues", Context.MODE_PRIVATE)
 
-    @Volatile private var cachedSongs: List<SongEntity> = emptyList()
+    private val _cachedSongsFlow = MutableStateFlow<List<SongEntity>>(emptyList())
+    private var cachedSongs: List<SongEntity>
+        get() = _cachedSongsFlow.value
+        set(value) { _cachedSongsFlow.value = value }
     @Volatile private var cachedMediaItems: List<MediaItem> = emptyList()
     private val cacheReady = AtomicBoolean(false)
+
+    val allQueues: Flow<List<QueueEntity>> = queueDao.getAllQueues()
+
+    private val _activeQueueId = MutableStateFlow<Long?>(getActiveQueueIdFromPrefs())
+    val activeQueueId: StateFlow<Long?> = _activeQueueId.asStateFlow()
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val activeQueueSongs: Flow<List<SongEntity>> = kotlinx.coroutines.flow.combine(
+        _activeQueueId.flatMapLatest { id ->
+            if (id == null) kotlinx.coroutines.flow.flowOf(emptyList())
+            else queueDao.getItemsForQueue(id)
+        },
+        _cachedSongsFlow
+    ) { items, allSongs ->
+        val songMap = allSongs.associateBy { it.id }
+        items.mapNotNull { item ->
+            val songId = item.mediaId.toLongOrNull()
+            songId?.let { songMap[it] }
+        }
+    }.flowOn(Dispatchers.Default)
+
+    private fun getActiveQueueIdFromPrefs(): Long? {
+        val id = prefs.getLong("active_queue_id", -1L)
+        return if (id == -1L) null else id
+    }
+
+    private fun setActiveQueueIdInPrefs(id: Long) {
+        prefs.edit().putLong("active_queue_id", id).apply()
+        _activeQueueId.value = id
+    }
 
     init {
         scope.launch(Dispatchers.IO) {
@@ -59,7 +100,7 @@ class QueueManager @Inject constructor(
         }
     }
 
-    fun createAndPlayQueue(
+    fun loadAndPlayQueue(
         queueName: String,
         songs: List<SongEntity>,
         startIndex: Int = 0,
@@ -67,70 +108,65 @@ class QueueManager @Inject constructor(
     ) {
         if (songs.isEmpty()) return
 
-        // STEP 1: INSTANT PLAY (<0.1ms on Main thread) — Zero allocations before play()
+        // STEP 1: INSTANT PLAY
         val targetSong = songs[startIndex]
         val targetMediaItem = buildMediaItem(targetSong)
         player.setMediaItem(targetMediaItem)
+        if (!shuffled) {
+            player.shuffleModeEnabled = false
+        } else {
+            player.shuffleModeEnabled = true
+        }
         player.prepare()
         player.play()
 
-        // STEP 2: DEFERRED QUEUE ATTACHMENT (Off Main thread, on-demand MediaSource creation)
+        // STEP 2: DEFERRED QUEUE ATTACHMENT
         scope.launch(Dispatchers.Default) {
-            val cached = cachedMediaItems
-            val cachedSongList = cachedSongs
+            val queueMediaItems = songs.map { buildMediaItem(it) }
 
-            if (cacheReady.get() && cached.isNotEmpty()) {
+            if (cacheReady.get() && queueMediaItems.isNotEmpty()) {
                 val prepared = if (shuffled) {
-                    val others = cached.indices.filter { it != startIndex }.shuffled()
+                    val others = queueMediaItems.indices.filter { it != startIndex }.shuffled()
                     val idx = listOf(startIndex) + others
                     PreparedQueueData(
-                        items = idx.map { cached[it] },
-                        songs = idx.map { cachedSongList[it] },
+                        items = idx.map { queueMediaItems[it] },
+                        songs = idx.map { songs[it] },
                         startIndex = 0
                     )
                 } else {
                     PreparedQueueData(
-                        items = cached,
-                        songs = cachedSongList,
+                        items = queueMediaItems,
+                        songs = songs,
                         startIndex = startIndex
                     )
                 }
 
-                // Give ExoPlayer 250ms to start audio decoder output cleanly without timeline interruption
                 delay(250)
 
-                val idx = prepared.startIndex
-                val beforeItems = if (idx > 0) prepared.items.subList(0, idx) else emptyList()
-                val afterItems = if (idx < prepared.items.size - 1) prepared.items.subList(idx + 1, prepared.items.size) else emptyList()
 
-                // Create MediaSources on demand off Main thread without caching 9,000 heavy C++ handles in RAM
-                val afterSources = afterItems.map { mediaSourceFactory.createMediaSource(it) }
-                val beforeSources = beforeItems.map { mediaSourceFactory.createMediaSource(it) }
 
                 withContext(Dispatchers.Main) {
                     val exoPlayer = player as? ExoPlayer
                     if (exoPlayer != null) {
-                        if (afterSources.isNotEmpty()) {
-                            exoPlayer.addMediaSources(afterSources)
-                        }
-                        if (beforeSources.isNotEmpty()) {
-                            exoPlayer.addMediaSources(0, beforeSources)
+                        // ExoPlayer's addMediaSources can block the main thread if adding thousands of items.
+                        // For large queues, we just use setMediaItems which handles bulk addition natively.
+                        if (queueMediaItems.isNotEmpty()) {
+                            val pos = player.currentPosition
+                            player.setMediaItems(prepared.items, prepared.startIndex, pos)
                         }
                     }
                 }
 
-                persistFullQueue(queueName, prepared.songs)
+                persistFullQueue(queueName, prepared.songs, shuffled, prepared.startIndex)
             } else {
-                // FALLBACK (rare: cache not built yet, e.g. < 2s after first app launch)
                 while (!cacheReady.get()) delay(50)
-                val pos = player.currentPosition
-                val items = cachedMediaItems
-                if (items.isNotEmpty()) {
+                val pos = withContext(Dispatchers.Main) { player.currentPosition }
+                if (queueMediaItems.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        player.setMediaItems(items, startIndex, pos)
+                        player.setMediaItems(queueMediaItems, startIndex, pos)
                     }
                 }
-                persistFullQueue(queueName, songs)
+                persistFullQueue(queueName, songs, shuffled, startIndex)
             }
         }
     }
@@ -158,8 +194,44 @@ class QueueManager @Inject constructor(
             .build()
     }
 
-    private suspend fun persistFullQueue(queueName: String, songs: List<SongEntity>) {
-        val queueId = queueDao.insertQueue(QueueEntity(name = queueName, isActive = true))
+    private suspend fun persistFullQueue(queueName: String, songs: List<SongEntity>, shuffled: Boolean, startIndex: Int) {
+        saveCurrentState() // Save previous queue before overwriting/switching
+
+        var existingQueue = queueDao.getQueueByName(queueName)
+        val isAllSongs = queueName == "All Songs"
+
+        if (existingQueue == null && !isAllSongs) {
+            val userCount = queueDao.countUserQueues()
+            if (userCount >= 10) {
+                val oldest = queueDao.getOldestUserQueue()
+                if (oldest != null) {
+                    queueDao.deleteQueueWithItems(oldest.id)
+                }
+            }
+        }
+
+        val queueId = if (existingQueue != null) {
+            queueDao.deleteQueueItems(existingQueue.id)
+            queueDao.updateQueueState(
+                existingQueue.id, 
+                startIndex, 
+                0L, 
+                shuffled, 
+                System.currentTimeMillis()
+            )
+            existingQueue.id
+        } else {
+            queueDao.insertQueue(
+                QueueEntity(
+                    name = queueName,
+                    currentItemIndex = startIndex,
+                    shuffleState = shuffled,
+                    lastPlayedAt = System.currentTimeMillis(),
+                    isPermanent = isAllSongs
+                )
+            )
+        }
+
         val items = songs.mapIndexed { index, song ->
             QueueItemEntity(
                 queueId = queueId,
@@ -174,23 +246,56 @@ class QueueManager @Inject constructor(
             )
         }
         queueDao.insertQueueItems(items)
-        queueDao.setActiveQueue(queueId)
+        setActiveQueueIdInPrefs(queueId)
+    }
+
+    fun updateSongInQueue(updatedSong: SongEntity) {
+        val currentSongs = _cachedSongsFlow.value.toMutableList()
+        val index = currentSongs.indexOfFirst { it.id == updatedSong.id }
+        if (index != -1) {
+            currentSongs[index] = updatedSong
+            _cachedSongsFlow.value = currentSongs
+        }
     }
 
     fun switchToQueue(queueId: Long) {
-        scope.launch(Dispatchers.IO) {
-            val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == queueId } ?: return@launch
-            val items = queueDao.getItemsForQueue(queueId).firstOrNull() ?: return@launch
+        scope.launch(Dispatchers.Main) {
+            val autoPlay = player.isPlaying
             
-            queueDao.setActiveQueue(queueId)
-            
-            scope.launch(Dispatchers.Main) {
-                playQueueItems(items, queue.currentItemIndex, queue.currentPlaybackPositionMs)
+            withContext(Dispatchers.IO) {
+                saveCurrentStateSync() // synchronous wait
+                
+                val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == queueId } ?: return@withContext
+                val items = queueDao.getItemsForQueue(queueId).firstOrNull() ?: return@withContext
+                
+                queueDao.updateLastPlayed(queueId, System.currentTimeMillis())
+                setActiveQueueIdInPrefs(queueId)
+                
+                withContext(Dispatchers.Main) {
+                    player.shuffleModeEnabled = queue.shuffleState
+                    playQueueItems(items, queue.currentItemIndex, queue.currentPlaybackPositionMs, autoPlay)
+                }
             }
         }
     }
 
-    private fun playQueueItems(items: List<QueueItemEntity>, startIndex: Int, startPositionMs: Long, autoPlay: Boolean = true) {
+    fun deleteUserQueue(queueId: Long) {
+        scope.launch(Dispatchers.IO) {
+            val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == queueId }
+            if (queue != null && !queue.isPermanent) {
+                queueDao.deleteQueueWithItems(queueId)
+                if (activeQueueId.value == queueId) {
+                    // Fallback to "All Songs" if active queue deleted
+                    val allSongs = queueDao.getQueueByName("All Songs")
+                    if (allSongs != null) {
+                        switchToQueue(allSongs.id)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun playQueueItems(items: List<QueueItemEntity>, startIndex: Int, startPositionMs: Long, autoPlay: Boolean) {
         val mediaItems = items.map { item ->
             MediaItem.Builder()
                 .setMediaId(item.mediaId)
@@ -213,25 +318,63 @@ class QueueManager @Inject constructor(
         }
     }
     
+    private suspend fun saveCurrentStateSync() {
+        val activeId = activeQueueId.value ?: return
+        
+        val currentIdx = withContext(Dispatchers.Main) { player.currentMediaItemIndex }
+        val currentPos = withContext(Dispatchers.Main) { player.currentPosition }
+        val isShuffled = withContext(Dispatchers.Main) { player.shuffleModeEnabled }
+        val lastPlayed = System.currentTimeMillis()
+        
+        queueDao.updateQueueState(activeId, currentIdx, currentPos, isShuffled, lastPlayed)
+    }
+
     fun saveCurrentState() {
-        scope.launch(Dispatchers.IO) {
-            val activeQueue = queueDao.getActiveQueue() ?: return@launch
-            queueDao.updateQueueState(
-                queueId = activeQueue.id,
-                index = player.currentMediaItemIndex,
-                position = player.currentPosition
-            )
+        val activeId = activeQueueId.value ?: return
+        scope.launch(Dispatchers.Main) {
+            val currentIdx = player.currentMediaItemIndex
+            val currentPos = player.currentPosition
+            val isShuffled = player.shuffleModeEnabled
+            val lastPlayed = System.currentTimeMillis()
+            
+            scope.launch(Dispatchers.IO) {
+                queueDao.updateQueueState(
+                    queueId = activeId,
+                    index = currentIdx,
+                    position = currentPos,
+                    shuffleState = isShuffled,
+                    lastPlayedAt = lastPlayed
+                )
+            }
         }
     }
     
+    fun deleteQueue(queueId: Long) {
+        scope.launch(Dispatchers.IO) {
+            val q = queueDao.getAllQueues().firstOrNull()?.find { it.id == queueId }
+            if (q != null && !q.isPermanent) {
+                queueDao.deleteQueueWithItems(queueId)
+                if (queueId == activeQueueId.value) {
+                    val all = queueDao.getAllQueues().firstOrNull() ?: emptyList()
+                    val allSongsQ = all.find { it.isPermanent }
+                    if (allSongsQ != null) {
+                        setActiveQueueIdInPrefs(allSongsQ.id)
+                    }
+                }
+            }
+        }
+    }
+
     fun restoreLastQueue() {
         scope.launch(Dispatchers.IO) {
-            val activeQueue = queueDao.getActiveQueue() ?: return@launch
-            val items = queueDao.getItemsForQueue(activeQueue.id).firstOrNull() ?: return@launch
+            val activeId = getActiveQueueIdFromPrefs() ?: return@launch
+            val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == activeId } ?: return@launch
+            val items = queueDao.getItemsForQueue(activeId).firstOrNull() ?: return@launch
             
             if (items.isNotEmpty()) {
                 scope.launch(Dispatchers.Main) {
-                    playQueueItems(items, activeQueue.currentItemIndex, activeQueue.currentPlaybackPositionMs, autoPlay = false)
+                    player.shuffleModeEnabled = queue.shuffleState
+                    playQueueItems(items, queue.currentItemIndex, queue.currentPlaybackPositionMs, autoPlay = false)
                 }
             }
         }

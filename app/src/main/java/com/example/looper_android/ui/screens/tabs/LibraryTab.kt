@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +68,7 @@ fun LibraryTab(
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
+    val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
     Column(
         modifier = Modifier
@@ -118,10 +122,16 @@ fun LibraryTab(
 
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF55DF69))
+                androidx.compose.material3.CircularProgressIndicator(color = com.example.looper_android.ui.theme.LocalAccentColor.current)
             }
         } else {
-            val bottomPadding = if (currentSong != null) 200.dp else 140.dp
+            val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val targetBottomPadding = if (isMiniPlayerVisible) (200.dp + bottomInsets) else (140.dp + bottomInsets)
+            val bottomPadding by androidx.compose.animation.core.animateDpAsState(
+                targetValue = targetBottomPadding,
+                animationSpec = androidx.compose.animation.core.tween(300),
+                label = "bottomPadding"
+            )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

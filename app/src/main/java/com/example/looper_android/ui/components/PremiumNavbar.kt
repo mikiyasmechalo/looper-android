@@ -28,6 +28,7 @@ fun PremiumNavbar(
     onTap: (Int) -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     modifier: Modifier = Modifier
 ) {
     val selectedBg = Color(0xFF2A2A2A)
@@ -56,7 +57,7 @@ fun PremiumNavbar(
                         backgroundColor = selectedBg,
                         onClick = { onTap(0) }
                     ) {
-                        NavItem(icon = Lucide.House, label = "Home", isSelected = true)
+                        NavItem(icon = Lucide.House, label = "Home", isSelected = true, accentColor = accentColor)
                     }
 
                     Spacer(modifier = Modifier.width(6.dp))
@@ -78,7 +79,7 @@ fun PremiumNavbar(
                                     .clickable { onTap(1) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false)
+                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false, accentColor = accentColor)
                             }
 
                             Box(
@@ -89,7 +90,7 @@ fun PremiumNavbar(
                                     .clickable { onTap(2) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                NavItem(icon = Lucide.Library, label = "Library", isSelected = false)
+                                NavItem(icon = Lucide.Library, label = "Library", isSelected = false, accentColor = accentColor)
                             }
                         }
                     }
@@ -119,7 +120,7 @@ fun PremiumNavbar(
                         backgroundColor = selectedBg,
                         onClick = { onTap(1) }
                     ) {
-                        NavItem(icon = Lucide.Music2, label = "Songs", isSelected = true)
+                        NavItem(icon = Lucide.Music2, label = "Songs", isSelected = true, accentColor = accentColor)
                     }
 
                     Spacer(modifier = Modifier.width(6.dp))
@@ -133,7 +134,7 @@ fun PremiumNavbar(
                         backgroundColor = unselectedBg,
                         onClick = { onTap(2) }
                     ) {
-                        NavItem(icon = Lucide.Library, label = "Library", isSelected = false)
+                        NavItem(icon = Lucide.Library, label = "Library", isSelected = false, accentColor = accentColor)
                     }
                 }
                 else -> {
@@ -155,7 +156,7 @@ fun PremiumNavbar(
                                     .clickable { onTap(0) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                NavItem(icon = Lucide.House, label = "Home", isSelected = false)
+                                NavItem(icon = Lucide.House, label = "Home", isSelected = false, accentColor = accentColor)
                             }
 
                             Box(
@@ -166,7 +167,7 @@ fun PremiumNavbar(
                                     .clickable { onTap(1) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false)
+                                NavItem(icon = Lucide.Music2, label = "Songs", isSelected = false, accentColor = accentColor)
                             }
                         }
                     }
@@ -182,7 +183,7 @@ fun PremiumNavbar(
                         backgroundColor = selectedBg,
                         onClick = { onTap(2) }
                     ) {
-                        NavItem(icon = Lucide.Library, label = "Library", isSelected = true)
+                        NavItem(icon = Lucide.Library, label = "Library", isSelected = true, accentColor = accentColor)
                     }
                 }
             }
@@ -191,9 +192,9 @@ fun PremiumNavbar(
 }
 
 @Composable
-fun NavItem(icon: ImageVector, label: String, isSelected: Boolean) {
+fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current) {
     val scale = if (isSelected) 1.1f else 1f
-    val color = if (isSelected) Color(0xFF55DF69) else Color.White.copy(alpha = 0.4f)
+    val color = if (isSelected) accentColor else Color.White.copy(alpha = 0.4f)
     val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -28,7 +28,7 @@ fun SortBottomSheet(
     onSortSelected: (SortOption) -> Unit,
     onToggleAscending: () -> Unit,
     onDismiss: () -> Unit,
-    accentColor: Color = Color(0xFF55DF69)
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     val haptics = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

@@ -36,7 +36,7 @@ fun ExpressiveSlider(
     onSeek: (Long) -> Unit,
     onSeekStart: (() -> Unit)? = null,
     onSeekEnd: (() -> Unit)? = null,
-    activeColor: Color = Color(0xFF55DF69),
+    activeColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     inactiveColor: Color = Color.White.copy(alpha = 0.10f),
     showTimestamps: Boolean = true,
     modifier: Modifier = Modifier

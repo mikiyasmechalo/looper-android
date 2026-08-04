@@ -26,6 +26,9 @@ interface LibraryDao {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     fun getSongById(id: Long): Flow<SongEntity?>
 
+    @Query("SELECT path, id, artPath, albumArtist, lyrics, genre, playCount, lastPlayed, isFavorite, hasCustomEqualizer, equalizerGains, year FROM songs")
+    suspend fun getAllSongsForDiff(): List<SongDiffData>
+
     @Query("SELECT lyrics FROM songs WHERE id = :id LIMIT 1")
     suspend fun getSongLyricsById(id: Long): String?
 
@@ -34,6 +37,9 @@ interface LibraryDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSong(song: SongEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSongs(songs: List<SongEntity>)
 
     @Update
     suspend fun updateSong(song: SongEntity)
@@ -60,6 +66,9 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAlbum(album: AlbumEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAlbums(albums: List<AlbumEntity>)
+
     @Query("DELETE FROM albums")
     suspend fun clearAlbums()
 
@@ -69,6 +78,9 @@ interface LibraryDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArtist(artist: ArtistEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertArtists(artists: List<ArtistEntity>)
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()

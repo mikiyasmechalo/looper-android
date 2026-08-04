@@ -81,7 +81,7 @@ class AllSongsViewModel @Inject constructor(
     fun playAll(startIndex: Int = 0, shuffled: Boolean = false) {
         val currentList = sortedSongs.value
         if (currentList.isNotEmpty()) {
-            queueManager.createAndPlayQueue("All Songs", currentList, startIndex, shuffled)
+            queueManager.loadAndPlayQueue("All Songs", currentList, startIndex, shuffled)
         }
     }
 
@@ -89,7 +89,7 @@ class AllSongsViewModel @Inject constructor(
         val currentList = sortedSongs.value
         if (currentList.isNotEmpty()) {
             val randomIndex = (0 until currentList.size).random()
-            queueManager.createAndPlayQueue("All Songs", currentList, randomIndex, true)
+            queueManager.loadAndPlayQueue("All Songs", currentList, randomIndex, true)
         }
     }
 

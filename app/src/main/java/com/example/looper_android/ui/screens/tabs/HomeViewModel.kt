@@ -12,8 +12,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 import kotlin.random.Random
 
@@ -118,8 +120,18 @@ class HomeViewModel @Inject constructor(
                 genresMap.getOrPut(genre) { mutableListOf() }.add(song)
             }
 
+            val genreScoreMap = genresMap.mapValues { entry ->
+                val totalPlays = entry.value.sumOf { it.playCount }
+                val songCount = entry.value.size
+                if (totalPlays > 0) {
+                    100000 + (totalPlays * 1000) + songCount
+                } else {
+                    songCount
+                }
+            }
+
             val genresList = genresMap.entries
-                .sortedByDescending { it.value.size }
+                .sortedByDescending { genreScoreMap[it.key] ?: 0 }
                 .map { GenreItem(name = it.key, songs = it.value) }
 
             HomeUiState(
@@ -132,7 +144,9 @@ class HomeViewModel @Inject constructor(
                 genres = genresList,
                 isLoading = false
             )
-        }.onEach { state ->
+        }
+        .flowOn(Dispatchers.Default)
+        .onEach { state ->
             _uiState.value = state
         }.launchIn(viewModelScope)
     }
@@ -141,14 +155,14 @@ class HomeViewModel @Inject constructor(
         val pool = _uiState.value.quickPicksPool
         if (pool.isNotEmpty()) {
             val startIndex = if (shuffled) (0 until pool.size).random() else 0
-            queueManager.createAndPlayQueue("Quick Picks", pool, startIndex, shuffled)
+            queueManager.loadAndPlayQueue("Quick Picks", pool, startIndex, shuffled)
         }
     }
 
     fun playSongFromQuickPicks(index: Int) {
         val pool = _uiState.value.quickPicksPool
         if (pool.isNotEmpty() && index in pool.indices) {
-            queueManager.createAndPlayQueue("Quick Picks", pool, index, false)
+            queueManager.loadAndPlayQueue("Quick Picks", pool, index, false)
         }
     }
 
@@ -156,14 +170,14 @@ class HomeViewModel @Inject constructor(
         val pool = _uiState.value.topSongsPool
         if (pool.isNotEmpty()) {
             val startIndex = if (shuffled) (0 until pool.size).random() else 0
-            queueManager.createAndPlayQueue("Top Songs", pool, startIndex, shuffled)
+            queueManager.loadAndPlayQueue("Top Songs", pool, startIndex, shuffled)
         }
     }
 
     fun playAllTopSongs(startIndex: Int = 0) {
         val pool = _uiState.value.topSongsPool
         if (pool.isNotEmpty() && startIndex in pool.indices) {
-            queueManager.createAndPlayQueue("Top Songs", pool, startIndex, false)
+            queueManager.loadAndPlayQueue("Top Songs", pool, startIndex, false)
         }
     }
 }

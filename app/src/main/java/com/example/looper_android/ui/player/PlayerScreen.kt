@@ -608,6 +608,7 @@ fun PlayerScreen(
         QueueBottomSheet(
             queue = state.queue,
             currentSong = song,
+            playbackViewModel = viewModel,
             onDismiss = { showQueueSheet = false },
             onSongSelect = { selectedSong ->
                 showQueueSheet = false

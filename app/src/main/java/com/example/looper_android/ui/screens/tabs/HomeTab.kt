@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -76,12 +79,16 @@ fun HomeTab(
     onNavigateToSongs: () -> Unit = {},
     onNavigateToArtists: () -> Unit = {},
     onNavigateToAlbums: () -> Unit = {},
-    onNavigateToGenres: () -> Unit = {}
+    onNavigateToGenres: () -> Unit = {},
+    onArtistClick: (String) -> Unit = {},
+    onAlbumClick: (String) -> Unit = {},
+    onGenreClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
+    val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
 
@@ -148,7 +155,13 @@ fun HomeTab(
             }
         } else {
             // Proper bottom padding so content is never covered by bottom navigation bar or miniplayer!
-            val bottomPadding = if (currentSong != null) 200.dp else 140.dp
+            val bottomInsets = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val targetBottomPadding = if (isMiniPlayerVisible) (200.dp + bottomInsets) else (140.dp + bottomInsets)
+            val bottomPadding by androidx.compose.animation.core.animateDpAsState(
+                targetValue = targetBottomPadding,
+                animationSpec = androidx.compose.animation.core.tween(300),
+                label = "bottomPadding"
+            )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -200,7 +213,10 @@ fun HomeTab(
                             actionText = "View all",
                             onActionClick = onNavigateToArtists
                         )
-                        HorizontalArtistsList(artists = uiState.artists)
+                        HorizontalArtistsList(
+                            artists = uiState.artists,
+                            onArtistClick = onArtistClick
+                        )
                     }
                 }
 
@@ -212,7 +228,10 @@ fun HomeTab(
                             actionText = "View all",
                             onActionClick = onNavigateToAlbums
                         )
-                        HorizontalAlbumsList(albums = uiState.albums)
+                        HorizontalAlbumsList(
+                            albums = uiState.albums,
+                            onAlbumClick = onAlbumClick
+                        )
                     }
                 }
 
@@ -220,11 +239,14 @@ fun HomeTab(
                 if (uiState.genres.isNotEmpty()) {
                     item {
                         SectionHeader(
-                            title = "Genres",
+                            title = "Top Genres",
                             actionText = "View all",
                             onActionClick = onNavigateToGenres
                         )
-                        HorizontalGenresList(genres = uiState.genres)
+                        HorizontalGenresList(
+                            genres = uiState.genres,
+                            onGenreClick = onGenreClick
+                        )
                     }
                 }
             }
@@ -560,7 +582,7 @@ private fun QuickPickGridItem(
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
-                    color = Color(0xFF55DF69),
+                    color = com.example.looper_android.ui.theme.LocalAccentColor.current,
                     strokeWidth = 2.dp
                 )
             }
@@ -569,7 +591,10 @@ private fun QuickPickGridItem(
 }
 
 @Composable
-private fun HorizontalArtistsList(artists: List<ArtistEntity>) {
+private fun HorizontalArtistsList(
+    artists: List<ArtistEntity>,
+    onArtistClick: (String) -> Unit
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -578,7 +603,7 @@ private fun HorizontalArtistsList(artists: List<ArtistEntity>) {
             Column(
                 modifier = Modifier
                     .width(92.dp)
-                    .clickable { },
+                    .clickable { onArtistClick(artist.name) },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
@@ -621,7 +646,10 @@ private fun HorizontalArtistsList(artists: List<ArtistEntity>) {
 }
 
 @Composable
-private fun HorizontalAlbumsList(albums: List<AlbumEntity>) {
+private fun HorizontalAlbumsList(
+    albums: List<AlbumEntity>,
+    onAlbumClick: (String) -> Unit
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -630,7 +658,7 @@ private fun HorizontalAlbumsList(albums: List<AlbumEntity>) {
             Column(
                 modifier = Modifier
                     .width(120.dp)
-                    .clickable { }
+                    .clickable { onAlbumClick(album.name) }
             ) {
                 Box(
                     modifier = Modifier
@@ -668,7 +696,10 @@ private fun HorizontalAlbumsList(albums: List<AlbumEntity>) {
 }
 
 @Composable
-private fun HorizontalGenresList(genres: List<GenreItem>) {
+private fun HorizontalGenresList(
+    genres: List<GenreItem>,
+    onGenreClick: (String) -> Unit
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -686,7 +717,7 @@ private fun HorizontalGenresList(genres: List<GenreItem>) {
                     .size(width = 180.dp, height = 90.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Brush.linearGradient(listOf(startColor, endColor)))
-                    .clickable { }
+                    .clickable { onGenreClick(genre.name) }
                     .padding(14.dp)
             ) {
                 // Rotated Album Art in bottom right corner

@@ -34,7 +34,7 @@ fun SongDetailsBottomSheet(
     onArtistClick: (String) -> Unit,
     onAlbumClick: (String) -> Unit,
     onTechnicalInfoClick: () -> Unit,
-    accentColor: Color = Color(0xFF55DF69)
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -220,7 +220,7 @@ private fun DetailRow(
     value: String,
     isClickable: Boolean,
     onClick: (() -> Unit)? = null,
-    accentColor: Color = Color(0xFF55DF69)
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     Column(
         modifier = Modifier

@@ -197,7 +197,7 @@ fun CollectionDetailScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 onClick = {
                                     if (collectionSongs.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0)
+                                        playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = title)
                                     }
                                 }
                             ) {
@@ -227,7 +227,7 @@ fun CollectionDetailScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 onClick = {
                                     if (collectionSongs.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(collectionSongs.shuffled(), initialIndex = 0, disableShuffleMode = false)
+                                        playbackViewModel.setPlaylist(collectionSongs.shuffled(), initialIndex = 0, disableShuffleMode = false, queueName = title)
                                     }
                                 }
                             ) {
@@ -270,7 +270,7 @@ fun CollectionDetailScreen(
                         song = song,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { playbackViewModel.setPlaylist(collectionSongs, initialIndex = index, disableShuffleMode = true) },
+                        onClick = { playbackViewModel.setPlaylist(collectionSongs, initialIndex = index, disableShuffleMode = true, queueName = title) },
                         onOptionsClick = { selectedSongForOptions = song },
                         showAlbumInSubtitle = (type != "album")
                     )

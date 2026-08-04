@@ -9,8 +9,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 
 data class LibraryUiState(
@@ -28,11 +31,12 @@ class LibraryViewModel @Inject constructor(
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
     init {
-        libraryDao.getAllSongs().onEach { songs ->
-            val recent = songs
-                .filter { it.lastPlayed != null }
-                .sortedByDescending { it.lastPlayed }
-
+        libraryDao.getAllSongs().map { songs ->
+            songs.filter { it.lastPlayed != null }
+                 .sortedByDescending { it.lastPlayed }
+        }
+        .flowOn(Dispatchers.Default)
+        .onEach { recent ->
             _uiState.value = LibraryUiState(
                 recentlyPlayed = recent,
                 isLoading = false
@@ -41,9 +45,9 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun playRecentlyPlayedSong(index: Int) {
-        val recent = _uiState.value.recentlyPlayed
-        if (recent.isNotEmpty() && index in recent.indices) {
-            queueManager.createAndPlayQueue("Recently Played", recent, index, false)
+        val pool = _uiState.value.recentlyPlayed
+        if (pool.isNotEmpty() && index in pool.indices) {
+            queueManager.loadAndPlayQueue("Recently Played", pool, index, false)
         }
     }
 }

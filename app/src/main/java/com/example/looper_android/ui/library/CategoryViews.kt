@@ -197,7 +197,7 @@ fun AlbumsScreen(
                                 songsInAlbumOrder.addAll(albumSongs)
                             }
                             if (songsInAlbumOrder.isNotEmpty()) {
-                                playbackViewModel.setPlaylist(songsInAlbumOrder, initialIndex = 0, disableShuffleMode = true)
+                                playbackViewModel.setPlaylist(songsInAlbumOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Albums Shuffle")
                             }
                         }
                     }
@@ -421,7 +421,7 @@ fun ArtistsScreen(
                                 songsInArtistOrder.addAll(artistSongs)
                             }
                             if (songsInArtistOrder.isNotEmpty()) {
-                                playbackViewModel.setPlaylist(songsInArtistOrder, initialIndex = 0, disableShuffleMode = true)
+                                playbackViewModel.setPlaylist(songsInArtistOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Artists Shuffle")
                             }
                         }
                     }
@@ -636,10 +636,10 @@ fun PlaylistsScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF55DF69).copy(alpha = 0.2f)),
+                            .background(com.example.looper_android.ui.theme.LocalAccentColor.current.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Lucide.Plus, contentDescription = null, tint = Color(0xFF55DF69), modifier = Modifier.size(24.dp))
+                        Icon(Lucide.Plus, contentDescription = null, tint = com.example.looper_android.ui.theme.LocalAccentColor.current, modifier = Modifier.size(24.dp))
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
@@ -726,9 +726,9 @@ fun PlaylistsScreen(
                     onValueChange = { newPlaylistName = it },
                     placeholder = { Text("Playlist name") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF55DF69),
-                        focusedLabelColor = Color(0xFF55DF69),
-                        cursorColor = Color(0xFF55DF69)
+                        focusedBorderColor = com.example.looper_android.ui.theme.LocalAccentColor.current,
+                        focusedLabelColor = com.example.looper_android.ui.theme.LocalAccentColor.current,
+                        cursorColor = com.example.looper_android.ui.theme.LocalAccentColor.current
                     ),
                     singleLine = true
                 )
@@ -742,7 +742,7 @@ fun PlaylistsScreen(
                         }
                     }
                 ) {
-                    Text("Create", color = Color(0xFF55DF69))
+                    Text("Create", color = com.example.looper_android.ui.theme.LocalAccentColor.current)
                 }
             },
             dismissButton = {
@@ -973,7 +973,7 @@ fun HistoryScreen(
             actions = {
                 if (historySongs.isNotEmpty()) {
                     TextButton(onClick = { viewModel.clearHistory() }) {
-                        Text("Clear", color = Color(0xFF55DF69), fontFamily = DmSansFontFamily)
+                        Text("Clear", color = com.example.looper_android.ui.theme.LocalAccentColor.current, fontFamily = DmSansFontFamily)
                     }
                 }
             }
@@ -994,7 +994,7 @@ fun HistoryScreen(
                         song = song,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { playbackViewModel.setPlaylist(historySongs, index) },
+                        onClick = { playbackViewModel.setPlaylist(historySongs, index, queueName = "Recently Played") },
                         onOptionsClick = { selectedSongForOptions = song }
                     )
                 }
@@ -1048,7 +1048,7 @@ fun FavoritesScreen(
                         song = song,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { playbackViewModel.setPlaylist(favoriteSongs, index) },
+                        onClick = { playbackViewModel.setPlaylist(favoriteSongs, index, queueName = "Favorites") },
                         onOptionsClick = { selectedSongForOptions = song }
                     )
                 }

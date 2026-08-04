@@ -71,7 +71,12 @@ class WelcomeViewModel @Inject constructor(
 
         // Automatically trigger live scan as soon as audio permission is granted!
         if ((audioGranted || allFilesGranted) && !_uiState.value.isScanning) {
-            triggerBackgroundScan()
+            viewModelScope.launch {
+                val count = libraryDao.getSongsCount()
+                if (count == 0) {
+                    triggerBackgroundScan()
+                }
+            }
         }
     }
 

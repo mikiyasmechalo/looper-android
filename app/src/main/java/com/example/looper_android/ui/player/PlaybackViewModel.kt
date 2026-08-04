@@ -18,7 +18,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -43,14 +46,21 @@ data class PlaybackState(
     val audioQualityText: String = "High Quality • Audio",
     val accentColor: Color = Color(0xFF808080),
     val isSleepTimerActive: Boolean = false,
-    val sleepTimerLabel: String = ""
+    val sleepTimerLabel: String = "",
+    val activeQueueId: Long? = null,
+    /**
+     * True once the DB song lookup completes. Prevents the mini-player from
+     * animating in halfway and getting stuck during cold start initialization.
+     */
+    val isSongReady: Boolean = false
 )
 
 @HiltViewModel
 class PlaybackViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val player: Player,
-    private val libraryDao: LibraryDao
+    private val libraryDao: LibraryDao,
+    private val queueManager: com.example.looper_android.domain.QueueManager
 ) : ViewModel() {
 
     private val _playbackState = MutableStateFlow(PlaybackState())
@@ -58,6 +68,13 @@ class PlaybackViewModel @Inject constructor(
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+
+    val allQueues: StateFlow<List<com.example.looper_android.data.db.QueueEntity>> = queueManager.allQueues
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
 
     private var lastIncrementedSongId: Long? = null
 
@@ -99,10 +116,12 @@ class PlaybackViewModel @Inject constructor(
                 )
 
                 _currentPosition.value = 0L
+                // Mark song as NOT ready until DB lookup completes (prevents half-animated mini-player)
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
                     position = 0L,
-                    duration = player.duration.coerceAtLeast(0)
+                    duration = player.duration.coerceAtLeast(0),
+                    isSongReady = false
                 )
 
                 if (songId > 0L && songId != lastIncrementedSongId) {
@@ -123,13 +142,15 @@ class PlaybackViewModel @Inject constructor(
                         currentSong = targetSong,
                         isFavorite = targetSong.isFavorite,
                         audioQualityText = dbQualityText,
-                        accentColor = accent
+                        accentColor = accent,
+                        isSongReady = true
                     )
                 }
             } else {
-                _playbackState.value = _playbackState.value.copy(currentSong = null)
+                _playbackState.value = _playbackState.value.copy(currentSong = null, isSongReady = false)
             }
         }
+
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             _playbackState.value = _playbackState.value.copy(isShuffle = shuffleModeEnabled)
@@ -145,42 +166,93 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
-    private fun extractAccentColor(song: SongEntity): Color {
-        val fallbackColor = Color(0xFF808080)
-        val artPath = song.artPath
-        val songPath = song.path
+    init {
+        player.addListener(playerListener)
 
-        var bitmap: Bitmap? = null
-        val opts = BitmapFactory.Options().apply { inSampleSize = 8 }
+        val initialItem = player.currentMediaItem
+        if (initialItem != null && player.playbackState != Player.STATE_IDLE) {
+            playerListener.onMediaItemTransition(initialItem, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+        }
+        updatePlaybackState()
+
+        viewModelScope.launch {
+            while (true) {
+                if (player.isPlaying && !pendingTransition) {
+                    _currentPosition.value = player.currentPosition.coerceAtLeast(0L)
+                    _playbackState.value = _playbackState.value.copy(position = player.currentPosition.coerceAtLeast(0L))
+                }
+                kotlinx.coroutines.delay(100)
+            }
+        }
+
+        viewModelScope.launch {
+            queueManager.activeQueueSongs.collectLatest { songs ->
+                _playbackState.value = _playbackState.value.copy(queue = songs)
+            }
+        }
+
+        viewModelScope.launch {
+            queueManager.activeQueueId.collectLatest { activeId ->
+                _playbackState.value = _playbackState.value.copy(activeQueueId = activeId)
+            }
+        }
+    }
+
+    private fun extractAccentColor(song: com.example.looper_android.data.db.SongEntity): Color {
+        val fallbackColor = Color(0xFF808080)
+
+        var bitmap: android.graphics.Bitmap? = null
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
 
         try {
-            // 1. Try reading from artPath URI/file
+            // 1. Read directly from the album art content URI stored during scan
+            //    artPath = "content://media/external/audio/albumart/{albumId}"
+            val artPath = song.artPath
             if (!artPath.isNullOrEmpty()) {
-                if (artPath.startsWith("content://") || artPath.startsWith("file://")) {
-                    context.contentResolver.openInputStream(Uri.parse(artPath))?.use { stream ->
-                        bitmap = BitmapFactory.decodeStream(stream, null, opts)
+                try {
+                    val artUri = android.net.Uri.parse(artPath)
+                    context.contentResolver.openInputStream(artUri)?.use { stream ->
+                        bitmap = android.graphics.BitmapFactory.decodeStream(stream, null, opts)
                     }
-                } else {
-                    val file = File(artPath)
-                    if (file.exists()) {
-                        bitmap = BitmapFactory.decodeFile(file.absolutePath, opts)
-                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("AccentColor", "artPath open failed for ${song.title}: ${e.message}")
                 }
             }
 
-            // 2. Fallback to MediaMetadataRetriever embedded picture
-            if (bitmap == null && songPath.isNotEmpty()) {
-                val cleanPath = if (songPath.startsWith("file://")) Uri.parse(songPath).path else songPath
-                if (!cleanPath.isNullOrEmpty() && File(cleanPath).exists()) {
-                    val mmr = MediaMetadataRetriever()
-                    mmr.setDataSource(cleanPath)
-                    val pictureBytes = mmr.embeddedPicture
-                    mmr.release()
-                    if (pictureBytes != null) {
-                        bitmap = BitmapFactory.decodeByteArray(pictureBytes, 0, pictureBytes.size, opts)
+            // 2. Fallback: use MediaMetadataRetriever on the actual audio file path
+            //    This reads embedded ID3 cover art directly from the file
+            if (bitmap == null) {
+                val songPath = song.path
+                val cleanPath = when {
+                    songPath.startsWith("file://") -> android.net.Uri.parse(songPath).path ?: songPath
+                    else -> songPath
+                }
+                try {
+                    val file = java.io.File(cleanPath)
+                    if (file.exists() && file.canRead()) {
+                        val mmr = android.media.MediaMetadataRetriever()
+                        mmr.setDataSource(cleanPath)
+                        val pictureBytes = mmr.embeddedPicture
+                        mmr.release()
+                        if (pictureBytes != null) {
+                            bitmap = android.graphics.BitmapFactory.decodeByteArray(pictureBytes, 0, pictureBytes.size, opts)
+                        }
                     }
+                } catch (e: Exception) {
+                    android.util.Log.w("AccentColor", "MMR failed for ${song.title}: ${e.message}")
                 }
             }
+
+            // 3. Android Q+: try ContentResolver.loadThumbnail with artPath URI
+            if (bitmap == null && !artPath.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val artUri = android.net.Uri.parse(artPath)
+                    bitmap = context.contentResolver.loadThumbnail(artUri, android.util.Size(200, 200), null)
+                } catch (e: Exception) {
+                    android.util.Log.w("AccentColor", "loadThumbnail failed for ${song.title}: ${e.message}")
+                }
+            }
+
 
             val b = bitmap ?: return fallbackColor
 
@@ -288,25 +360,6 @@ class PlaybackViewModel @Inject constructor(
         )
     }
 
-    init {
-        player.addListener(playerListener)
-        
-        val initialItem = player.currentMediaItem
-        if (initialItem != null && player.playbackState != Player.STATE_IDLE) {
-            playerListener.onMediaItemTransition(initialItem, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
-        }
-        updatePlaybackState()
-        
-        viewModelScope.launch {
-            while (true) {
-                if (player.isPlaying && !pendingTransition) {
-                    _currentPosition.value = player.currentPosition.coerceAtLeast(0L)
-                    _playbackState.value = _playbackState.value.copy(position = player.currentPosition.coerceAtLeast(0L))
-                }
-                kotlinx.coroutines.delay(100)
-            }
-        }
-    }
 
     override fun onCleared() {
         super.onCleared()
@@ -373,8 +426,17 @@ class PlaybackViewModel @Inject constructor(
 
     fun toggleFavorite(targetSong: SongEntity? = null) {
         val songToToggle = targetSong ?: _playbackState.value.currentSong ?: return
+        val updated = songToToggle.copy(isFavorite = !songToToggle.isFavorite)
+        
+        // Optimistically update the UI immediately
+        if (_playbackState.value.currentSong?.id == updated.id) {
+            _playbackState.value = _playbackState.value.copy(currentSong = updated)
+        }
+        
+        // Update the queue list as well so it persists in the active session
+        queueManager.updateSongInQueue(updated)
+
         viewModelScope.launch(Dispatchers.IO) {
-            val updated = songToToggle.copy(isFavorite = !songToToggle.isFavorite)
             libraryDao.updateSong(updated)
         }
     }
@@ -434,32 +496,36 @@ class PlaybackViewModel @Inject constructor(
         player.addMediaItem(mediaItem)
     }
 
-    fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false) {
+    fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false, queueName: String = "All Songs") {
         if (songs.isEmpty()) return
-        if (disableShuffleMode) {
-            player.shuffleModeEnabled = false
-        }
-        val mediaItems = songs.map { song ->
-            val mediaUri = Uri.parse(song.path)
-            MediaItem.Builder()
-                .setMediaId(song.id.toString())
-                .setUri(mediaUri)
-                .setMediaMetadata(
-                    androidx.media3.common.MediaMetadata.Builder()
-                        .setTitle(song.title)
-                        .setArtist(song.artist ?: "Unknown Artist")
-                        .setAlbumTitle(song.album ?: "Unknown Album")
-                        .setArtworkUri(song.artPath?.let { Uri.parse(it) })
-                        .build()
-                )
-                .build()
-        }
+        queueManager.loadAndPlayQueue(
+            queueName = queueName,
+            songs = songs,
+            startIndex = initialIndex,
+            shuffled = !disableShuffleMode
+        )
+    }
 
-        player.stop()
-        player.clearMediaItems()
-        player.setMediaItems(mediaItems, initialIndex.coerceIn(songs.indices), 0L)
-        player.prepare()
-        player.play()
+    fun shuffleAll(songs: List<SongEntity>, queueName: String = "All Songs") {
+        if (songs.isEmpty()) return
+        queueManager.loadAndPlayQueue(
+            queueName = queueName,
+            songs = songs,
+            startIndex = 0,
+            shuffled = true
+        )
+    }
+
+    fun switchToQueue(queueId: Long) {
+        queueManager.switchToQueue(queueId)
+    }
+
+    fun deleteUserQueue(queueId: Long) {
+        queueManager.deleteUserQueue(queueId)
+    }
+
+    fun deleteQueue(queueId: Long) {
+        queueManager.deleteQueue(queueId)
     }
 
     fun clearQueue() {

@@ -56,7 +56,7 @@ import kotlin.math.sin
 fun SongInfoScreen(
     song: SongEntity,
     onBackClick: () -> Unit,
-    accentColor: Color = Color(0xFF55DF69)
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     val context = LocalContext.current
     var sampleRate by remember { mutableIntStateOf(44100) }

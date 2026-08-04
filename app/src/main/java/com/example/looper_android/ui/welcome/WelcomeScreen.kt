@@ -124,7 +124,7 @@ fun WelcomeScreen(
                 Icon(
                     imageVector = Lucide.Music,
                     contentDescription = "Logo",
-                    tint = Color(0xFF55DF69),
+                    tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
                     modifier = Modifier.size(44.dp)
                 )
             }
@@ -142,7 +142,7 @@ fun WelcomeScreen(
             )
             Text(
                 text = "LOOPER PLAYER",
-                color = Color(0xFF55DF69).copy(alpha = 0.70f),
+                color = com.example.looper_android.ui.theme.LocalAccentColor.current.copy(alpha = 0.70f),
                 fontSize = 11.sp,
                 fontFamily = DmSansFontFamily,
                 fontWeight = FontWeight.Bold,
@@ -166,7 +166,7 @@ fun WelcomeScreen(
                         Icon(
                             imageVector = Lucide.Info,
                             contentDescription = null,
-                            tint = Color(0xFF55DF69),
+                            tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -206,7 +206,7 @@ fun WelcomeScreen(
                         Icon(
                             imageVector = Lucide.ShieldCheck,
                             contentDescription = null,
-                            tint = Color(0xFF55DF69),
+                            tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -261,7 +261,7 @@ fun WelcomeScreen(
                                 Icon(
                                     imageVector = if (uiState.grantedFolders.isNotEmpty()) Lucide.Check else Lucide.FolderPlus,
                                     contentDescription = null,
-                                    tint = if (uiState.grantedFolders.isNotEmpty()) Color(0xFF55DF69) else Color.White.copy(alpha = 0.6f),
+                                    tint = if (uiState.grantedFolders.isNotEmpty()) com.example.looper_android.ui.theme.LocalAccentColor.current else Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -287,7 +287,7 @@ fun WelcomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF55DF69).copy(alpha = 0.15f))
+                                    .background(com.example.looper_android.ui.theme.LocalAccentColor.current.copy(alpha = 0.15f))
                                     .clickable {
                                         haptics.lightImpact()
                                         safFolderPickerLauncher.launch(null)
@@ -296,7 +296,7 @@ fun WelcomeScreen(
                             ) {
                                 Text(
                                     text = "+ ADD FOLDER",
-                                    color = Color(0xFF55DF69),
+                                    color = com.example.looper_android.ui.theme.LocalAccentColor.current,
                                     fontSize = 11.sp,
                                     fontFamily = DmSansFontFamily,
                                     fontWeight = FontWeight.Bold
@@ -317,7 +317,7 @@ fun WelcomeScreen(
                                     Icon(
                                         imageVector = Lucide.FolderCheck,
                                         contentDescription = null,
-                                        tint = Color(0xFF55DF69),
+                                        tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -345,12 +345,12 @@ fun WelcomeScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .background(
                             if (uiState.isScanning) Color.White.copy(alpha = 0.04f)
-                            else Color(0xFF55DF69).copy(alpha = 0.08f)
+                            else com.example.looper_android.ui.theme.LocalAccentColor.current.copy(alpha = 0.08f)
                         )
                         .border(
                             1.dp,
                             if (uiState.isScanning) Color.White.copy(alpha = 0.08f)
-                            else Color(0xFF55DF69).copy(alpha = 0.18f),
+                            else com.example.looper_android.ui.theme.LocalAccentColor.current.copy(alpha = 0.18f),
                             RoundedCornerShape(16.dp)
                         )
                         .padding(14.dp)
@@ -361,7 +361,7 @@ fun WelcomeScreen(
                     ) {
                         if (uiState.isScanning) {
                             CircularProgressIndicator(
-                                color = Color(0xFF55DF69),
+                                color = com.example.looper_android.ui.theme.LocalAccentColor.current,
                                 strokeWidth = 2.dp,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -369,7 +369,7 @@ fun WelcomeScreen(
                             Icon(
                                 imageVector = Lucide.CircleCheck,
                                 contentDescription = null,
-                                tint = Color(0xFF55DF69),
+                                tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -407,7 +407,7 @@ fun WelcomeScreen(
                     .height(56.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(
-                        if (isGoStartEnabled) Color(0xFF55DF69) else Color.White.copy(alpha = 0.10f)
+                        if (isGoStartEnabled) com.example.looper_android.ui.theme.LocalAccentColor.current else Color.White.copy(alpha = 0.10f)
                     )
                     .clickable(enabled = isGoStartEnabled) {
                         haptics.mediumImpact()
@@ -466,7 +466,7 @@ private fun PermissionCheckRow(
             Icon(
                 imageVector = if (isGranted) Lucide.Check else Lucide.ShieldAlert,
                 contentDescription = null,
-                tint = if (isGranted) Color(0xFF55DF69) else Color.White.copy(alpha = 0.6f),
+                tint = if (isGranted) com.example.looper_android.ui.theme.LocalAccentColor.current else Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.size(14.dp)
             )
         }
