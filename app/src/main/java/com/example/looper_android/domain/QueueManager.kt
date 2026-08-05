@@ -55,6 +55,14 @@ class QueueManager @Inject constructor(
     @Volatile private var cachedMediaItems: List<MediaItem> = emptyList()
     private val cacheReady = AtomicBoolean(false)
 
+    var originalSongs: List<SongEntity> = emptyList()
+        private set
+    var workingSongs: List<SongEntity> = emptyList()
+        private set
+    private val _isShuffleEnabled = MutableStateFlow(false)
+    val isShuffleEnabled: StateFlow<Boolean> = _isShuffleEnabled.asStateFlow()
+
+
     val allQueues: Flow<List<QueueEntity>> = queueDao.getAllQueues()
 
     private val _activeQueueId = MutableStateFlow<Long?>(getActiveQueueIdFromPrefs())
@@ -108,68 +116,124 @@ class QueueManager @Inject constructor(
     ) {
         if (songs.isEmpty()) return
 
-        // STEP 1: INSTANT PLAY
-        val targetSong = songs[startIndex]
-        val targetMediaItem = buildMediaItem(targetSong)
-        player.setMediaItem(targetMediaItem)
-        if (!shuffled) {
-            player.shuffleModeEnabled = false
+        originalSongs = songs
+        _isShuffleEnabled.value = shuffled
+
+        val startSong = songs[startIndex]
+        workingSongs = if (shuffled) {
+            val others = songs.filterIndexed { index, _ -> index != startIndex }.shuffled()
+            listOf(startSong) + others
         } else {
-            player.shuffleModeEnabled = true
+            songs
         }
+        val currentWorkingIndex = if (shuffled) 0 else startIndex
+
+        // STEP 1: INSTANT PLAY
+        val targetMediaItem = buildMediaItem(startSong)
+        player.setMediaItem(targetMediaItem)
+        player.shuffleModeEnabled = false
         player.prepare()
         player.play()
 
         // STEP 2: DEFERRED QUEUE ATTACHMENT
         scope.launch(Dispatchers.Default) {
-            val queueMediaItems = songs.map { buildMediaItem(it) }
+            val queueMediaItems = workingSongs.map { buildMediaItem(it) }
 
             if (cacheReady.get() && queueMediaItems.isNotEmpty()) {
-                val prepared = if (shuffled) {
-                    val others = queueMediaItems.indices.filter { it != startIndex }.shuffled()
-                    val idx = listOf(startIndex) + others
-                    PreparedQueueData(
-                        items = idx.map { queueMediaItems[it] },
-                        songs = idx.map { songs[it] },
-                        startIndex = 0
-                    )
-                } else {
-                    PreparedQueueData(
-                        items = queueMediaItems,
-                        songs = songs,
-                        startIndex = startIndex
-                    )
-                }
-
                 delay(250)
-
-
 
                 withContext(Dispatchers.Main) {
                     val exoPlayer = player as? ExoPlayer
                     if (exoPlayer != null) {
-                        // ExoPlayer's addMediaSources can block the main thread if adding thousands of items.
-                        // For large queues, we just use setMediaItems which handles bulk addition natively.
                         if (queueMediaItems.isNotEmpty()) {
                             val pos = player.currentPosition
-                            player.setMediaItems(prepared.items, prepared.startIndex, pos)
+                            player.setMediaItems(queueMediaItems, currentWorkingIndex, pos)
                         }
                     }
                 }
 
-                persistFullQueue(queueName, prepared.songs, shuffled, prepared.startIndex)
+                persistFullQueue(queueName, workingSongs, shuffled, currentWorkingIndex)
             } else {
                 while (!cacheReady.get()) delay(50)
                 val pos = withContext(Dispatchers.Main) { player.currentPosition }
                 if (queueMediaItems.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        player.setMediaItems(queueMediaItems, startIndex, pos)
+                        player.setMediaItems(queueMediaItems, currentWorkingIndex, pos)
                     }
                 }
-                persistFullQueue(queueName, songs, shuffled, startIndex)
+                persistFullQueue(queueName, workingSongs, shuffled, currentWorkingIndex)
             }
         }
     }
+
+    fun toggleShuffle() {
+        if (workingSongs.isEmpty() || originalSongs.isEmpty()) return
+        
+        val currentIndex = player.currentMediaItemIndex
+        if (currentIndex < 0 || currentIndex >= workingSongs.size) return
+        
+        val currentSong = workingSongs[currentIndex]
+        val wasShuffled = _isShuffleEnabled.value
+        val newShuffle = !wasShuffled
+        
+        val newWorkingSongs = if (newShuffle) {
+            val others = originalSongs.filter { it.id != currentSong.id }.shuffled()
+            listOf(currentSong) + others
+        } else {
+            originalSongs
+        }
+        
+        val newIndex = if (newShuffle) {
+            0
+        } else {
+            newWorkingSongs.indexOfFirst { it.id == currentSong.id }.coerceAtLeast(0)
+        }
+        
+        workingSongs = newWorkingSongs
+        _isShuffleEnabled.value = newShuffle
+        
+        // Update ExoPlayer incrementally to prevent playback interruption or skipping
+        if (newShuffle) {
+            val itemsCount = player.mediaItemCount
+            if (itemsCount > currentIndex + 1) {
+                player.removeMediaItems(currentIndex + 1, itemsCount)
+            }
+            val others = newWorkingSongs.subList(1, newWorkingSongs.size).map { buildMediaItem(it) }
+            if (others.isNotEmpty()) {
+                player.addMediaItems(others)
+            }
+            if (currentIndex > 0) {
+                player.removeMediaItems(0, currentIndex)
+            }
+        } else {
+            val origIndex = newIndex
+            val itemsCount = player.mediaItemCount
+            if (itemsCount > currentIndex + 1) {
+                player.removeMediaItems(currentIndex + 1, itemsCount)
+            }
+            val afterItems = newWorkingSongs.subList(origIndex + 1, newWorkingSongs.size).map { buildMediaItem(it) }
+            if (afterItems.isNotEmpty()) {
+                player.addMediaItems(afterItems)
+            }
+            if (currentIndex > 0) {
+                player.removeMediaItems(0, currentIndex)
+            }
+            val beforeItems = newWorkingSongs.subList(0, origIndex).map { buildMediaItem(it) }
+            if (beforeItems.isNotEmpty()) {
+                player.addMediaItems(0, beforeItems)
+            }
+        }
+        
+        // Persist the new queue state
+        scope.launch(Dispatchers.IO) {
+            val activeId = activeQueueId.value ?: return@launch
+            val queues = queueDao.getAllQueues().firstOrNull() ?: emptyList()
+            val activeQueue = queues.find { it.id == activeId }
+            val queueName = activeQueue?.name ?: "Current Queue"
+            persistFullQueue(queueName, workingSongs, newShuffle, newIndex)
+        }
+    }
+
 
     private fun parseAudioUri(path: String): android.net.Uri {
         return if (path.startsWith("content://") || path.startsWith("file://")) {
@@ -271,9 +335,23 @@ class QueueManager @Inject constructor(
                 queueDao.updateLastPlayed(queueId, System.currentTimeMillis())
                 setActiveQueueIdInPrefs(queueId)
                 
+                while (!cacheReady.get()) delay(50)
+                
+                val songMap = cachedSongs.associateBy { it.id }
+                val restoredSongs = items.mapNotNull { item ->
+                    val songId = item.mediaId.toLongOrNull()
+                    songId?.let { songMap[it] }
+                }
+                
                 withContext(Dispatchers.Main) {
-                    player.shuffleModeEnabled = queue.shuffleState
-                    playQueueItems(items, queue.currentItemIndex, queue.currentPlaybackPositionMs, autoPlay)
+                    originalSongs = restoredSongs
+                    workingSongs = restoredSongs
+                    _isShuffleEnabled.value = queue.shuffleState
+                    player.shuffleModeEnabled = false
+                    val mediaItems = restoredSongs.map { buildMediaItem(it) }
+                    player.setMediaItems(mediaItems, queue.currentItemIndex, queue.currentPlaybackPositionMs)
+                    player.prepare()
+                    if (autoPlay) player.play()
                 }
             }
         }
@@ -295,35 +373,14 @@ class QueueManager @Inject constructor(
         }
     }
 
-    private fun playQueueItems(items: List<QueueItemEntity>, startIndex: Int, startPositionMs: Long, autoPlay: Boolean) {
-        val mediaItems = items.map { item ->
-            MediaItem.Builder()
-                .setMediaId(item.mediaId)
-                .setUri(parseAudioUri(item.uri))
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(item.title)
-                        .setArtist(item.artist)
-                        .setAlbumTitle(item.album)
-                        .setArtworkUri(item.albumArtUri?.let { android.net.Uri.parse(it) })
-                        .build()
-                )
-                .build()
-        }
-        
-        player.setMediaItems(mediaItems, startIndex, startPositionMs)
-        player.prepare()
-        if (autoPlay) {
-            player.play()
-        }
-    }
+
     
     private suspend fun saveCurrentStateSync() {
         val activeId = activeQueueId.value ?: return
         
         val currentIdx = withContext(Dispatchers.Main) { player.currentMediaItemIndex }
         val currentPos = withContext(Dispatchers.Main) { player.currentPosition }
-        val isShuffled = withContext(Dispatchers.Main) { player.shuffleModeEnabled }
+        val isShuffled = _isShuffleEnabled.value
         val lastPlayed = System.currentTimeMillis()
         
         queueDao.updateQueueState(activeId, currentIdx, currentPos, isShuffled, lastPlayed)
@@ -334,7 +391,7 @@ class QueueManager @Inject constructor(
         scope.launch(Dispatchers.Main) {
             val currentIdx = player.currentMediaItemIndex
             val currentPos = player.currentPosition
-            val isShuffled = player.shuffleModeEnabled
+            val isShuffled = _isShuffleEnabled.value
             val lastPlayed = System.currentTimeMillis()
             
             scope.launch(Dispatchers.IO) {
@@ -371,10 +428,23 @@ class QueueManager @Inject constructor(
             val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == activeId } ?: return@launch
             val items = queueDao.getItemsForQueue(activeId).firstOrNull() ?: return@launch
             
+            while (!cacheReady.get()) delay(50)
+            
             if (items.isNotEmpty()) {
+                val songMap = cachedSongs.associateBy { it.id }
+                val restoredSongs = items.mapNotNull { item ->
+                    val songId = item.mediaId.toLongOrNull()
+                    songId?.let { songMap[it] }
+                }
+                
                 scope.launch(Dispatchers.Main) {
-                    player.shuffleModeEnabled = queue.shuffleState
-                    playQueueItems(items, queue.currentItemIndex, queue.currentPlaybackPositionMs, autoPlay = false)
+                    originalSongs = restoredSongs
+                    workingSongs = restoredSongs
+                    _isShuffleEnabled.value = queue.shuffleState
+                    player.shuffleModeEnabled = false // Always false
+                    val mediaItems = restoredSongs.map { buildMediaItem(it) }
+                    player.setMediaItems(mediaItems, queue.currentItemIndex, queue.currentPlaybackPositionMs)
+                    player.prepare()
                 }
             }
         }

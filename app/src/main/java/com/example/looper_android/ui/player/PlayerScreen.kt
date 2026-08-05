@@ -611,7 +611,6 @@ fun PlayerScreen(
             playbackViewModel = viewModel,
             onDismiss = { showQueueSheet = false },
             onSongSelect = { selectedSong ->
-                showQueueSheet = false
             }
         )
     }

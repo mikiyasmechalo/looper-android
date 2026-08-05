@@ -152,9 +152,6 @@ class PlaybackViewModel @Inject constructor(
         }
 
 
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            _playbackState.value = _playbackState.value.copy(isShuffle = shuffleModeEnabled)
-        }
 
         override fun onRepeatModeChanged(repeatModeInt: Int) {
             val mode = when (repeatModeInt) {
@@ -194,6 +191,12 @@ class PlaybackViewModel @Inject constructor(
         viewModelScope.launch {
             queueManager.activeQueueId.collectLatest { activeId ->
                 _playbackState.value = _playbackState.value.copy(activeQueueId = activeId)
+            }
+        }
+        
+        viewModelScope.launch {
+            queueManager.isShuffleEnabled.collectLatest { isShuffle ->
+                _playbackState.value = _playbackState.value.copy(isShuffle = isShuffle)
             }
         }
     }
@@ -351,7 +354,7 @@ class PlaybackViewModel @Inject constructor(
             isBuffering = buffering,
             position = if (pendingTransition) _playbackState.value.position else player.currentPosition.coerceAtLeast(0L),
             duration = if (pendingTransition) _playbackState.value.duration else player.duration.coerceAtLeast(0L),
-            isShuffle = player.shuffleModeEnabled,
+            isShuffle = queueManager.isShuffleEnabled.value,
             repeatMode = when (player.repeatMode) {
                 Player.REPEAT_MODE_ONE -> RepeatMode.ONE
                 Player.REPEAT_MODE_ALL -> RepeatMode.ALL
@@ -398,15 +401,25 @@ class PlaybackViewModel @Inject constructor(
         player.seekTo(positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L)))
     }
 
+    fun skipToQueueItem(index: Int) {
+        if (index in 0 until player.mediaItemCount) {
+            pendingTransition = true
+            _currentPosition.value = 0L
+            _playbackState.value = _playbackState.value.copy(position = 0L)
+            player.seekToDefaultPosition(index)
+            if (!player.playWhenReady) {
+                player.play()
+            }
+        }
+    }
+
     fun seekRelative(offsetMs: Long) {
         val target = (player.currentPosition + offsetMs).coerceIn(0L, player.duration.coerceAtLeast(0L))
         player.seekTo(target)
     }
 
     fun toggleShuffle() {
-        val newShuffle = !_playbackState.value.isShuffle
-        player.shuffleModeEnabled = newShuffle
-        _playbackState.value = _playbackState.value.copy(isShuffle = newShuffle)
+        queueManager.toggleShuffle()
     }
 
     fun nextRepeatMode() {

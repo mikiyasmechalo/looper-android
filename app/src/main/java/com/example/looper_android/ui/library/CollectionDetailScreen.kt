@@ -226,9 +226,7 @@ fun CollectionDetailScreen(
                                 backgroundColor = Color.White.copy(alpha = 0.08f),
                                 shape = RoundedCornerShape(12.dp),
                                 onClick = {
-                                    if (collectionSongs.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(collectionSongs.shuffled(), initialIndex = 0, disableShuffleMode = false, queueName = title)
-                                    }
+                                        playbackViewModel.shuffleAll(collectionSongs, queueName = title)
                                 }
                             ) {
                                 Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = Color.White, modifier = Modifier.size(16.dp))

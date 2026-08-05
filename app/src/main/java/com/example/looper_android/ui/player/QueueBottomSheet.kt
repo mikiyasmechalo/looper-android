@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -103,8 +104,18 @@ fun QueueBottomSheet(
                     )
                 }
             } else {
+                val listState = rememberLazyListState()
+                
+                LaunchedEffect(Unit) {
+                    val index = queue.indexOfFirst { it.id == currentSong?.id }
+                    if (index >= 0) {
+                        listState.scrollToItem(index)
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier.fillMaxHeight(),
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
@@ -114,7 +125,10 @@ fun QueueBottomSheet(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isPlayingThis) playbackState.accentColor.copy(alpha = 0.15f) else Color.Transparent)
-                                .clickable { onSongSelect(song) }
+                                .clickable {
+                                    playbackViewModel.skipToQueueItem(index)
+                                    onSongSelect(song)
+                                }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
