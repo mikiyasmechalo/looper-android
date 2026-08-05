@@ -55,6 +55,7 @@ import com.example.looper_android.ui.library.FoldersScreen
 import com.example.looper_android.ui.library.GenresScreen
 import com.example.looper_android.ui.library.HistoryScreen
 import com.example.looper_android.ui.library.PlaylistsScreen
+import com.example.looper_android.ui.search.SearchScreen
 import com.example.looper_android.ui.screens.tabs.HomeTab
 import com.example.looper_android.ui.screens.tabs.LibraryTab
 import kotlinx.coroutines.launch
@@ -175,6 +176,7 @@ fun DashboardScreen(
                     when (page) {
                         0 -> HomeTab(
                             viewModel = homeViewModel,
+                            onNavigateToSearch = { childNavController.navigate("search/global") },
                             onNavigateToSongs = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(1)
@@ -197,7 +199,8 @@ fun DashboardScreen(
                             }
                         )
                         1 -> AllSongsScreen(
-                            viewModel = allSongsViewModel
+                            viewModel = allSongsViewModel,
+                            onNavigateToSearch = { childNavController.navigate("search/songs") }
                         )
                         2 -> LibraryTab(
                             viewModel = libraryViewModel,
@@ -218,6 +221,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 AlbumsScreen(
+                    onNavigateToSearch = { childNavController.navigate("search/albums") },
                     onBackClick = { childNavController.popBackStack() },
                     onAlbumClick = { album ->
                         val encoded = Uri.encode(album)
@@ -234,6 +238,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 ArtistsScreen(
+                    onNavigateToSearch = { childNavController.navigate("search/artists") },
                     onBackClick = { childNavController.popBackStack() },
                     onArtistClick = { artist ->
                         val encoded = Uri.encode(artist)
@@ -295,6 +300,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 GenresScreen(
+                    onNavigateToSearch = { childNavController.navigate("search/genres") },
                     onBackClick = { childNavController.popBackStack() },
                     onGenreClick = { genre ->
                         val encoded = Uri.encode(genre)
@@ -350,6 +356,32 @@ fun DashboardScreen(
                     onNavigateToAlbum = { album ->
                         val encoded = Uri.encode(album)
                         childNavController.navigate("collection_detail/album/$encoded")
+                    }
+                )
+            }
+            
+            composable(
+                route = "search/{context}",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition }
+            ) { backStackEntry ->
+                val context = backStackEntry.arguments?.getString("context") ?: "global"
+                SearchScreen(
+                    searchContext = context,
+                    onBackClick = { childNavController.popBackStack() },
+                    onArtistClick = { artistName ->
+                        val encoded = android.net.Uri.encode(artistName)
+                        childNavController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onAlbumClick = { albumName ->
+                        val encoded = android.net.Uri.encode(albumName)
+                        childNavController.navigate("collection_detail/album/$encoded")
+                    },
+                    onGenreClick = { genreName ->
+                        val encoded = android.net.Uri.encode(genreName)
+                        childNavController.navigate("collection_detail/genre/$encoded")
                     }
                 )
             }

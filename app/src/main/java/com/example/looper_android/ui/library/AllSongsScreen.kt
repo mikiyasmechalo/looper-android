@@ -63,6 +63,7 @@ import com.example.looper_android.ui.widgets.PremiumSection
 @Composable
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
+    onNavigateToSearch: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {}
 ) {
@@ -121,7 +122,7 @@ fun AllSongsScreen(
                     height = 48.dp,
                     backgroundColor = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
-                    onClick = {}
+                    onClick = onNavigateToSearch
                 ) {
                     Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
@@ -237,11 +238,7 @@ fun AllSongsScreen(
                 } else {
                     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     val targetBottomPadding = if (isMiniPlayerVisible) (190.dp + bottomInsets) else (120.dp + bottomInsets)
-                    val bottomPadding by androidx.compose.animation.core.animateDpAsState(
-                        targetValue = targetBottomPadding,
-                        animationSpec = androidx.compose.animation.core.tween(300),
-                        label = "bottomPadding"
-                    )
+                    val bottomPadding = targetBottomPadding
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()

@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
+import coil.imageLoader
+import coil.request.ImageRequest
 import java.io.File
 import javax.inject.Inject
 
@@ -137,6 +139,13 @@ class PlaybackViewModel @Inject constructor(
                     val targetSong = dbSong ?: instantSong
                     val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
                     val accent = extractAccentColor(targetSong)
+
+                    if (!targetSong.artPath.isNullOrEmpty()) {
+                        val request = ImageRequest.Builder(context)
+                            .data(targetSong.artPath)
+                            .build()
+                        context.imageLoader.execute(request)
+                    }
 
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,

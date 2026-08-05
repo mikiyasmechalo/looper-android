@@ -157,11 +157,7 @@ fun HomeTab(
             // Proper bottom padding so content is never covered by bottom navigation bar or miniplayer!
             val bottomInsets = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             val targetBottomPadding = if (isMiniPlayerVisible) (200.dp + bottomInsets) else (140.dp + bottomInsets)
-            val bottomPadding by androidx.compose.animation.core.animateDpAsState(
-                targetValue = targetBottomPadding,
-                animationSpec = androidx.compose.animation.core.tween(300),
-                label = "bottomPadding"
-            )
+            val bottomPadding = targetBottomPadding
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

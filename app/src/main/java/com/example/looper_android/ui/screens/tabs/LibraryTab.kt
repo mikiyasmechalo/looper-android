@@ -127,11 +127,7 @@ fun LibraryTab(
         } else {
             val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             val targetBottomPadding = if (isMiniPlayerVisible) (200.dp + bottomInsets) else (140.dp + bottomInsets)
-            val bottomPadding by androidx.compose.animation.core.animateDpAsState(
-                targetValue = targetBottomPadding,
-                animationSpec = androidx.compose.animation.core.tween(300),
-                label = "bottomPadding"
-            )
+            val bottomPadding = targetBottomPadding
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

@@ -66,6 +66,7 @@ import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Trash2
@@ -138,6 +139,7 @@ fun CategoryTopBar(
 @Composable
 fun AlbumsScreen(
     viewModel: AlbumsViewModel = hiltViewModel(),
+    onNavigateToSearch: () -> Unit = {},
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit
 ) {
@@ -160,6 +162,15 @@ fun AlbumsScreen(
             title = "Albums",
             onBackClick = onBackClick,
             actions = {
+                PremiumSection(
+                    width = 44.dp,
+                    height = 44.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    onClick = onNavigateToSearch
+                ) {
+                    Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
                 // View Mode Toggle (Grid 2 -> Grid 3 -> List)
                 PremiumSection(
                     width = 44.dp,
@@ -359,6 +370,7 @@ fun AlbumsScreen(
 @Composable
 fun ArtistsScreen(
     viewModel: ArtistsViewModel = hiltViewModel(),
+    onNavigateToSearch: () -> Unit = {},
     onBackClick: () -> Unit,
     onArtistClick: (String) -> Unit
 ) {
@@ -381,6 +393,15 @@ fun ArtistsScreen(
             title = "Artists",
             onBackClick = onBackClick,
             actions = {
+                PremiumSection(
+                    width = 44.dp,
+                    height = 44.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    onClick = onNavigateToSearch
+                ) {
+                    Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
                 // View Mode Toggle Button (Grid 2 -> Grid 3 -> List)
                 PremiumSection(
                     width = 44.dp,
@@ -830,6 +851,7 @@ fun FoldersScreen(
 @Composable
 fun GenresScreen(
     viewModel: GenresViewModel = hiltViewModel(),
+    onNavigateToSearch: () -> Unit = {},
     onBackClick: () -> Unit,
     onGenreClick: (String) -> Unit
 ) {
@@ -847,6 +869,15 @@ fun GenresScreen(
             title = "Genres",
             onBackClick = onBackClick,
             actions = {
+                PremiumSection(
+                    width = 44.dp,
+                    height = 44.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    onClick = onNavigateToSearch
+                ) {
+                    Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
                 PremiumSection(
                     width = 44.dp,
                     height = 44.dp,
