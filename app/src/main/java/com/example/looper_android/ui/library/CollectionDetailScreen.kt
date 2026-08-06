@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -63,6 +64,8 @@ import com.example.looper_android.ui.player.SongEditViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.theme.WhiteAlpha15
+import com.example.looper_android.ui.widgets.FastScroller
 import com.example.looper_android.ui.widgets.PremiumSection
 
 enum class SongSortOption { TITLE, ALBUM, TRACK_NUMBER, DURATION, DATE_ADDED, YEAR }
@@ -132,12 +135,15 @@ fun CollectionDetailScreen(
         if (!isDbLoaded && collectionSongs.isEmpty()) {
             PremiumLoadingView(message = "LOADING COLLECTION")
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Hero Header (Cover image centered, text & buttons left-aligned)
-                item {
+            val listState = rememberLazyListState()
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Hero Header (Cover image centered, text & buttons left-aligned)
+                    item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -273,6 +279,14 @@ fun CollectionDetailScreen(
                         showAlbumInSubtitle = (type != "album")
                     )
                 }
+            }
+                
+                FastScroller(
+                    listState = listState,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(bottom = bottomPadding)
+                )
             }
         }
     }

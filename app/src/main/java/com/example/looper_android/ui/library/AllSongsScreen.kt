@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +58,7 @@ import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.widgets.FastScroller
 import com.example.looper_android.ui.widgets.PremiumSection
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -239,25 +241,36 @@ fun AllSongsScreen(
                     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     val targetBottomPadding = if (isMiniPlayerVisible) (190.dp + bottomInsets) else (120.dp + bottomInsets)
                     val bottomPadding = targetBottomPadding
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                translationY = animatedOffsetY
-                            },
-                        contentPadding = PaddingValues(top = 2.dp, bottom = bottomPadding)
-                    ) {
-                        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                            val isCurrent = currentSong?.path == song.path
-                            val isPlaying = isCurrent && playbackState.isPlaying
-                            SongTile(
-                                song = song,
-                                isCurrent = isCurrent,
-                                isPlaying = isPlaying,
-                                onClick = { viewModel.playAll(startIndex = index, shuffled = false) },
-                                onOptionsClick = { selectedSongForOptions = song }
-                            )
+                    val listState = rememberLazyListState()
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    translationY = animatedOffsetY
+                                },
+                            contentPadding = PaddingValues(top = 2.dp, bottom = bottomPadding)
+                        ) {
+                            itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                                val isCurrent = currentSong?.path == song.path
+                                val isPlaying = isCurrent && playbackState.isPlaying
+                                SongTile(
+                                    song = song,
+                                    isCurrent = isCurrent,
+                                    isPlaying = isPlaying,
+                                    onClick = { viewModel.playAll(startIndex = index, shuffled = false) },
+                                    onOptionsClick = { selectedSongForOptions = song }
+                                )
+                            }
                         }
+                        
+                        FastScroller(
+                            listState = listState,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(bottom = bottomPadding)
+                        )
                     }
                 }
             }
