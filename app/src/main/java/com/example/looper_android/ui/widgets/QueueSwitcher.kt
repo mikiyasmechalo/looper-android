@@ -24,6 +24,7 @@ import com.example.looper_android.ui.theme.DmSansFontFamily
 fun QueueSwitcher(
     queues: List<QueueEntity>,
     activeQueueId: Long?,
+    activeQueueName: String,
     onQueueSelected: (Long) -> Unit,
     onDeleteQueue: ((Long) -> Unit)? = null,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
@@ -31,8 +32,7 @@ fun QueueSwitcher(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val activeQueue = queues.find { it.id == activeQueueId }
-    val label = activeQueue?.name ?: "Select Queue"
+    val label = activeQueueName
 
     Box(modifier = modifier.width(220.dp)) {
         Row(

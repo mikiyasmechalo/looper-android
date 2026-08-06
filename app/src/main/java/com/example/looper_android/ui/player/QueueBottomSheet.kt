@@ -70,6 +70,7 @@ fun QueueBottomSheet(
                 QueueSwitcher(
                     queues = allQueues,
                     activeQueueId = playbackState.activeQueueId,
+                    activeQueueName = playbackState.activeQueueName,
                     onQueueSelected = { queueId ->
                         playbackViewModel.switchToQueue(queueId)
                     },

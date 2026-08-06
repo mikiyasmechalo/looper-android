@@ -1,34 +1,28 @@
 package com.example.looper_android.ui.player
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import coil.imageLoader
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
-import coil.imageLoader
-import coil.request.ImageRequest
-import java.io.File
 import javax.inject.Inject
-
-import androidx.compose.runtime.Immutable
 
 enum class RepeatMode {
     OFF, ALL, ONE
@@ -46,10 +40,11 @@ data class PlaybackState(
     val isFavorite: Boolean = false,
     val queue: List<SongEntity> = emptyList(),
     val audioQualityText: String = "High Quality • Audio",
-    val accentColor: Color = Color(0xFF808080),
+    val accentColor: Color = Color(0xFF55DF69),
     val isSleepTimerActive: Boolean = false,
     val sleepTimerLabel: String = "",
     val activeQueueId: Long? = null,
+    val activeQueueName: String = "Select Queue",
     /**
      * True once the DB song lookup completes. Prevents the mini-player from
      * animating in halfway and getting stuck during cold start initialization.
@@ -97,12 +92,24 @@ class PlaybackViewModel @Inject constructor(
             updatePlaybackState()
         }
 
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            updatePlaybackState()
+        }
+
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             pendingTransition = false
             if (mediaItem != null) {
                 val songId = mediaItem.mediaId.toLongOrNull() ?: 0L
                 val metadata = mediaItem.mediaMetadata
-                val instantSong = SongEntity(
+                
+                // If the transition is just a playlist update and the song is the same, ignore!
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    if (_playbackState.value.currentSong?.id == songId) {
+                        return
+                    }
+                }
+
+                val instantSong = com.example.looper_android.data.db.SongEntity(
                     id = songId,
                     path = mediaItem.localConfiguration?.uri?.toString() ?: "",
                     title = metadata.title?.toString() ?: "Unknown Title",
@@ -118,13 +125,12 @@ class PlaybackViewModel @Inject constructor(
                 )
 
                 _currentPosition.value = 0L
-                // Mark song as NOT ready until DB lookup completes (prevents half-animated mini-player)
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
                     position = 0L,
-                    duration = player.duration.coerceAtLeast(0),
-                    isSongReady = false
+                    duration = player.duration.coerceAtLeast(0)
                 )
+
 
                 if (songId > 0L && songId != lastIncrementedSongId) {
                     lastIncrementedSongId = songId
@@ -134,26 +140,45 @@ class PlaybackViewModel @Inject constructor(
                 }
 
                 songObserveJob?.cancel()
+                val currentDuration = player.duration.coerceAtLeast(0)
                 songObserveJob = viewModelScope.launch(Dispatchers.IO) {
                     val dbSong = libraryDao.getSongById(songId).firstOrNull()
                     val targetSong = dbSong ?: instantSong
-                    val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
-                    val accent = extractAccentColor(targetSong)
-
-                    if (!targetSong.artPath.isNullOrEmpty()) {
-                        val request = ImageRequest.Builder(context)
-                            .data(targetSong.artPath)
-                            .build()
-                        context.imageLoader.execute(request)
-                    }
 
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,
                         isFavorite = targetSong.isFavorite,
-                        audioQualityText = dbQualityText,
-                        accentColor = accent,
+                        position = 0L,
+                        duration = currentDuration,
+                        audioQualityText = "High Quality • Audio",
+                        accentColor = androidx.compose.ui.graphics.Color(0xFF808080),
                         isSongReady = true
                     )
+                    _currentPosition.value = 0L
+
+                    if (!targetSong.artPath.isNullOrEmpty()) {
+                        val request = coil.request.ImageRequest.Builder(context)
+                            .data(targetSong.artPath)
+                            .build()
+                        context.imageLoader.enqueue(request)
+                    }
+
+                    // Stagger the heavy CPU operations AFTER the image is loaded and displayed!
+                    // This is CRUCIAL: Since we are running on Dispatchers.IO, extracting the accent color
+                    // will synchronously read the file from disk (via MediaMetadataRetriever).
+                    // If we do this immediately, we block the IO threads and disk bandwidth that Coil 
+                    // desperately needs to decode the uncached image!
+                    kotlinx.coroutines.delay(300)
+                    
+                    val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
+                    val accent = extractAccentColor(targetSong)
+
+                    if (_playbackState.value.currentSong?.id == targetSong.id) {
+                        _playbackState.value = _playbackState.value.copy(
+                            audioQualityText = dbQualityText,
+                            accentColor = accent
+                        )
+                    }
                 }
             } else {
                 _playbackState.value = _playbackState.value.copy(currentSong = null, isSongReady = false)
@@ -206,6 +231,12 @@ class PlaybackViewModel @Inject constructor(
         viewModelScope.launch {
             queueManager.isShuffleEnabled.collectLatest { isShuffle ->
                 _playbackState.value = _playbackState.value.copy(isShuffle = isShuffle)
+            }
+        }
+        
+        viewModelScope.launch {
+            queueManager.activeQueueName.collectLatest { activeName ->
+                _playbackState.value = _playbackState.value.copy(activeQueueName = activeName)
             }
         }
     }
@@ -524,7 +555,7 @@ class PlaybackViewModel @Inject constructor(
             queueName = queueName,
             songs = songs,
             startIndex = initialIndex,
-            shuffled = !disableShuffleMode
+            forceShuffleOriginal = !disableShuffleMode
         )
     }
 
@@ -533,8 +564,8 @@ class PlaybackViewModel @Inject constructor(
         queueManager.loadAndPlayQueue(
             queueName = queueName,
             songs = songs,
-            startIndex = 0,
-            shuffled = true
+            startIndex = songs.indices.random(),
+            forceShuffleOriginal = true
         )
     }
 
@@ -551,8 +582,7 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun clearQueue() {
-        player.stop()
-        player.clearMediaItems()
-        _playbackState.value = PlaybackState()
+        queueManager.clearQueue()
+        _playbackState.value = PlaybackState(accentColor = _playbackState.value.accentColor)
     }
 }

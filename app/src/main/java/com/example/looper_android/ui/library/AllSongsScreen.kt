@@ -265,7 +265,7 @@ fun AllSongsScreen(
 
         // Floating Shuffle Action Button (Compact padding)
         val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val fabBottomPadding = if (currentSong != null) (185.dp + bottomInsets) else (120.dp + bottomInsets)
+        val fabBottomPadding = if (isMiniPlayerVisible) (185.dp + bottomInsets) else (120.dp + bottomInsets)
 
         Box(
             modifier = Modifier

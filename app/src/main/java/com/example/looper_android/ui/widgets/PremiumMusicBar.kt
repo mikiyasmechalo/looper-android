@@ -36,6 +36,14 @@ import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+data class MiniPlayerUiState(
+    val song: com.example.looper_android.data.db.SongEntity?,
+    val isPlaying: Boolean,
+    val isSongReady: Boolean
+)
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -46,8 +54,12 @@ fun PremiumMusicBar(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
-    val playbackState by viewModel.playbackState.collectAsState()
-    val song = playbackState.currentSong
+    val miniPlayerState by remember(viewModel) {
+        viewModel.playbackState
+            .map { MiniPlayerUiState(it.currentSong, it.isPlaying, it.isSongReady) }
+            .distinctUntilChanged()
+    }.collectAsState(initial = MiniPlayerUiState(null, false, false))
+    val song = miniPlayerState.song
     val haptics = rememberHapticFeedbackHelper()
 
     val coroutineScope = rememberCoroutineScope()
@@ -58,7 +70,7 @@ fun PremiumMusicBar(
     }
 
     AnimatedVisibility(
-        visible = song != null && playbackState.isSongReady,
+        visible = song != null && miniPlayerState.isSongReady,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
         modifier = modifier
@@ -173,7 +185,7 @@ fun PremiumMusicBar(
                                     url = song.artPath,
                                     modifier = Modifier.fillMaxSize()
                                 )
-                                if (playbackState.isPlaying) {
+                                if (miniPlayerState.isPlaying) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -250,7 +262,7 @@ fun PremiumMusicBar(
                         }
                     ) {
                         AnimatedPlayPauseIcon(
-                            isPlaying = playbackState.isPlaying,
+                            isPlaying = miniPlayerState.isPlaying,
                             modifier = Modifier.size(22.dp),
                             tint = Color.White
                         )

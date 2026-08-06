@@ -30,7 +30,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        queueManager.saveCurrentState()
+        queueManager.saveCurrentStateSync()
         mediaSession?.run {
             player.release()
             release()

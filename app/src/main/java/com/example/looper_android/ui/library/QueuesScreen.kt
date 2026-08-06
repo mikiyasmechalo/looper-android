@@ -60,6 +60,7 @@ fun QueuesScreen(
             QueueSwitcher(
                 queues = allQueues,
                 activeQueueId = playbackState.activeQueueId,
+                activeQueueName = playbackState.activeQueueName,
                 onQueueSelected = { queueId ->
                     viewModel.switchToQueue(queueId)
                 },
