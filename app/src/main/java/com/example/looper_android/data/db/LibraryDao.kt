@@ -44,6 +44,9 @@ interface LibraryDao {
     @Update
     suspend fun updateSong(song: SongEntity)
 
+    @Query("UPDATE songs SET lyrics = :lyrics WHERE id = :id")
+    suspend fun updateSongLyrics(id: Long, lyrics: String)
+
     @Update
     suspend fun updateSongs(songs: List<SongEntity>)
 

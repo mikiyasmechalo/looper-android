@@ -15,6 +15,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.looper_android.ui.player.LyricsScreen
 import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.PlayerScreen
 import com.example.looper_android.ui.screens.DashboardScreen
@@ -94,7 +95,20 @@ fun AppNavGraph(
                 )
             }
 
-            composable("lyrics") { }
+            composable(
+                route = "lyrics",
+                enterTransition = { fadeIn(animationSpec = tween(400)) },
+                exitTransition = { fadeOut(animationSpec = tween(400)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+                popExitTransition = { fadeOut(animationSpec = tween(400)) }
+            ) {
+                LyricsScreen(
+                    viewModel = playbackViewModel,
+                    onBack = { navController.popBackStack() },
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable
+                )
+            }
             composable("equalizer") { }
             composable("settings") { }
         }
