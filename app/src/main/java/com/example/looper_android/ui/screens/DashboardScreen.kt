@@ -176,7 +176,8 @@ fun DashboardScreen(
                     when (page) {
                         0 -> HomeTab(
                             viewModel = homeViewModel,
-                            onNavigateToSearch = { childNavController.navigate("search/global") },
+                            onNavigateToSearch = { childNavController.navigate("search/home") },
+                            onNavigateToSettings = { childNavController.navigate("settings") },
                             onNavigateToSongs = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(1)
@@ -200,10 +201,13 @@ fun DashboardScreen(
                         )
                         1 -> AllSongsScreen(
                             viewModel = allSongsViewModel,
-                            onNavigateToSearch = { childNavController.navigate("search/songs") }
+                            onNavigateToSearch = { childNavController.navigate("search/songs") },
+                            onNavigateToSettings = { childNavController.navigate("settings") }
                         )
                         2 -> LibraryTab(
                             viewModel = libraryViewModel,
+                            onNavigateToSearch = { childNavController.navigate("search/library") },
+                            onNavigateToSettings = { childNavController.navigate("settings") },
                             onNavigateToCategory = { categoryKey ->
                                 childNavController.navigate("category/$categoryKey")
                             }
@@ -383,6 +387,47 @@ fun DashboardScreen(
                         val encoded = android.net.Uri.encode(genreName)
                         childNavController.navigate("collection_detail/genre/$encoded")
                     }
+                )
+            }
+
+            composable(
+                route = "settings",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition }
+            ) {
+                com.example.looper_android.ui.settings.SettingsScreen(
+                    onBackClick = { childNavController.popBackStack() },
+                    onNavigateToCategory = { id -> childNavController.navigate("settings/category/$id") },
+                    accentColor = playbackState.accentColor
+                )
+            }
+
+            composable(
+                route = "settings/category/{categoryId}",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition },
+                arguments = listOf(navArgument("categoryId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val catId = backStackEntry.arguments?.getString("categoryId") ?: "theme"
+                val title = when (catId) {
+                    "theme" -> "Theme & Appearance"
+                    "dashboard" -> "Home Screen Customization"
+                    "playback" -> "Playback & Language"
+                    "audio_playback" -> "Audio & Playback"
+                    "library" -> "Music Library"
+                    "about" -> "About & Maintainers"
+                    "support_us" -> "Support Us"
+                    else -> "Settings"
+                }
+                com.example.looper_android.ui.settings.SettingsCategoryScreen(
+                    categoryId = catId,
+                    title = title,
+                    onBackClick = { childNavController.popBackStack() },
+                    accentColor = playbackState.accentColor
                 )
             }
         }

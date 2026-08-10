@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.QueueDao
@@ -23,9 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean

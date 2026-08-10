@@ -66,6 +66,7 @@ import com.example.looper_android.ui.widgets.PremiumSection
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {}
 ) {
@@ -140,7 +141,7 @@ fun AllSongsScreen(
                     height = 48.dp,
                     backgroundColor = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 32.dp, bottomEnd = 32.dp),
-                    onClick = {}
+                    onClick = onNavigateToSettings
                 ) {
                     Icon(Lucide.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
                 }

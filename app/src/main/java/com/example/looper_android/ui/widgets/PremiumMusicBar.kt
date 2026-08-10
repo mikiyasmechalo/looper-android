@@ -82,14 +82,7 @@ fun PremiumMusicBar(
             val tiltX = (dragOffset.x / 100f).coerceIn(-0.2f, 0.2f)
             val tiltY = (dragOffset.y / 100f).coerceIn(-0.1f, 0.1f)
 
-            val subtitleText = remember(song.artist, song.album) {
-                val artist = song.artist ?: "Unknown Artist"
-                if (!song.album.isNullOrEmpty() && song.album != "Unknown Album") {
-                    "$artist • ${song.album}"
-                } else {
-                    artist
-                }
-            }
+            val subtitleText = song.artist ?: "Unknown Artist"
 
             Box(
                 modifier = Modifier
@@ -156,7 +149,7 @@ fun PremiumMusicBar(
                     // Left Section: Song Info
                     PremiumSection(
                         modifier = Modifier
-                            .weight(4f)
+                            .weight(8f)
                             .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
                         backgroundColor = Color(0xFF1E1E1E),
@@ -243,10 +236,10 @@ fun PremiumMusicBar(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Right Section: Play/Pause Button (16dp icon size)
+                    // Right Section: Play/Pause Button
                     PremiumSection(
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(2f)
                             .fillMaxHeight()
                             .sharedBoundsOrElement(
                                 key = "player_play_pause_btn",
