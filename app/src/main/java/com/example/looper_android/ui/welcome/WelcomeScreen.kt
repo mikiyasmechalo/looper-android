@@ -66,7 +66,7 @@ fun WelcomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF11110E))
+            .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
     ) {
         // Glowing Background Orbs
         Box(

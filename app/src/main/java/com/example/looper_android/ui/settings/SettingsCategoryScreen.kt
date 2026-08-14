@@ -35,12 +35,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Coffee
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Globe
@@ -56,6 +59,12 @@ import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Power
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Save
+import com.composables.icons.lucide.PaintBucket
+import com.composables.icons.lucide.Moon
+import com.composables.icons.lucide.Droplet
+import com.composables.icons.lucide.Layers
+import com.composables.icons.lucide.Baseline
+import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.Send
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
@@ -90,7 +99,6 @@ fun SettingsCategoryScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             PremiumSection(
@@ -103,15 +111,18 @@ fun SettingsCategoryScreen(
                 Icon(Lucide.ArrowLeft, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
             }
 
+            Spacer(modifier = Modifier.width(16.dp))
+
             Text(
                 text = title,
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = DmSansFontFamily
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-
-            Spacer(modifier = Modifier.size(48.dp))
         }
 
         LazyColumn(
@@ -129,7 +140,7 @@ fun SettingsCategoryScreen(
                 item {
                     PremiumSection(
                         cornerRadius = 24.dp,
-                        backgroundColor = Color(0xFF1E1E1E),
+                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
@@ -151,99 +162,212 @@ fun SettingsCategoryScreen(
     }
 }
 
-// 1. Theme & Appearance
+// 1. Theme
 @Composable
-private fun ThemeSettingsSection(accentColor: Color) {
-    var dynamicTheming by remember { mutableStateOf(true) }
-    var disableBlur by remember { mutableStateOf(false) }
-    var dynamicAccentColor by remember { mutableStateOf(false) }
-    var darkTheme by remember { mutableStateOf(false) }
-    var selectedPresetColor by remember { mutableStateOf(Color(0xFF41C25E)) }
-    var dynamicLyrics by remember { mutableStateOf(true) }
-    var blurredArtworkForLyrics by remember { mutableStateOf(false) }
-    var dynamicColorActiveLyrics by remember { mutableStateOf(true) }
-    var lyricsAlignment by remember { mutableStateOf("center") }
-    var disableSquiggle by remember { mutableStateOf(false) }
-    var disableAnimatedDuration by remember { mutableStateOf(false) }
-    var showQualityBadge by remember { mutableStateOf(true) }
-    var enablePlayerGradient by remember { mutableStateOf(true) }
-    var keepBackgroundGradient by remember { mutableStateOf(true) }
+private fun ThemeSettingsSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
+    val dynamicTheming by viewModel.dynamicTheming.collectAsState()
+    val disableBlur by viewModel.disableBlur.collectAsState()
+    val dynamicAccentColor by viewModel.dynamicAccentColor.collectAsState()
+    val darkTheme by viewModel.darkTheme.collectAsState()
+    val customAccentColorInt by viewModel.customAccentColor.collectAsState()
+    val dynamicLyrics by viewModel.dynamicLyrics.collectAsState()
+    val blurredArtworkForLyrics by viewModel.blurredArtworkForLyrics.collectAsState()
+    val dynamicColorActiveLyrics by viewModel.dynamicColorActiveLyrics.collectAsState()
+    val disableLyricFontScaling by viewModel.disableLyricFontScaling.collectAsState()
+    val lyricsAlignment by viewModel.lyricsAlignment.collectAsState()
+    val lyricsScreenDarkness by viewModel.lyricsScreenDarkness.collectAsState()
+    val primaryLyricsProvider by viewModel.primaryLyricsProvider.collectAsState()
+    val disableSquiggle by viewModel.disableSquiggle.collectAsState()
+    val disableAnimatedDuration by viewModel.disableAnimatedDuration.collectAsState()
+    val showQualityBadge by viewModel.showQualityBadge.collectAsState()
+    val enablePlayerGradient by viewModel.enablePlayerGradient.collectAsState()
+    val keepBackgroundGradient by viewModel.keepBackgroundGradient.collectAsState()
 
-    var useCustomFont by remember { mutableStateOf(false) }
-    var selectedFontFamily by remember { mutableStateOf("DM Sans") }
-    var fontWeightValue by remember { mutableFloatStateOf(400f) }
+    val selectedPresetColor = remember(customAccentColorInt) { Color(customAccentColorInt) }
 
-    var useCustomFontLyrics by remember { mutableStateOf(false) }
-    var selectedLyricsFontFamily by remember { mutableStateOf("DM Sans") }
-    var lyricsFontWeightValue by remember { mutableFloatStateOf(400f) }
-
-    val fontFamilies = listOf("DM Sans", "Inter", "Roboto", "Jost")
-
-    SettingsSwitchTile(title = "Dynamic Theming", subtitle = "Adapt app colors to album artwork", icon = Lucide.Palette, checked = dynamicTheming, onCheckedChange = { dynamicTheming = it }, accentColor = accentColor)
+    SettingsSwitchTile(
+        title = "Dynamic Theming",
+        subtitle = "Adapt app colors to album artwork",
+        icon = Lucide.Palette,
+        checked = dynamicTheming,
+        onCheckedChange = { viewModel.setDynamicTheming(it) },
+        accentColor = accentColor
+    )
     
     if (dynamicTheming) {
         AboutDivider()
-        SettingsSwitchTile(title = "Disable Blur Effects", subtitle = "Turn off heavy blurs to optimize performance", icon = LucideIcons.Eye, checked = disableBlur, onCheckedChange = { disableBlur = it }, accentColor = accentColor)
+        SettingsSwitchTile(
+            title = "Disable Blur Effects",
+            subtitle = "Turn off heavy blurs to optimize performance",
+            icon = LucideIcons.Eye,
+            checked = disableBlur,
+            onCheckedChange = { viewModel.setDisableBlur(it) },
+            accentColor = accentColor
+        )
     } else {
         AboutDivider()
-        SettingsSwitchTile(title = "Dynamic Accent Color", subtitle = "Update only the accent color dynamically from the artwork", icon = LucideIcons.Share2, checked = dynamicAccentColor, onCheckedChange = { dynamicAccentColor = it }, accentColor = accentColor)
+        SettingsSwitchTile(
+            title = "Dynamic Accent Color",
+            subtitle = "Update only the accent color dynamically from the artwork",
+            icon = Lucide.PaintBucket,
+            checked = dynamicAccentColor,
+            onCheckedChange = { viewModel.setDynamicAccentColor(it) },
+            accentColor = accentColor
+        )
         AboutDivider()
-        SettingsSwitchTile(title = "Pure Black (OLED)", subtitle = "Use absolute black for backgrounds", icon = LucideIcons.Moon, checked = darkTheme, onCheckedChange = { darkTheme = it }, accentColor = accentColor)
+        SettingsSwitchTile(
+            title = "Pure Black (OLED)",
+            subtitle = "Use absolute black (#000000) for backgrounds",
+            icon = Lucide.Moon,
+            checked = darkTheme,
+            onCheckedChange = { viewModel.setDarkTheme(it) },
+            accentColor = accentColor
+        )
+        
+        AboutDivider()
+        SettingsSwitchTile(
+            title = "Music Screen Gradient",
+            subtitle = "Enable the radial accent gradient background on the now playing screen",
+            icon = Lucide.Droplet,
+            checked = enablePlayerGradient,
+            onCheckedChange = { viewModel.setEnablePlayerGradient(it) },
+            accentColor = accentColor
+        )
 
+        if (enablePlayerGradient) {
+            AboutDivider()
+            SettingsSwitchTile(
+                title = "Keep Background Gradient",
+                subtitle = "Keep the background gradient across all application screens",
+                icon = Lucide.Layers,
+                checked = keepBackgroundGradient,
+                onCheckedChange = { viewModel.setKeepBackgroundGradient(it) },
+                accentColor = accentColor
+            )
+        }
         if (!dynamicAccentColor) {
             AboutDivider()
-            SettingsColorPaletteTile(title = "Accent Color", selectedColor = selectedPresetColor, colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF)), onColorSelected = { selectedPresetColor = it })
-            AboutDivider()
-            SettingsOptionTile(title = "Custom Accent Color", subtitle = "Select Custom Color", selectedValue = "#${selectedPresetColor.value.toString(16).take(6).uppercase()}", icon = LucideIcons.Activity, onClick = {}, accentColor = accentColor)
+            SettingsColorPaletteTile(
+                title = "Accent Color",
+                selectedColor = selectedPresetColor,
+                colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF), Color(0xFFFF5252), Color(0xFFAB47BC)),
+                onColorSelected = { viewModel.setCustomAccentColor(it.toArgb()) }
+            )
         }
     }
     
     AboutDivider()
-    SettingsSwitchTile(title = "Dynamic Lyrics BG", subtitle = "Apply album-art blur to lyrics screen", icon = Lucide.Music, checked = dynamicLyrics, onCheckedChange = { dynamicLyrics = it }, accentColor = accentColor)
+    SettingsSwitchTile(
+        title = "Dynamic Lyrics BG",
+        subtitle = "Apply album-art blur to lyrics screen",
+        icon = Lucide.Music,
+        checked = dynamicLyrics,
+        onCheckedChange = { viewModel.setDynamicLyrics(it) },
+        accentColor = accentColor
+    )
 
-    if (!dynamicLyrics) {
+    if (dynamicLyrics) {
         AboutDivider()
-        SettingsSwitchTile(title = "Dynamic background only for lyrics", subtitle = "Apply dynamic background strictly to lyrics screen", icon = Lucide.Sparkles, checked = blurredArtworkForLyrics, onCheckedChange = { blurredArtworkForLyrics = it }, accentColor = accentColor)
+        SettingsSwitchTile(
+            title = "Use blurred album art for lyrics background",
+            subtitle = "Apply the dynamic theme style blurred artwork to the lyrics screen",
+            icon = Lucide.Sparkles,
+            checked = blurredArtworkForLyrics,
+            onCheckedChange = { viewModel.setBlurredArtworkForLyrics(it) },
+            accentColor = accentColor
+        )
     }
 
     if (dynamicTheming || dynamicLyrics) {
         AboutDivider()
-        SettingsSwitchTile(title = "Dynamic Color Active Line", subtitle = "Use extracted artwork colors for the currently playing lyrics line", icon = LucideIcons.Layers, checked = dynamicColorActiveLyrics, onCheckedChange = { dynamicColorActiveLyrics = it }, accentColor = accentColor)
+        SettingsSwitchTile(
+            title = "Dynamic Color Active Line",
+            subtitle = "Use extracted artwork colors for the currently playing lyrics line",
+            icon = Lucide.Baseline,
+            checked = dynamicColorActiveLyrics,
+            onCheckedChange = { viewModel.setDynamicColorActiveLyrics(it) },
+            accentColor = accentColor
+        )
     }
 
     AboutDivider()
-    SettingsOptionTile(title = "Lyrics Alignment", subtitle = "Align text positions for scrolling lyrics", selectedValue = lyricsAlignment.replaceFirstChar { it.uppercase() }, icon = Lucide.List, onClick = { lyricsAlignment = when (lyricsAlignment) { "left" -> "center" "center" -> "right" else -> "left" } }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Flat Progress Bar", subtitle = "Disable squiggly wave progress bar animation", icon = LucideIcons.Sliders, checked = disableSquiggle, onCheckedChange = { disableSquiggle = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Plain Timestamps", subtitle = "Use static text instead of rolling animation for progress duration", icon = LucideIcons.Clock, checked = disableAnimatedDuration, onCheckedChange = { disableAnimatedDuration = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Show Quality Badge", subtitle = "Display audio quality information badge on the now playing screen", icon = Lucide.Info, checked = showQualityBadge, onCheckedChange = { showQualityBadge = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Music Screen Gradient", subtitle = "Enable the radial accent gradient background on the now playing screen", icon = LucideIcons.Droplet, checked = enablePlayerGradient, onCheckedChange = { enablePlayerGradient = it }, accentColor = accentColor)
-
-    if (enablePlayerGradient) {
-        AboutDivider()
-        SettingsSwitchTile(title = "Keep Background Gradient", subtitle = "Keep the background gradient across all application screens", icon = Lucide.Folder, checked = keepBackgroundGradient, onCheckedChange = { keepBackgroundGradient = it }, accentColor = accentColor)
-    }
+    SettingsSwitchTile(
+        title = "Static Lyric Font Size",
+        subtitle = "Keep active and inactive lyric lines at the same font size",
+        icon = Lucide.Type,
+        checked = disableLyricFontScaling,
+        onCheckedChange = { viewModel.setDisableLyricFontScaling(it) },
+        accentColor = accentColor
+    )
 
     AboutDivider()
-    SettingsSwitchTile(title = "Use Custom Font", subtitle = "Use Jost or other custom fonts. Otherwise, DM Sans is used.", icon = Lucide.Palette, checked = useCustomFont, onCheckedChange = { useCustomFont = it }, accentColor = accentColor)
-    if (useCustomFont) {
-        AboutDivider()
-        SettingsOptionTile(title = "Select Font Family", subtitle = "Active font: $selectedFontFamily", selectedValue = selectedFontFamily, icon = Lucide.Palette, onClick = { val nextIdx = (fontFamilies.indexOf(selectedFontFamily) + 1) % fontFamilies.size; selectedFontFamily = fontFamilies[nextIdx] }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSliderTile(title = "Font Weight Adjustment", subtitle = "Current weight: ${fontWeightValue.toInt()}", value = fontWeightValue, valueRange = 100f..900f, steps = 7, valueFormatter = { "${it.toInt()}" }, icon = LucideIcons.Sliders, onValueChange = { fontWeightValue = it }, accentColor = accentColor)
-    }
+    SettingsSegmentedTile(
+        title = "Lyrics Alignment",
+        subtitle = "Align text position for scrolling lyrics",
+        options = listOf("Left" to "left", "Center" to "center", "Right" to "right"),
+        selectedOption = lyricsAlignment,
+        onOptionSelected = { viewModel.setLyricsAlignment(it) },
+        accentColor = accentColor
+    )
 
     AboutDivider()
-    SettingsSwitchTile(title = "Use Custom Font for Lyrics", subtitle = "Use custom font and weight for synchronized lyrics view", icon = Lucide.Music, checked = useCustomFontLyrics, onCheckedChange = { useCustomFontLyrics = it }, accentColor = accentColor)
-    if (useCustomFontLyrics) {
-        AboutDivider()
-        SettingsOptionTile(title = "Lyrics Font Family", subtitle = "Active lyrics font: $selectedLyricsFontFamily", selectedValue = selectedLyricsFontFamily, icon = Lucide.Music, onClick = { val nextIdx = (fontFamilies.indexOf(selectedLyricsFontFamily) + 1) % fontFamilies.size; selectedLyricsFontFamily = fontFamilies[nextIdx] }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSliderTile(title = "Lyrics Font Weight Adjustment", subtitle = "Current weight: ${lyricsFontWeightValue.toInt()}", value = lyricsFontWeightValue, valueRange = 100f..900f, steps = 7, valueFormatter = { "${it.toInt()}" }, icon = LucideIcons.Sliders, onValueChange = { lyricsFontWeightValue = it }, accentColor = accentColor)
-    }
+    SettingsSliderTile(
+        title = "Lyric Screen Darkness",
+        subtitle = "Darkness overlay opacity for lyrics background artwork",
+        value = lyricsScreenDarkness,
+        valueRange = 0f..1f,
+        steps = 19,
+        valueFormatter = { "${(it * 100).toInt()}%" },
+        icon = LucideIcons.Eye,
+        onValueChange = { viewModel.setLyricsScreenDarkness(it) },
+        accentColor = accentColor
+    )
+
+    AboutDivider()
+    SettingsDropdownTile(
+        title = "Online Lyrics Provider",
+        subtitle = "Choose online service for fetching synchronized lyrics",
+        icon = Lucide.Globe,
+        options = listOf("LRCLIB" to "lrclib", "Genius" to "genius", "Musixmatch" to "musixmatch", "Netease" to "netease"),
+        selectedOption = primaryLyricsProvider,
+        onOptionSelected = { viewModel.setPrimaryLyricsProvider(it) },
+        accentColor = accentColor
+    )
+
+    AboutDivider()
+    SettingsSwitchTile(
+        title = "Flat Progress Bar",
+        subtitle = "Disable squiggly wave progress bar animation",
+        icon = LucideIcons.Sliders,
+        checked = disableSquiggle,
+        onCheckedChange = { viewModel.setDisableSquiggle(it) },
+        accentColor = accentColor
+    )
+
+    AboutDivider()
+    SettingsSwitchTile(
+        title = "Plain Timestamps",
+        subtitle = "Disable animated rolling duration numbers",
+        icon = Lucide.Clock,
+        checked = disableAnimatedDuration,
+        onCheckedChange = { viewModel.setDisableAnimatedDuration(it) },
+        accentColor = accentColor
+    )
+
+    AboutDivider()
+    SettingsSwitchTile(
+        title = "Show Quality Badge",
+        subtitle = "Display audio quality information badge on the now playing screen",
+        icon = Lucide.Info,
+        checked = showQualityBadge,
+        onCheckedChange = { viewModel.setShowQualityBadge(it) },
+        accentColor = accentColor
+    )
+
+
 }
 
 // 2. Dashboard Settings
@@ -344,7 +468,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Top Section Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = Color(0xFF1E1E1E),
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -448,7 +572,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Flutter Android Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = Color(0xFF1E1E1E),
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
             contentPadding = PaddingValues(vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -473,7 +597,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Original Flutter Maintainers Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = Color(0xFF1E1E1E),
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
             contentPadding = PaddingValues(vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -491,7 +615,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // App Info & Privacy Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = Color(0xFF1E1E1E),
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {

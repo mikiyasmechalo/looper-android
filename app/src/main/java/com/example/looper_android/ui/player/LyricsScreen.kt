@@ -1,6 +1,7 @@
 package com.example.looper_android.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -40,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -63,7 +66,8 @@ import com.example.looper_android.ui.widgets.ExpressiveSlider
 import com.example.looper_android.ui.widgets.PremiumSection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.HazeState
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -78,6 +82,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 fun LyricsScreen(
     viewModel: PlaybackViewModel,
     lyricsViewModel: LyricsViewModel = hiltViewModel(),
+    settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
@@ -86,6 +91,23 @@ fun LyricsScreen(
     val lyricsState by lyricsViewModel.uiState.collectAsState()
     val haptics = rememberHapticFeedbackHelper()
 
+    val darkTheme by settingsViewModel.darkTheme.collectAsState()
+    val lyricsScreenDarkness by settingsViewModel.lyricsScreenDarkness.collectAsState()
+    val disableLyricFontScaling by settingsViewModel.disableLyricFontScaling.collectAsState()
+    val lyricsAlignment by settingsViewModel.lyricsAlignment.collectAsState()
+    val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
+    val disableBlur by settingsViewModel.disableBlur.collectAsState()
+    val dynamicLyrics by settingsViewModel.dynamicLyrics.collectAsState()
+    val blurredArtworkForLyrics by settingsViewModel.blurredArtworkForLyrics.collectAsState()
+    val effectiveDarkTheme = darkTheme && !dynamicTheming
+    val dynamicColorActiveLyrics by settingsViewModel.dynamicColorActiveLyrics.collectAsState()
+    val animatedAccentColor by animateColorAsState(
+        targetValue = state.accentColor,
+        animationSpec = tween(durationMillis = 600),
+        label = "lyricsAccentAnim"
+    )
+
+    val lyricsHazeState = remember { HazeState() }
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
 
@@ -99,7 +121,7 @@ fun LyricsScreen(
     fun resetHideTimer() {
         showControls = true
         coroutineScope.launch {
-            delay(2500)
+            delay(3500)
             showControls = false
         }
     }
@@ -111,6 +133,7 @@ fun LyricsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -120,41 +143,58 @@ fun LyricsScreen(
             }
     ) {
         val artPath = state.currentSong?.artPath
-        if (artPath != null) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(artPath)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+        val baseColor = if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background
+        
+        Box(modifier = Modifier.fillMaxSize().haze(lyricsHazeState)) {
+            if (dynamicLyrics && blurredArtworkForLyrics && !artPath.isNullOrEmpty()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(artPath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(radius = 24.dp)
+                    )
+                }
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(radius = 80.dp)
+                        .background(Color.Black.copy(alpha = lyricsScreenDarkness))
+                )
+            } else if (dynamicLyrics) {
+                // Gradient from music screen
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithCache {
+                            onDrawBehind {
+                                drawRect(
+                                    brush = Brush.radialGradient(
+                                        0.0f to animatedAccentColor.copy(alpha = 0.55f),
+                                        0.35f to animatedAccentColor.copy(alpha = 0.40f),
+                                        0.60f to animatedAccentColor.copy(alpha = 0.22f),
+                                        0.80f to animatedAccentColor.copy(alpha = 0.06f),
+                                        1.0f to Color.Black,
+                                        center = Offset(size.width, 0f),
+                                        radius = size.height * 0.88f
+                                    )
+                                )
+                            }
+                        }
+                )
+            } else {
+                // Grayish color or pure black
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(baseColor)
                 )
             }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                MaterialTheme.colorScheme.surface
-                            ),
-                            radius = 1500f
-                        )
-                    )
-            )
         }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.55f))
-        )
 
         Column(
             modifier = Modifier
@@ -239,6 +279,7 @@ fun LyricsScreen(
                     width = 48.dp,
                     height = 48.dp,
                     cornerRadius = 32.dp,
+                    backgroundColor = Color.Transparent,
                     onClick = {
                         haptics.lightImpact()
                         onBack()
@@ -269,6 +310,9 @@ fun LyricsScreen(
                             viewModel.seekTo(pos)
                             resetHideTimer()
                         },
+                        disableFontScaling = disableLyricFontScaling,
+                        alignment = lyricsAlignment,
+                        activeColor = if (dynamicColorActiveLyrics) state.accentColor else Color.White,
                         modifier = Modifier.fillMaxSize(),
                         onUserScroll = { resetHideTimer() }
                     )
@@ -348,6 +392,8 @@ fun LyricsScreen(
                                     animatedVisibilityScope
                                 ),
                             height = 80.dp,
+                            enableBlur = !disableBlur,
+                            hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
                                 topStart = 40.dp,
                                 bottomStart = 40.dp,
@@ -380,7 +426,9 @@ fun LyricsScreen(
                                 ),
                             height = 80.dp,
                             cornerRadius = 12.dp,
-                            backgroundColor = if (state.isPlaying) Color(0xFF1E1E1E) else state.accentColor,
+                            enableBlur = !disableBlur,
+                            hazeState = lyricsHazeState,
+                            backgroundColor = if (state.isPlaying) androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant else state.accentColor,
                             onClick = {
                                 haptics.mediumImpact()
                                 viewModel.togglePlayPause()
@@ -389,7 +437,7 @@ fun LyricsScreen(
                         ) {
                             AnimatedPlayPauseIcon(
                                 isPlaying = state.isPlaying,
-                                tint = Color.White,
+                                tint = if (state.isPlaying) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.background,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -405,6 +453,8 @@ fun LyricsScreen(
                                     animatedVisibilityScope
                                 ),
                             height = 80.dp,
+                            enableBlur = !disableBlur,
+                            hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
                                 topStart = 12.dp,
                                 bottomStart = 12.dp,

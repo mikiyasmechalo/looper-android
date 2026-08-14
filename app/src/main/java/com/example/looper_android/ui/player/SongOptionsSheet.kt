@@ -179,7 +179,7 @@ fun SongOptionsSheet(
     val sheetBg = if (isPureBlack) {
         Color.Black
     } else {
-        Color(0xFF1E1E1E)
+        androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -399,7 +399,7 @@ fun SongOptionsSheet(
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp),
                             shape = RoundedCornerShape(20.dp),
-                            backgroundColor = Color(0xFF1E1E1E),
+                            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
                             onClick = null
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -603,7 +603,7 @@ fun EditSongSheet(
         }
     }
 
-    val sheetBg = Color(0xFF1E1E1E)
+    val sheetBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -1023,7 +1023,7 @@ fun DeleteSongDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isDeleting) onDismiss() },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(24.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1127,7 +1127,7 @@ fun SleepTimerSheet(
     } else if (useBlur) {
         Color.Black.copy(alpha = 0.60f)
     } else {
-        Color(0xFF1E1E1E)
+        androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     }
 
     ModalBottomSheet(
@@ -1457,7 +1457,7 @@ fun PlaylistSelectorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(24.dp),
         title = {
             Text(

@@ -109,7 +109,7 @@ fun AllSongsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF11110E))
+            .background(Color.Transparent)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header Row (Matches Flutter android_songs_tab.dart 1-to-1)
@@ -291,7 +291,7 @@ fun AllSongsScreen(
                 width = 48.dp,
                 height = 48.dp,
                 shape = RoundedCornerShape(48.dp),
-                backgroundColor = Color(0xFF1E1E1E),
+                backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
                 onClick = {
                     viewModel.shuffleAll()
                 }

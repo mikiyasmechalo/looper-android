@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.gif)
+    implementation(libs.androidx.datastore.preferences)
     implementation("androidx.documentfile:documentfile:1.0.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -90,5 +91,8 @@ dependencies {
 
     implementation(libs.jaudiotagger)
     implementation(libs.icons.lucide.cmp)
+    
+    // Haze for glassmorphism
+    implementation("dev.chrisbanes.haze:haze:1.1.1")
 }
 

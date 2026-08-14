@@ -95,7 +95,7 @@ fun HomeTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(Color.Transparent)
     ) {
         // Header (Matches Flutter: "Home" title on left, Search & Settings on right)
         Row(

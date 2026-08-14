@@ -29,10 +29,13 @@ fun PremiumNavbar(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
+    enableBlur: Boolean = false,
+    hazeState: dev.chrisbanes.haze.HazeState? = null,
+    darkTheme: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val selectedBg = Color(0xFF2A2A2A)
-    val unselectedBg = Color(0xFF1E1E1E)
+    val selectedBg = if (darkTheme) Color(0xFF1A1A1A) else Color(0xFF2A2A2A)
+    val unselectedBg = if (darkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
 
     Box(
         modifier = modifier
@@ -55,6 +58,8 @@ fun PremiumNavbar(
                             .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
                         backgroundColor = selectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = { onTap(0) }
                     ) {
                         NavItem(icon = Lucide.House, label = "Home", isSelected = true, accentColor = accentColor)
@@ -68,7 +73,9 @@ fun PremiumNavbar(
                             .weight(2f)
                             .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
-                        backgroundColor = unselectedBg
+                        backgroundColor = unselectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState
                     ) {
                         Row(modifier = Modifier.fillMaxSize()) {
                             Box(
@@ -104,6 +111,8 @@ fun PremiumNavbar(
                             .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
                         backgroundColor = unselectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = { onTap(0) }
                     ) {
                         NavItem(icon = Lucide.House, label = "Home", isSelected = false)
@@ -118,6 +127,8 @@ fun PremiumNavbar(
                             .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(12.dp),
                         backgroundColor = selectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = { onTap(1) }
                     ) {
                         NavItem(icon = Lucide.Music2, label = "Songs", isSelected = true, accentColor = accentColor)
@@ -132,6 +143,8 @@ fun PremiumNavbar(
                             .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
                         backgroundColor = unselectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = { onTap(2) }
                     ) {
                         NavItem(icon = Lucide.Library, label = "Library", isSelected = false, accentColor = accentColor)
@@ -145,7 +158,9 @@ fun PremiumNavbar(
                             .weight(2f)
                             .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
-                        backgroundColor = unselectedBg
+                        backgroundColor = unselectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState
                     ) {
                         Row(modifier = Modifier.fillMaxSize()) {
                             Box(
@@ -181,6 +196,8 @@ fun PremiumNavbar(
                             .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
                         backgroundColor = selectedBg,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = { onTap(2) }
                     ) {
                         NavItem(icon = Lucide.Library, label = "Library", isSelected = true, accentColor = accentColor)

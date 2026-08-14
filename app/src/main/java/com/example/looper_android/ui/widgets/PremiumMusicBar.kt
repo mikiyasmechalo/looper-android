@@ -52,8 +52,12 @@ fun PremiumMusicBar(
     onNavigateToPlayer: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    enableBlur: Boolean = false,
+    hazeState: dev.chrisbanes.haze.HazeState? = null,
+    darkTheme: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val containerColor = if (darkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
     val miniPlayerState by remember(viewModel) {
         viewModel.playbackState
             .map { MiniPlayerUiState(it.currentSong, it.isPlaying, it.isSongReady) }
@@ -152,7 +156,9 @@ fun PremiumMusicBar(
                             .weight(8f)
                             .fillMaxHeight(),
                         shape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp),
-                        backgroundColor = Color(0xFF1E1E1E),
+                        backgroundColor = containerColor,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = {
                             haptics.lightImpact()
                             onNavigateToPlayer()
@@ -248,7 +254,9 @@ fun PremiumMusicBar(
                                 clipShape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp)
                             ),
                         shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp),
-                        backgroundColor = Color(0xFF1E1E1E),
+                        backgroundColor = containerColor,
+                        enableBlur = enableBlur,
+                        hazeState = hazeState,
                         onClick = {
                             haptics.mediumImpact()
                             viewModel.togglePlayPause()

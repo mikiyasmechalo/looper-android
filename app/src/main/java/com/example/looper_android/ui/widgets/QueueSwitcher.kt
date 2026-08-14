@@ -67,7 +67,7 @@ fun QueueSwitcher(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             offset = DpOffset(x = 0.dp, y = 6.dp),
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier
                 .width(220.dp)
                 .clip(RoundedCornerShape(12.dp))

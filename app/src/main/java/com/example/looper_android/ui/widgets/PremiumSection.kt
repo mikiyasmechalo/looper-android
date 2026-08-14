@@ -21,19 +21,23 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
 
 @Composable
 fun PremiumSection(
     modifier: Modifier = Modifier,
     shape: Shape? = null,
     cornerRadius: Dp? = null,
-    backgroundColor: Color = Color(0xFF1E1E1E),
+    backgroundColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
     width: Dp? = null,
     height: Dp? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onClick: (() -> Unit)? = null,
     showLeftBorder: Boolean = true,
     showRightBorder: Boolean = true,
+    enableBlur: Boolean = false,
+    hazeState: HazeState? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val finalShape = when {
@@ -42,14 +46,43 @@ fun PremiumSection(
         else -> RoundedCornerShape(12.dp)
     }
 
+    val actualBgColor = if (enableBlur) {
+        if (backgroundColor == Color(0xFF2A2A2A) || backgroundColor == Color(0xFF1A1A1A)) {
+            Color.White.copy(alpha = 0.08f)
+        } else if (backgroundColor == androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant || backgroundColor == Color.White.copy(alpha = 0.05f)) {
+            Color.White.copy(alpha = 0.05f) // Matches Flutter app's 5% white glass tint
+        } else if (backgroundColor == Color.Transparent) {
+            Color.Transparent
+        } else if (backgroundColor.alpha == 1f) {
+            // Retain opaque accent color but make it glassmorphic!
+            backgroundColor.copy(alpha = 0.55f)
+        } else {
+            backgroundColor
+        }
+    } else {
+        backgroundColor
+    }
+
     var boxModifier = modifier
         .clip(finalShape)
-        .background(backgroundColor)
+    
+    if (enableBlur && hazeState != null) {
+        boxModifier = boxModifier.hazeChild(
+            state = hazeState,
+            style = dev.chrisbanes.haze.HazeStyle(
+                backgroundColor = Color.Transparent,
+                tints = emptyList(),
+                blurRadius = 16.dp
+            )
+        )
+    }
+    
+    boxModifier = boxModifier
+        .background(actualBgColor)
         .drawWithCache {
-            // Stroke draws centered on the path. Since we clip to the shape, 
-            // half the stroke is outside and gets clipped. We multiply by 2 to get the desired visible inner width.
             val desiredWidth = 1.2.dp.toPx()
             val strokeWidth = desiredWidth * 2 
+            val strokeColor = Color.White.copy(alpha = 0.05f) // Matches Flutter app exactly
             val outline = finalShape.createOutline(size, layoutDirection, this)
             onDrawWithContent {
                 drawContent()
@@ -59,7 +92,7 @@ fun PremiumSection(
                     right = size.width + (if (showRightBorder) 100f else -desiredWidth),
                     bottom = size.height + 100f
                 ) {
-                    drawOutline(outline, Color.White.copy(alpha = 0.05f), style = Stroke(strokeWidth))
+                    drawOutline(outline, strokeColor, style = Stroke(strokeWidth))
                 }
             }
         }

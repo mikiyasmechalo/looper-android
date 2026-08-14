@@ -13,10 +13,13 @@ import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.flow.first
+
 @Singleton
 class LyricsFetcher @Inject constructor(
     private val libraryDao: LibraryDao,
-    private val audioTagReader: AudioTagReader
+    private val audioTagReader: AudioTagReader,
+    private val settingsRepository: SettingsRepository
 ) {
     suspend fun fetchLyrics(song: SongEntity): String? = withContext(Dispatchers.IO) {
         // 1. Try DB cache
@@ -26,24 +29,24 @@ class LyricsFetcher @Inject constructor(
         }
 
         var lrc: String? = null
+        val primaryProvider = settingsRepository.primaryLyricsProvider.first().lowercase()
 
-        // 2. Try Embedded Tags
-        try {
-            val embedded = audioTagReader.read(song.path).lyrics
-            if (!embedded.isNullOrEmpty()) {
-                lrc = "[source:embedded]\n$embedded"
+        val tryEmbedded = suspend {
+            try {
+                val embedded = audioTagReader.read(song.path).lyrics
+                if (!embedded.isNullOrEmpty()) "[source:embedded]\n$embedded" else null
+            } catch (e: Exception) {
+                Log.e("LyricsFetcher", "Failed to read embedded lyrics for ${song.path}", e)
+                null
             }
-        } catch (e: Exception) {
-            Log.e("LyricsFetcher", "Failed to read embedded lyrics for ${song.path}", e)
         }
 
-        // 3. Try Local files (LRC/TXT sidecar files)
-        if (lrc == null) {
+        val tryLocal = suspend {
+            var localRes: String? = null
             val file = File(song.path)
             val dir = file.parentFile
             if (dir != null && dir.exists()) {
                 val baseName = file.nameWithoutExtension
-
                 val searchFiles = mutableListOf(
                     File(dir, "$baseName.lrc"),
                     File(dir, "$baseName.LRC"),
@@ -54,7 +57,6 @@ class LyricsFetcher @Inject constructor(
                     File(dir, "Lyrics/$baseName.lrc"),
                     File(dir, "Lyrics/$baseName.txt")
                 )
-
                 try {
                     dir.listFiles()?.forEach { f ->
                         if (f.name.equals("$baseName.lrc", ignoreCase = true) ||
@@ -70,7 +72,7 @@ class LyricsFetcher @Inject constructor(
                         try {
                             val content = f.readText()
                             if (content.isNotBlank()) {
-                                lrc = "[source:local]\n$content"
+                                localRes = "[source:local]\n$content"
                                 break
                             }
                         } catch (e: Exception) {
@@ -79,11 +81,16 @@ class LyricsFetcher @Inject constructor(
                     }
                 }
             }
+            localRes
         }
 
-        // 4. Try Network (LRCLIB)
-        if (lrc == null) {
-            lrc = fetchFromLrcLib(song)
+        val tryNetwork = suspend { fetchFromLrcLib(song) }
+
+        val providers: List<suspend () -> String?> = listOf(tryEmbedded, tryLocal, tryNetwork)
+
+        for (provider in providers) {
+            lrc = provider()
+            if (lrc != null) break
         }
 
         // Save to DB if found

@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ArrowLeft
@@ -83,8 +84,8 @@ fun SettingsScreen(
 
     val categories = remember {
         listOf(
-            SettingCategory("theme", "Theme & Appearance", "Customize Colors, Theme & OLED", Lucide.Palette),
-            SettingCategory("dashboard", "Home Screen Customization", "Home Dashboard & Layout Settings", Lucide.List),
+            SettingCategory("theme", "Theme", "Customize Colors, Theme & OLED", Lucide.Palette),
+            SettingCategory("dashboard", "Home Screen", "Home Dashboard & Layout Settings", Lucide.List),
             SettingCategory("playback", "Playback & Language", "Manage Language, Audio Focus & Pause", Lucide.Play),
             SettingCategory("audio_playback", "Audio & Playback", "Crossfade, Equalizer & Audio Engine", Lucide.Music),
             SettingCategory("library", "Music Library", "Library Folders, Scanning & Rescan", Lucide.Database),
@@ -95,25 +96,25 @@ fun SettingsScreen(
 
     val allSearchableItems = remember {
         listOf(
-            SearchableSetting("theme", "Theme & Appearance", "Dynamic Theming", "Adapt app colors and background dynamically from artwork"),
-            SearchableSetting("theme", "Theme & Appearance", "Disable Blur Effects", "Turn off glassmorphism blur effects to boost UI performance"),
-            SearchableSetting("theme", "Theme & Appearance", "Dynamic Accent Color", "Update only the primary accent color dynamically from artwork"),
-            SearchableSetting("theme", "Theme & Appearance", "Pure Black (OLED)", "Use absolute pitch black backgrounds (#000000)"),
-            SearchableSetting("theme", "Theme & Appearance", "Preset Accent Colors", "Choose quick primary brand highlight colors"),
-            SearchableSetting("theme", "Theme & Appearance", "Custom Accent Color", "Select custom primary brand highlight color"),
-            SearchableSetting("theme", "Theme & Appearance", "Dynamic Lyrics Background", "Enable dynamic artwork colors in lyrics view"),
-            SearchableSetting("theme", "Theme & Appearance", "Blurred Artwork for Lyrics", "Show blurred album art as background"),
-            SearchableSetting("theme", "Theme & Appearance", "Dynamic Color Active Lyrics", "Adapt active lyric line text color to contrast"),
-            SearchableSetting("theme", "Theme & Appearance", "Lyrics Alignment", "Choose text alignment for lyrics"),
-            SearchableSetting("theme", "Theme & Appearance", "Flat Progress Bar", "Disable squiggly animated waveform slider"),
-            SearchableSetting("theme", "Theme & Appearance", "Plain Timestamps", "Use static text for timestamps"),
-            SearchableSetting("theme", "Theme & Appearance", "Show Audio Quality Badge", "Display audio quality pill (e.g. FLAC 96kHz / 24-bit)"),
-            SearchableSetting("theme", "Theme & Appearance", "Enable Player Gradient", "Render smooth ambient color gradient behind artwork"),
-            SearchableSetting("theme", "Theme & Appearance", "Keep Background Gradient", "Keep background gradient ambient blur when minimized"),
-            SearchableSetting("dashboard", "Home Screen Customization", "Show Artists Row", "Display horizontal artist avatar list on Home"),
-            SearchableSetting("dashboard", "Home Screen Customization", "Show Albums Row", "Display horizontal album card list on Home"),
-            SearchableSetting("dashboard", "Home Screen Customization", "Show Genres Row", "Display colorful genre pills row on Home"),
-            SearchableSetting("dashboard", "Home Screen Customization", "Reorder Dashboard Sections", "Customize vertical order of Home tab cards"),
+            SearchableSetting("theme", "Theme", "Dynamic Theming", "Adapt app colors and background dynamically from artwork"),
+            SearchableSetting("theme", "Theme", "Disable Blur Effects", "Turn off glassmorphism blur effects to boost UI performance"),
+            SearchableSetting("theme", "Theme", "Dynamic Accent Color", "Update only the primary accent color dynamically from artwork"),
+            SearchableSetting("theme", "Theme", "Pure Black (OLED)", "Use absolute pitch black backgrounds (#000000)"),
+            SearchableSetting("theme", "Theme", "Preset Accent Colors", "Choose quick primary brand highlight colors"),
+            SearchableSetting("theme", "Theme", "Custom Accent Color", "Select custom primary brand highlight color"),
+            SearchableSetting("theme", "Theme", "Dynamic Lyrics Background", "Enable dynamic artwork colors in lyrics view"),
+            SearchableSetting("theme", "Theme", "Blurred Artwork for Lyrics", "Show blurred album art as background"),
+            SearchableSetting("theme", "Theme", "Dynamic Color Active Lyrics", "Adapt active lyric line text color to contrast"),
+            SearchableSetting("theme", "Theme", "Lyrics Alignment", "Choose text alignment for lyrics"),
+            SearchableSetting("theme", "Theme", "Flat Progress Bar", "Disable squiggly animated waveform slider"),
+            SearchableSetting("theme", "Theme", "Plain Timestamps", "Use static text for timestamps"),
+            SearchableSetting("theme", "Theme", "Show Audio Quality Badge", "Display audio quality pill (e.g. FLAC 96kHz / 24-bit)"),
+            SearchableSetting("theme", "Theme", "Enable Player Gradient", "Render smooth ambient color gradient behind artwork"),
+            SearchableSetting("theme", "Theme", "Keep Background Gradient", "Keep background gradient ambient blur when minimized"),
+            SearchableSetting("dashboard", "Home Screen", "Show Artists Row", "Display horizontal artist avatar list on Home"),
+            SearchableSetting("dashboard", "Home Screen", "Show Albums Row", "Display horizontal album card list on Home"),
+            SearchableSetting("dashboard", "Home Screen", "Show Genres Row", "Display colorful genre pills row on Home"),
+            SearchableSetting("dashboard", "Home Screen", "Reorder Dashboard Sections", "Customize vertical order of Home tab cards"),
             SearchableSetting("playback", "Playback & Language", "App Language", "Choose app localization language"),
             SearchableSetting("playback", "Playback & Language", "Vertical Motion Effect", "Enable smooth vertical drag/slide gesture on Player"),
             SearchableSetting("playback", "Playback & Language", "Stop Service on App Dismissal", "Terminate background playback service on app dismiss"),
@@ -154,6 +155,9 @@ fun SettingsScreen(
         }
     }
 
+    val settingsViewModel: SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val darkTheme by settingsViewModel.darkTheme.collectAsState()
+
     val playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val isMiniPlayerVisible = playbackState.isSongReady && playbackState.currentSong != null
@@ -165,7 +169,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(Color(0xFF11110E))
+            .background(Color.Transparent)
     ) {
         // Header Row (Matches Flutter settings_view.dart)
         Row(
@@ -253,12 +257,17 @@ fun SettingsScreen(
                     Icon(Lucide.ArrowLeft, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
 
+                Spacer(modifier = Modifier.width(16.dp))
+
                 Text(
                     text = "Settings",
                     color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = DmSansFontFamily
+                    fontFamily = DmSansFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
 
                 PremiumSection(
@@ -343,7 +352,7 @@ private fun CategoryCard(
     PremiumSection(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = Color(0xFF1E1E1E),
+        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
         onClick = onClick
     ) {
         Row(

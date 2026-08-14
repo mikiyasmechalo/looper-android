@@ -35,8 +35,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import dev.chrisbanes.haze.haze
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -151,14 +157,77 @@ fun DashboardScreen(
     val targetPx: Float = saved ?: currentTopPx
     val stableTopDp = with(density) { targetPx.toDp() }
 
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val darkTheme by settingsViewModel.darkTheme.collectAsState()
+    val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
+    val effectiveDarkTheme = darkTheme && !dynamicTheming
+    val disableBlur by settingsViewModel.disableBlur.collectAsState()
+    val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+    val keepBackgroundGradient by settingsViewModel.keepBackgroundGradient.collectAsState()
+    val currentSongArtPath = playbackState.currentSong?.artPath
+    
+    val animatedAccentColor by androidx.compose.animation.animateColorAsState(
+        targetValue = playbackState.accentColor,
+        animationSpec = tween(durationMillis = 600),
+        label = "dashboardAccentAnim"
+    )
+
+    val hazeState = remember { dev.chrisbanes.haze.HazeState() }
+
     androidx.compose.runtime.CompositionLocalProvider(
         com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-            .background(Color(0xFF11110E))
-    ) {
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
+                    .haze(hazeState)
+            ) {
+            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !currentSongArtPath.isNullOrEmpty()
+            if (shouldShowBlurredArt) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(LocalContext.current)
+                            .data(currentSongArtPath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(radius = 24.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                    )
+                }
+            } else if ((!effectiveDarkTheme && dynamicTheming) || (enablePlayerGradient && keepBackgroundGradient)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithCache {
+                            onDrawBehind {
+                                drawRect(
+                                    brush = Brush.radialGradient(
+                                        0.0f to animatedAccentColor.copy(alpha = 0.55f),
+                                        0.35f to animatedAccentColor.copy(alpha = 0.40f),
+                                        0.60f to animatedAccentColor.copy(alpha = 0.22f),
+                                        0.80f to animatedAccentColor.copy(alpha = 0.06f),
+                                        1.0f to Color.Black,
+                                        center = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                        radius = size.height * 0.88f
+                                    )
+                                )
+                            }
+                        }
+                )
+            }
         // Content area with nested NavHost for sub-routes (Albums, Artists, Detail views)
         // Mini player & navbar remain persistently pinned at the bottom on top!
         NavHost(
@@ -414,8 +483,8 @@ fun DashboardScreen(
             ) { backStackEntry ->
                 val catId = backStackEntry.arguments?.getString("categoryId") ?: "theme"
                 val title = when (catId) {
-                    "theme" -> "Theme & Appearance"
-                    "dashboard" -> "Home Screen Customization"
+                    "theme" -> "Theme"
+                    "dashboard" -> "Home Screen"
                     "playback" -> "Playback & Language"
                     "audio_playback" -> "Audio & Playback"
                     "library" -> "Music Library"
@@ -430,6 +499,7 @@ fun DashboardScreen(
                     accentColor = playbackState.accentColor
                 )
             }
+        }
         }
 
         // Gradient fading bottom to black behind navbar (like Flutter)
@@ -456,11 +526,16 @@ fun DashboardScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp, top = 2.dp)
         ) {
+            val isBlurEnabled = dynamicTheming && !disableBlur
+
             com.example.looper_android.ui.widgets.PremiumMusicBar(
                 viewModel = playbackViewModel,
                 onNavigateToPlayer = { navController.navigate("player") },
                 sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope
+                animatedVisibilityScope = animatedVisibilityScope,
+                enableBlur = isBlurEnabled,
+                hazeState = hazeState,
+                darkTheme = effectiveDarkTheme
             )
             
             PremiumNavbar(
@@ -475,7 +550,10 @@ fun DashboardScreen(
                 },
                 accentColor = playbackState.accentColor,
                 sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope
+                animatedVisibilityScope = animatedVisibilityScope,
+                enableBlur = isBlurEnabled,
+                hazeState = hazeState,
+                darkTheme = effectiveDarkTheme
             )
         }
     }

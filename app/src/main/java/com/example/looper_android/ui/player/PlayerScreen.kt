@@ -5,6 +5,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,12 +49,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.HazeState
+import androidx.compose.material.icons.Icons
+import com.example.looper_android.ui.icons.CustomIcons
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.ListMusic
@@ -78,6 +85,7 @@ import com.example.looper_android.ui.widgets.sharedBoundsOrElement
 @Composable
 fun PlayerScreen(
     viewModel: PlaybackViewModel,
+    settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit,
     onNavigateToLyrics: () -> Unit,
     onNavigateToEqualizer: () -> Unit,
@@ -90,8 +98,20 @@ fun PlayerScreen(
     val song = state.currentSong
     val haptics = rememberHapticFeedbackHelper()
 
+    val darkTheme by settingsViewModel.darkTheme.collectAsState()
+    val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
+    val effectiveDarkTheme = darkTheme && !dynamicTheming
+    val containerColor = if (effectiveDarkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
+    val disableBlur by settingsViewModel.disableBlur.collectAsState()
+    val disableSquiggle by settingsViewModel.disableSquiggle.collectAsState()
+    val disableAnimatedDuration by settingsViewModel.disableAnimatedDuration.collectAsState()
+    val showQualityBadge by settingsViewModel.showQualityBadge.collectAsState()
+    val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+
     var showQueueSheet by remember { mutableStateOf(false) }
     var showOptionsSheet by remember { mutableStateOf(false) }
+
+    val playerHazeState = remember { dev.chrisbanes.haze.HazeState() }
 
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
 
@@ -103,7 +123,7 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF11110E)),
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center
         ) {
             Text("No song playing", color = Color.White, fontFamily = DmSansFontFamily)
@@ -131,7 +151,6 @@ fun PlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF11110E))
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = {
@@ -159,27 +178,55 @@ fun PlayerScreen(
                 )
             }
     ) {
-        // Dynamic Accent Radial Gradient Layer (Uses single main accent color from artwork, animated 600ms)
-        val maxDimensionPx = maxOf(screenWidthPx, screenHeightPx)
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawWithCache {
-                    onDrawBehind {
-                        drawRect(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    animatedAccentColor.copy(alpha = 0.42f),
-                                    animatedAccentColor.copy(alpha = 0.18f),
-                                    Color(0xFF11110E)
-                                ),
-                                center = Offset(screenWidthPx, 0f),
-                                radius = maxDimensionPx * 1.35f
-                            )
-                        )
-                    }
+            modifier = Modifier.fillMaxSize().background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
+                .haze(playerHazeState)
+        ) {
+            // 1. Prioritize Dynamic Theming Blurred Artwork Background
+            val artPath = song.artPath
+            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !artPath.isNullOrEmpty()
+
+            if (shouldShowBlurredArt) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    coil.compose.AsyncImage(
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(artPath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(radius = 24.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.65f))
+                    )
                 }
-        )
+            } else if (enablePlayerGradient) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithCache {
+                            onDrawBehind {
+                                drawRect(
+                                    brush = Brush.radialGradient(
+                                        0.0f to animatedAccentColor.copy(alpha = 0.55f),
+                                        0.35f to animatedAccentColor.copy(alpha = 0.40f),
+                                        0.60f to animatedAccentColor.copy(alpha = 0.22f),
+                                        0.80f to animatedAccentColor.copy(alpha = 0.06f),
+                                        1.0f to Color.Black,
+                                        center = Offset(size.width, 0f),
+                                        radius = size.height * 0.88f
+                                    )
+                                )
+                            }
+                        }
+                )
+            }
+        }
 
         SafeAreaColumn(
             modifier = Modifier.fillMaxSize()
@@ -192,12 +239,12 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Close button (48x48, radius 32dp, icon size 8dp)
+                // Close button (48x48, radius 32dp, icon size 16dp)
                 PremiumSection(
                     width = 48.dp,
                     height = 48.dp,
                     cornerRadius = 32.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.05f),
+                    backgroundColor = Color.Transparent,
                     onClick = {
                         haptics.lightImpact()
                         onBack()
@@ -222,37 +269,39 @@ fun PlayerScreen(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(
-                                width = 0.5.dp,
-                                color = Color.White.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(20.dp)
+                    if (showQualityBadge) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(
+                                    width = 0.5.dp,
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = state.audioQualityText,
+                                color = Color.White.copy(alpha = 0.70f),
+                                fontFamily = DmSansFontFamily,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 9.sp,
+                                letterSpacing = 0.5.sp,
+                                lineHeight = 10.sp,
+                                modifier = Modifier.wrapContentHeight(unbounded = true)
                             )
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = state.audioQualityText,
-                            color = Color.White.copy(alpha = 0.70f),
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 9.sp,
-                            letterSpacing = 0.5.sp,
-                            lineHeight = 10.sp,
-                            modifier = Modifier.wrapContentHeight(unbounded = true) 
-                        )
+                        }
                     }
                 }
 
-                // Options / Sleep Timer button (48x48, radius 32dp, icon size 14dp)
+                // Options / Sleep Timer button (48x48, radius 32dp, icon size 18dp)
                 PremiumSection(
                     width = 48.dp,
                     height = 48.dp,
                     cornerRadius = 32.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.05f),
+                    backgroundColor = Color.Transparent,
                     onClick = {
                         haptics.mediumImpact()
                         showOptionsSheet = true
@@ -401,6 +450,8 @@ fun PlayerScreen(
 
                 // Favorite Button (56x56, radius 32dp, icon size 24dp)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     width = 56.dp,
                     height = 56.dp,
                     cornerRadius = 32.dp,
@@ -411,7 +462,7 @@ fun PlayerScreen(
                     }
                 ) {
                     Icon(
-                        imageVector = Lucide.Star,
+                        imageVector = CustomIcons.LikedIcon,
                         contentDescription = "Favorite",
                         tint = if (state.isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
                         modifier = Modifier.size(24.dp)
@@ -425,15 +476,50 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier.padding(horizontal = 28.dp)
             ) {
-                ExpressiveSlider(
-                    positionMs = state.position,
-                    durationMs = state.duration,
-                    isPlaying = state.isPlaying,
-                    onSeek = { targetMs ->
-                        viewModel.seekTo(targetMs)
-                    },
-                    activeColor = state.accentColor
-                )
+                if (disableSquiggle) {
+                    com.example.looper_android.ui.widgets.FlatSlider(
+                        positionMs = state.position,
+                        durationMs = state.duration,
+                        isPlaying = state.isPlaying,
+                        onSeek = { targetMs -> viewModel.seekTo(targetMs) },
+                        activeColor = state.accentColor,
+                        disableAnimatedDuration = disableAnimatedDuration
+                    )
+                } else if (disableAnimatedDuration) {
+                    Column {
+                        ExpressiveSlider(
+                            positionMs = state.position,
+                            durationMs = state.duration,
+                            isPlaying = state.isPlaying,
+                            onSeek = { targetMs -> viewModel.seekTo(targetMs) },
+                            activeColor = state.accentColor,
+                            showTimestamps = false
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            com.example.looper_android.ui.widgets.FlatDurationText(
+                                durationMs = state.position,
+                                disableAnimatedDuration = true
+                            )
+                            com.example.looper_android.ui.widgets.FlatDurationText(
+                                durationMs = state.duration,
+                                disableAnimatedDuration = true
+                            )
+                        }
+                    }
+                } else {
+                    ExpressiveSlider(
+                        positionMs = state.position,
+                        durationMs = state.duration,
+                        isPlaying = state.isPlaying,
+                        onSeek = { targetMs -> viewModel.seekTo(targetMs) },
+                        activeColor = state.accentColor
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -447,11 +533,18 @@ fun PlayerScreen(
             ) {
                 // Prev (16dp)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(80.dp),
-                    shape = RoundedCornerShape(topStart = 40.dp, bottomStart = 40.dp, topEnd = 12.dp, bottomEnd = 12.dp),
-                    backgroundColor = Color(0xFF1E1E1E),
+                    shape = RoundedCornerShape(
+                        topStart = 40.dp,
+                        bottomStart = 40.dp,
+                        topEnd = 12.dp,
+                        bottomEnd = 12.dp
+                    ),
+                    backgroundColor = containerColor,
                     onClick = {
                         haptics.lightImpact()
                         viewModel.skipToPrevious()
@@ -467,12 +560,14 @@ fun PlayerScreen(
 
                 // Play / Pause (22dp) (Morphs from Mini Player play button)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(80.dp)
                         .sharedBoundsOrElement("player_play_pause_btn", sharedTransitionScope, animatedVisibilityScope),
                     shape = RoundedCornerShape(12.dp),
-                    backgroundColor = if (!state.isPlaying) state.accentColor else Color(0xFF1E1E1E),
+                    backgroundColor = if (!state.isPlaying) state.accentColor else containerColor,
                     onClick = {
                         haptics.mediumImpact()
                         viewModel.togglePlayPause()
@@ -481,17 +576,24 @@ fun PlayerScreen(
                     AnimatedPlayPauseIcon(
                         isPlaying = state.isPlaying,
                         modifier = Modifier.size(22.dp),
-                        tint = if (state.isPlaying) Color.White else Color(0xFF121212)
+                        tint = if (state.isPlaying) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.background
                     )
                 }
 
                 // Next (16dp)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(80.dp),
-                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 40.dp, bottomEnd = 40.dp),
-                    backgroundColor = Color(0xFF1E1E1E),
+                    shape = RoundedCornerShape(
+                        topStart = 12.dp,
+                        bottomStart = 12.dp,
+                        topEnd = 40.dp,
+                        bottomEnd = 40.dp
+                    ),
+                    backgroundColor = containerColor,
                     onClick = {
                         haptics.lightImpact()
                         viewModel.skipToNext()
@@ -517,12 +619,19 @@ fun PlayerScreen(
             ) {
                 // Shuffle (15dp) (Morphs from Navbar Home tab)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(64.dp)
                         .sharedBoundsOrElement("nav_morph_1", sharedTransitionScope, animatedVisibilityScope),
-                    shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 12.dp, bottomEnd = 12.dp),
-                    backgroundColor = if (state.isShuffle) state.accentColor else Color(0xFF1E1E1E),
+                    shape = RoundedCornerShape(
+                        topStart = 32.dp,
+                        bottomStart = 32.dp,
+                        topEnd = 12.dp,
+                        bottomEnd = 12.dp
+                    ),
+                    backgroundColor = if (state.isShuffle) state.accentColor else containerColor,
                     onClick = {
                         haptics.selectionClick()
                         viewModel.toggleShuffle()
@@ -531,19 +640,21 @@ fun PlayerScreen(
                     Icon(
                         imageVector = Lucide.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (state.isShuffle) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
+                        tint = if (state.isShuffle) androidx.compose.material3.MaterialTheme.colorScheme.background else Color.White.copy(alpha = 0.70f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
 
                 // Repeat (15dp) (Morphs from Navbar Songs tab)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(64.dp)
                         .sharedBoundsOrElement("nav_morph_2", sharedTransitionScope, animatedVisibilityScope),
                     shape = RoundedCornerShape(12.dp),
-                    backgroundColor = if (state.repeatMode != RepeatMode.OFF) state.accentColor else Color(0xFF1E1E1E),
+                    backgroundColor = if (state.repeatMode != RepeatMode.OFF) state.accentColor else containerColor,
                     onClick = {
                         haptics.selectionClick()
                         viewModel.nextRepeatMode()
@@ -552,19 +663,21 @@ fun PlayerScreen(
                     Icon(
                         imageVector = if (state.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
                         contentDescription = "Repeat",
-                        tint = if (state.repeatMode != RepeatMode.OFF) Color(0xFF121212) else Color.White.copy(alpha = 0.70f),
+                        tint = if (state.repeatMode != RepeatMode.OFF) androidx.compose.material3.MaterialTheme.colorScheme.background else Color.White.copy(alpha = 0.70f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
 
                 // Lyrics (15dp) (Morphs from Navbar Library tab)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(64.dp)
                         .sharedBoundsOrElement("nav_morph_3", sharedTransitionScope, animatedVisibilityScope),
                     shape = RoundedCornerShape(12.dp),
-                    backgroundColor = Color(0xFF1E1E1E),
+                    backgroundColor = containerColor,
                     onClick = {
                         haptics.lightImpact()
                         onNavigateToLyrics()
@@ -580,11 +693,18 @@ fun PlayerScreen(
 
                 // Queue (12dp)
                 PremiumSection(
+                    enableBlur = !disableBlur,
+                    hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
                         .height(64.dp),
-                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 32.dp, bottomEnd = 32.dp),
-                    backgroundColor = Color(0xFF1E1E1E),
+                    shape = RoundedCornerShape(
+                        topStart = 12.dp,
+                        bottomStart = 12.dp,
+                        topEnd = 32.dp,
+                        bottomEnd = 32.dp
+                    ),
+                    backgroundColor = containerColor,
                     onClick = {
                         haptics.mediumImpact()
                         showQueueSheet = true
@@ -650,7 +770,7 @@ private fun SafeAreaColumn(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val topInset: androidx.compose.ui.unit.Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     var savedTopPx by remember { mutableStateOf<Float?>(null) }
-    
+
     val currentTopPx: Float = with(density) { topInset.toPx() }
     val saved: Float? = savedTopPx
     if (saved == null && currentTopPx > 0f) {

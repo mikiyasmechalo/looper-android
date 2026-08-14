@@ -113,7 +113,7 @@ fun CategoryTopBar(
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
         Text(
             text = title,
@@ -157,7 +157,7 @@ fun AlbumsScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(
             title = "Albums",
             onBackClick = onBackClick,
@@ -388,7 +388,7 @@ fun ArtistsScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(
             title = "Artists",
             onBackClick = onBackClick,
@@ -621,7 +621,7 @@ fun PlaylistsScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(
             title = "Playlists",
             onBackClick = onBackClick,
@@ -732,7 +732,7 @@ fun PlaylistsScreen(
                     Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontFamily = DmSansFontFamily)
                 }
             },
-            containerColor = Color(0xFF1E1E1E)
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
         )
     }
 
@@ -771,7 +771,7 @@ fun PlaylistsScreen(
                     Text("Cancel", color = Color.Gray)
                 }
             },
-            containerColor = Color(0xFF1E1E1E)
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
         )
     }
 }
@@ -789,7 +789,7 @@ fun FoldersScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(title = "Folders", onBackClick = onBackClick)
 
         if (folderNodes.isEmpty()) {
@@ -864,7 +864,7 @@ fun GenresScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(
             title = "Genres",
             onBackClick = onBackClick,
@@ -997,7 +997,7 @@ fun HistoryScreen(
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(
             title = "History",
             onBackClick = onBackClick,
@@ -1061,7 +1061,7 @@ fun FavoritesScreen(
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+    Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(title = "Favorites", onBackClick = onBackClick)
 
         if (favoriteSongs.isEmpty()) {

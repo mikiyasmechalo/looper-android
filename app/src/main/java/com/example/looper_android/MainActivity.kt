@@ -12,6 +12,8 @@ import com.example.looper_android.playback.PlaybackService
 import com.example.looper_android.ui.navigation.AppNavGraph
 import com.example.looper_android.ui.theme.LooperandroidTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -35,7 +37,11 @@ class MainActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
 
         setContent {
-            LooperandroidTheme {
+            val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            val darkTheme by settingsViewModel.darkTheme.collectAsState()
+            val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
+
+            LooperandroidTheme(darkTheme = darkTheme, dynamicTheming = dynamicTheming) {
                 AppNavGraph()
             }
         }

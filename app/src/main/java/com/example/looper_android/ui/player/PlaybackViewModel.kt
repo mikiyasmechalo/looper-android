@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -57,7 +58,8 @@ class PlaybackViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val player: Player,
     private val libraryDao: LibraryDao,
-    private val queueManager: com.example.looper_android.domain.QueueManager
+    private val queueManager: com.example.looper_android.domain.QueueManager,
+    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
 ) : ViewModel() {
 
     private val _playbackState = MutableStateFlow(PlaybackState())
@@ -171,7 +173,16 @@ class PlaybackViewModel @Inject constructor(
                     kotlinx.coroutines.delay(300)
                     
                     val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
-                    val accent = extractAccentColor(targetSong)
+                    
+                    val dynamicTheming = settingsRepository.dynamicTheming.first()
+                    val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
+                    val customAccentColorInt = settingsRepository.customAccentColor.first()
+
+                    val accent = if (dynamicTheming || dynamicAccentColor) {
+                        extractAccentColor(targetSong)
+                    } else {
+                        Color(customAccentColorInt)
+                    }
 
                     if (_playbackState.value.currentSong?.id == targetSong.id) {
                         _playbackState.value = _playbackState.value.copy(
@@ -237,6 +248,24 @@ class PlaybackViewModel @Inject constructor(
         viewModelScope.launch {
             queueManager.activeQueueName.collectLatest { activeName ->
                 _playbackState.value = _playbackState.value.copy(activeQueueName = activeName)
+            }
+        }
+
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                settingsRepository.dynamicTheming,
+                settingsRepository.dynamicAccentColor,
+                settingsRepository.customAccentColor
+            ) { dynamicTheming, dynamicAccentColor, customAccentColorInt ->
+                Triple(dynamicTheming, dynamicAccentColor, customAccentColorInt)
+            }.collectLatest { (dynamicTheming, dynamicAccentColor, customAccentColorInt) ->
+                val song = _playbackState.value.currentSong
+                if (song != null && (dynamicTheming || dynamicAccentColor)) {
+                    val extracted = extractAccentColor(song)
+                    _playbackState.value = _playbackState.value.copy(accentColor = extracted)
+                } else {
+                    _playbackState.value = _playbackState.value.copy(accentColor = Color(customAccentColorInt))
+                }
             }
         }
     }
@@ -483,7 +512,10 @@ class PlaybackViewModel @Inject constructor(
         
         // Optimistically update the UI immediately
         if (_playbackState.value.currentSong?.id == updated.id) {
-            _playbackState.value = _playbackState.value.copy(currentSong = updated)
+            _playbackState.value = _playbackState.value.copy(
+                currentSong = updated,
+                isFavorite = updated.isFavorite
+            )
         }
         
         // Update the queue list as well so it persists in the active session

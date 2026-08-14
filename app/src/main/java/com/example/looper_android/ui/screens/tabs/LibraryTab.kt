@@ -73,7 +73,7 @@ fun LibraryTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(Color.Transparent)
     ) {
         // Header (Matches Flutter: Search on left, "Library" in center, Settings on right)
         Row(
@@ -329,7 +329,7 @@ private fun CategoryBlock(items: List<CategoryItem>) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF1E1E1E))
+            .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
             items.forEachIndexed { index, item ->

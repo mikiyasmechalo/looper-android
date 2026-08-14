@@ -27,6 +27,9 @@ fun AdvancedLyricLine(
     line: LyricLine,
     isActive: Boolean,
     fontScale: Float,
+    disableFontScaling: Boolean = true,
+    alignment: String = "center",
+    activeColor: Color = Color.White,
     onTap: () -> Unit
 ) {
     val alpha by animateFloatAsState(
@@ -35,8 +38,25 @@ fun AdvancedLyricLine(
         label = "alpha"
     )
 
-    val fontSize = if (isActive) 28f * fontScale else 22f * fontScale
+    val fontSize = if (disableFontScaling) {
+        24f * fontScale
+    } else {
+        if (isActive) 28f * fontScale else 22f * fontScale
+    }
     val fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
+    val textColor = if (isActive) activeColor else Color.White
+
+    val textAlignment = when (alignment.lowercase()) {
+        "left" -> androidx.compose.ui.text.style.TextAlign.Left
+        "right" -> androidx.compose.ui.text.style.TextAlign.Right
+        else -> androidx.compose.ui.text.style.TextAlign.Center
+    }
+
+    val boxAlignment = when (alignment.lowercase()) {
+        "left" -> androidx.compose.ui.Alignment.CenterStart
+        "right" -> androidx.compose.ui.Alignment.CenterEnd
+        else -> androidx.compose.ui.Alignment.Center
+    }
 
     val isInstrumental = line.text.isEmpty() ||
             line.text == "..." ||
@@ -47,15 +67,17 @@ fun AdvancedLyricLine(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onTap)
+            .clickable(onClick = onTap),
+        contentAlignment = boxAlignment
     ) {
         if (isInstrumental) {
             if (line.text == "...") {
                 Text(
                     text = "...",
-                    color = Color.White,
+                    color = textColor,
                     fontSize = fontSize.sp,
                     fontWeight = fontWeight,
+                    textAlign = textAlignment,
                     modifier = Modifier.alpha(alpha),
                     lineHeight = (fontSize * 1.5f).sp
                 )
@@ -63,7 +85,7 @@ fun AdvancedLyricLine(
                 Icon(
                     imageVector = Lucide.Music,
                     contentDescription = "Instrumental",
-                    tint = Color.White,
+                    tint = textColor,
                     modifier = Modifier
                         .size((fontSize * 1.2f).dp)
                         .alpha(alpha)
@@ -72,9 +94,10 @@ fun AdvancedLyricLine(
         } else {
             Text(
                 text = line.text,
-                color = Color.White,
+                color = textColor,
                 fontSize = fontSize.sp,
                 fontWeight = fontWeight,
+                textAlign = textAlignment,
                 modifier = Modifier.alpha(alpha),
                 lineHeight = (fontSize * 1.5f).sp
             )

@@ -29,6 +29,9 @@ fun AdvancedLyricRenderer(
     currentPositionMs: Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    disableFontScaling: Boolean = true,
+    alignment: String = "center",
+    activeColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White,
     onUserScroll: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
@@ -87,6 +90,9 @@ fun AdvancedLyricRenderer(
                         line = line,
                         isActive = index == activeIndex,
                         fontScale = fontScale,
+                        disableFontScaling = disableFontScaling,
+                        alignment = alignment,
+                        activeColor = activeColor,
                         onTap = { onSeek(line.startTimeMs) }
                     )
                 }

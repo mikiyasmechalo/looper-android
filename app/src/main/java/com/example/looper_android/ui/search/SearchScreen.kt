@@ -99,7 +99,7 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF11110E))
+                
         ) {
         // Top Header
         val title = if (searchContext == "global" || searchContext == "songs") "Search songs" else "Search library"

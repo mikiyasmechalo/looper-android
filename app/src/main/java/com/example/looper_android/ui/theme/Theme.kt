@@ -29,10 +29,19 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun LooperandroidTheme(
-    darkTheme: Boolean = true, // Force Dark Theme for now
+    darkTheme: Boolean = true,
+    dynamicTheming: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
+    val effectiveDarkTheme = darkTheme && !dynamicTheming
+    val containerColor = if (effectiveDarkTheme) androidx.compose.ui.graphics.Color(0xFF0A0A0A) else PremiumContainer
+    val backgroundColor = if (effectiveDarkTheme) androidx.compose.ui.graphics.Color.Black else PremiumDeepBlack
+    
+    val colorScheme = DarkColorScheme.copy(
+        background = backgroundColor,
+        surface = backgroundColor,
+        surfaceVariant = containerColor
+    )
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

@@ -106,7 +106,7 @@ fun CollectionDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            
     ) {
         // Top Back Button Bar
         Row(
