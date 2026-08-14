@@ -1,5 +1,6 @@
 package com.example.looper_android.ui.screens.tabs
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.looper_android.data.db.AlbumEntity
@@ -8,6 +9,7 @@ import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.domain.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,15 +39,21 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val libraryDao: LibraryDao,
     private val queueManager: QueueManager
 ) : ViewModel() {
 
+    private val prefs = context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE)
+
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    // Fixed seed per app launch session so unplayed Quick Picks stay static while looking at screen
     private val sessionSeed: Long = System.currentTimeMillis()
+
+    private var cachedQuickPicksPool: List<SongEntity>? = null
+    private var cachedQuickPicksDisplay: List<SongEntity>? = null
+    private var cachedDate: String? = null
 
     init {
         combine(
@@ -57,14 +65,38 @@ class HomeViewModel @Inject constructor(
                 return@combine HomeUiState(isLoading = false)
             }
 
-            // 1. Quick Picks Pool (Up to 100 songs mix of recently played, top songs & random library songs)
-            val recentlyPlayed = songs.filter { it.lastPlayed != null }.sortedByDescending { it.lastPlayed }
-            val topPlayed = songs.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(15)
-            val randomMix = songs.shuffled(Random(sessionSeed))
+            // 1. Quick Picks: stable per session and daily cache
+            val today = java.time.LocalDate.now().toString()
+            val savedDate = prefs.getString("quick_picks_date", null)
+            val savedPoolIds = prefs.getString("quick_picks_pool_ids", null)?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
+            val savedDisplayIds = prefs.getString("quick_picks_display_ids", null)?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
 
-            val quickPicksPool = (recentlyPlayed + topPlayed + randomMix).distinctBy { it.id }.take(100)
-            // Shuffle the pool using sessionSeed so top/recent songs aren't all grouped at the front of cards
-            val quickPicksDisplay = quickPicksPool.shuffled(Random(sessionSeed)).take(18)
+            val songsMap = songs.associateBy { it.id }
+
+            val (quickPicksPool, quickPicksDisplay) = if (
+                cachedDate == today && cachedQuickPicksPool != null && cachedQuickPicksDisplay != null
+            ) {
+                val updatedPool = cachedQuickPicksPool!!.mapNotNull { songsMap[it.id] }
+                val updatedDisplay = cachedQuickPicksDisplay!!.mapNotNull { songsMap[it.id] }
+                if (updatedDisplay.isNotEmpty()) {
+                    Pair(updatedPool, updatedDisplay)
+                } else {
+                    generateNewQuickPicks(songs, today)
+                }
+            } else if (savedDate == today && savedPoolIds.isNotEmpty() && savedDisplayIds.isNotEmpty()) {
+                val restoredPool = savedPoolIds.mapNotNull { songsMap[it] }
+                val restoredDisplay = savedDisplayIds.mapNotNull { songsMap[it] }
+                if (restoredDisplay.isNotEmpty()) {
+                    cachedDate = today
+                    cachedQuickPicksPool = restoredPool
+                    cachedQuickPicksDisplay = restoredDisplay
+                    Pair(restoredPool, restoredDisplay)
+                } else {
+                    generateNewQuickPicks(songs, today)
+                }
+            } else {
+                generateNewQuickPicks(songs, today)
+            }
 
             // 2. Top Songs Pool (Up to 100 songs sorted by playCount DESC, fallback dateAdded DESC)
             val topSongsPool = songs.sortedWith(
@@ -113,11 +145,18 @@ class HomeViewModel @Inject constructor(
                 albumScoreMap[album.name] ?: 0
             }
 
-            // 5. Genres: Group by genre and sort by track count DESC
+            // 5. Genres: Group by genre (filtering out unknown/blank) and sort by track count DESC
             val genresMap = mutableMapOf<String, MutableList<SongEntity>>()
             for (song in songs) {
-                val genre = song.genre?.trim()?.ifBlank { null } ?: "Unknown"
-                genresMap.getOrPut(genre) { mutableListOf() }.add(song)
+                val rawGenre = song.genre?.trim()
+                if (!rawGenre.isNullOrBlank() &&
+                    !rawGenre.equals("unknown", ignoreCase = true) &&
+                    !rawGenre.equals("unknown genre", ignoreCase = true) &&
+                    !rawGenre.equals("<unknown>", ignoreCase = true) &&
+                    !rawGenre.equals("null", ignoreCase = true) &&
+                    !rawGenre.equals("undefined", ignoreCase = true)) {
+                    genresMap.getOrPut(rawGenre) { mutableListOf() }.add(song)
+                }
             }
 
             val genreScoreMap = genresMap.mapValues { entry ->
@@ -151,6 +190,27 @@ class HomeViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
+    private fun generateNewQuickPicks(songs: List<SongEntity>, today: String): Pair<List<SongEntity>, List<SongEntity>> {
+        val recentlyPlayed = songs.filter { it.lastPlayed != null }.sortedByDescending { it.lastPlayed }
+        val topPlayed = songs.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(15)
+        val randomMix = songs.shuffled(Random(sessionSeed))
+
+        val pool = (recentlyPlayed + topPlayed + randomMix).distinctBy { it.id }.take(100)
+        val display = pool.shuffled(Random(sessionSeed)).take(18)
+
+        cachedDate = today
+        cachedQuickPicksPool = pool
+        cachedQuickPicksDisplay = display
+
+        prefs.edit()
+            .putString("quick_picks_date", today)
+            .putString("quick_picks_pool_ids", pool.joinToString(",") { it.id.toString() })
+            .putString("quick_picks_display_ids", display.joinToString(",") { it.id.toString() })
+            .apply()
+
+        return Pair(pool, display)
+    }
+
     fun playQuickPicks(shuffled: Boolean = true) {
         val pool = _uiState.value.quickPicksPool
         if (pool.isNotEmpty()) {
@@ -159,11 +219,14 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun playSongFromQuickPicks(index: Int) {
+    fun playSongFromQuickPicks(song: SongEntity) {
         val pool = _uiState.value.quickPicksPool
-        if (pool.isNotEmpty() && index in pool.indices) {
-            queueManager.loadAndPlayQueue("Quick Picks", pool, index, false)
+        val reordered = if (pool.isNotEmpty()) {
+            listOf(song) + pool.filter { it.id != song.id }
+        } else {
+            listOf(song)
         }
+        queueManager.loadAndPlayQueue("Quick Picks", reordered, 0, false)
     }
 
     fun playTopSongs(shuffled: Boolean = true) {

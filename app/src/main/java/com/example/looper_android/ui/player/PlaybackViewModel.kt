@@ -144,8 +144,8 @@ class PlaybackViewModel @Inject constructor(
                 songObserveJob?.cancel()
                 val currentDuration = player.duration.coerceAtLeast(0)
                 songObserveJob = viewModelScope.launch(Dispatchers.IO) {
-                    val dbSong = libraryDao.getSongById(songId).firstOrNull()
-                    val targetSong = dbSong ?: instantSong
+                    val initialDbSong = libraryDao.getSongById(songId).firstOrNull()
+                    val targetSong = initialDbSong ?: instantSong
 
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,
@@ -165,30 +165,35 @@ class PlaybackViewModel @Inject constructor(
                         context.imageLoader.enqueue(request)
                     }
 
-                    // Stagger the heavy CPU operations AFTER the image is loaded and displayed!
-                    // This is CRUCIAL: Since we are running on Dispatchers.IO, extracting the accent color
-                    // will synchronously read the file from disk (via MediaMetadataRetriever).
-                    // If we do this immediately, we block the IO threads and disk bandwidth that Coil 
-                    // desperately needs to decode the uncached image!
-                    kotlinx.coroutines.delay(300)
-                    
-                    val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
-                    
-                    val dynamicTheming = settingsRepository.dynamicTheming.first()
-                    val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
-                    val customAccentColorInt = settingsRepository.customAccentColor.first()
+                    // Calculate quality and accent color once in background
+                    launch {
+                        kotlinx.coroutines.delay(300)
+                        val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
+                        val dynamicTheming = settingsRepository.dynamicTheming.first()
+                        val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
+                        val customAccentColorInt = settingsRepository.customAccentColor.first()
+                        val accent = if (dynamicTheming || dynamicAccentColor) {
+                            extractAccentColor(targetSong)
+                        } else {
+                            Color(customAccentColorInt)
+                        }
 
-                    val accent = if (dynamicTheming || dynamicAccentColor) {
-                        extractAccentColor(targetSong)
-                    } else {
-                        Color(customAccentColorInt)
+                        if (_playbackState.value.currentSong?.id == targetSong.id) {
+                            _playbackState.value = _playbackState.value.copy(
+                                audioQualityText = dbQualityText,
+                                accentColor = accent
+                            )
+                        }
                     }
 
-                    if (_playbackState.value.currentSong?.id == targetSong.id) {
-                        _playbackState.value = _playbackState.value.copy(
-                            audioQualityText = dbQualityText,
-                            accentColor = accent
-                        )
+                    // Continuously collect any updates (such as isFavorite toggles or tag edits)
+                    libraryDao.getSongById(songId).collect { updatedDbSong ->
+                        if (updatedDbSong != null) {
+                            _playbackState.value = _playbackState.value.copy(
+                                currentSong = updatedDbSong,
+                                isFavorite = updatedDbSong.isFavorite
+                            )
+                        }
                     }
                 }
             } else {
@@ -527,58 +532,11 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun addNext(song: SongEntity) {
-        val mediaUri = Uri.parse(song.path)
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(song.id.toString())
-            .setUri(mediaUri)
-            .setMediaMetadata(
-                androidx.media3.common.MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist ?: "Unknown Artist")
-                    .setAlbumTitle(song.album ?: "Unknown Album")
-                    .setArtworkUri(song.artPath?.let { Uri.parse(it) })
-                    .build()
-            )
-            .build()
-
-        // Prevent duplicates: remove if already exists in queue
-        for (i in 0 until player.mediaItemCount) {
-            val item = player.getMediaItemAt(i)
-            if (item.mediaId == song.id.toString() || item.localConfiguration?.uri == mediaUri) {
-                player.removeMediaItem(i)
-                break
-            }
-        }
-
-        val insertIndex = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
-        player.addMediaItem(insertIndex, mediaItem)
+        queueManager.addNext(song)
     }
 
     fun addToQueue(song: SongEntity) {
-        val mediaUri = Uri.parse(song.path)
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(song.id.toString())
-            .setUri(mediaUri)
-            .setMediaMetadata(
-                androidx.media3.common.MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist ?: "Unknown Artist")
-                    .setAlbumTitle(song.album ?: "Unknown Album")
-                    .setArtworkUri(song.artPath?.let { Uri.parse(it) })
-                    .build()
-            )
-            .build()
-
-        // Prevent duplicates: remove if already exists in queue
-        for (i in 0 until player.mediaItemCount) {
-            val item = player.getMediaItemAt(i)
-            if (item.mediaId == song.id.toString() || item.localConfiguration?.uri == mediaUri) {
-                player.removeMediaItem(i)
-                break
-            }
-        }
-
-        player.addMediaItem(mediaItem)
+        queueManager.addToQueue(song)
     }
 
     fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false, queueName: String = "All Songs") {

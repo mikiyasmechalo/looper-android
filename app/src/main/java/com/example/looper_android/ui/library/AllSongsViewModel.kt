@@ -1,14 +1,18 @@
 package com.example.looper_android.ui.library
 
+import android.content.IntentSender
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.data.models.SortOption
+import com.example.looper_android.data.repository.AudioFileDeleter
+import com.example.looper_android.data.repository.DeleteResult
 import com.example.looper_android.data.repository.LibraryScanner
 import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.domain.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,15 +23,25 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
+
+data class PendingDeletePermission(
+    val intentSender: IntentSender,
+    val pendingSong: SongEntity
+)
 
 @HiltViewModel
 class AllSongsViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
     private val libraryScanner: LibraryScanner,
     private val safScanner: SafScanner,
+    private val audioFileDeleter: AudioFileDeleter,
     private val queueManager: QueueManager
 ) : ViewModel() {
+
+    private val _pendingDeletePermission = MutableStateFlow<PendingDeletePermission?>(null)
+    val pendingDeletePermission: StateFlow<PendingDeletePermission?> = _pendingDeletePermission.asStateFlow()
 
     private val _songs = MutableStateFlow<List<SongEntity>>(emptyList())
     val songs: StateFlow<List<SongEntity>> = _songs.asStateFlow()
@@ -99,10 +113,44 @@ class AllSongsViewModel @Inject constructor(
         }
     }
 
-    fun deleteSong(song: SongEntity) {
-        viewModelScope.launch {
-            libraryDao.deleteSongById(song.id)
+    fun deleteSong(song: SongEntity, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = audioFileDeleter.delete(song.path)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is DeleteResult.Success -> {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            libraryDao.deleteSongById(song.id)
+                        }
+                        queueManager.removeSong(song.id)
+                        onComplete?.invoke(true)
+                    }
+                    is DeleteResult.RequiresPermission -> {
+                        _pendingDeletePermission.value = PendingDeletePermission(
+                            intentSender = result.intentSender,
+                            pendingSong = song
+                        )
+                        onComplete?.invoke(false)
+                    }
+                    is DeleteResult.Failure -> {
+                        onComplete?.invoke(false)
+                    }
+                }
+            }
         }
+    }
+
+    fun onDeletePermissionGranted() {
+        val pending = _pendingDeletePermission.value ?: return
+        _pendingDeletePermission.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            libraryDao.deleteSongById(pending.pendingSong.id)
+            queueManager.removeSong(pending.pendingSong.id)
+        }
+    }
+
+    fun onDeletePermissionDenied() {
+        _pendingDeletePermission.value = null
     }
 
     fun rescanLibrary() {

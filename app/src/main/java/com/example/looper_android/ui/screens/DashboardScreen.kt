@@ -134,6 +134,23 @@ fun DashboardScreen(
     val currentBackStack by childNavController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
 
+    val navTo by navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<String?>("navigate_to", null)
+        ?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    LaunchedEffect(navTo) {
+        navTo?.let { target ->
+            navController.currentBackStackEntry?.savedStateHandle?.set("navigate_to", null)
+            val parts = target.split(":", limit = 2)
+            if (parts.size == 2) {
+                val (type, name) = parts
+                val encoded = Uri.encode(name)
+                childNavController.navigate("collection_detail/$type/$encoded")
+            }
+        }
+    }
+
     // Sync selectedTabIndex with Pager (only when on "tabs" route)
     LaunchedEffect(pagerState.currentPage, currentRoute) {
         if (currentRoute == "tabs" || currentRoute == null) {
@@ -271,7 +288,15 @@ fun DashboardScreen(
                         1 -> AllSongsScreen(
                             viewModel = allSongsViewModel,
                             onNavigateToSearch = { childNavController.navigate("search/songs") },
-                            onNavigateToSettings = { childNavController.navigate("settings") }
+                            onNavigateToSettings = { childNavController.navigate("settings") },
+                            onNavigateToArtist = { artist ->
+                                val encoded = Uri.encode(artist)
+                                childNavController.navigate("collection_detail/artist/$encoded")
+                            },
+                            onNavigateToAlbum = { album ->
+                                val encoded = Uri.encode(album)
+                                childNavController.navigate("collection_detail/album/$encoded")
+                            }
                         )
                         2 -> LibraryTab(
                             viewModel = libraryViewModel,

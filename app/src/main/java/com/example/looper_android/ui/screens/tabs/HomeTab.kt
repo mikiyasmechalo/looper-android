@@ -171,7 +171,7 @@ fun HomeTab(
                             currentSong = currentSong,
                             isPlaying = playbackState.isPlaying,
                             onPlayShuffle = { viewModel.playQuickPicks(shuffled = true) },
-                            onSongClick = { song, index -> viewModel.playSongFromQuickPicks(index) },
+                            onSongClick = { song -> viewModel.playSongFromQuickPicks(song) },
                             onSongLongClick = { song -> selectedSongForOptions = song }
                         )
                     }
@@ -254,7 +254,9 @@ fun HomeTab(
         SongOptionsSheet(
             song = song,
             accentColor = playbackState.accentColor,
-            onDismiss = { selectedSongForOptions = null }
+            onDismiss = { selectedSongForOptions = null },
+            onArtistClick = onArtistClick,
+            onAlbumClick = onAlbumClick
         )
     }
 }
@@ -390,7 +392,7 @@ private fun QuickPicksSection(
     currentSong: SongEntity?,
     isPlaying: Boolean,
     onPlayShuffle: () -> Unit,
-    onSongClick: (SongEntity, Int) -> Unit,
+    onSongClick: (SongEntity) -> Unit,
     onSongLongClick: (SongEntity) -> Unit
 ) {
     val pageCount = (quickPicks.size + 5) / 6
@@ -426,7 +428,7 @@ private fun QuickPicksSection(
                 modifier = Modifier
                     .clip(RoundedCornerShape(32.dp))
                     .background(Color.White.copy(alpha = 0.08f))
-                    .clickable { onPlayShuffle() }
+                .clickable { onPlayShuffle() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -474,7 +476,6 @@ private fun QuickPicksSection(
                             val itemIndex = rowIndex * 3 + colIndex
                             if (itemIndex < pageItems.size) {
                                 val song = pageItems[itemIndex]
-                                val globalIndex = startIndex + itemIndex
                                 val isCurrent = currentSong?.path == song.path
 
                                 QuickPickGridItem(
@@ -482,7 +483,7 @@ private fun QuickPicksSection(
                                     isCurrent = isCurrent,
                                     isPlaying = isCurrent && isPlaying,
                                     modifier = Modifier.weight(1f),
-                                    onClick = { onSongClick(song, globalIndex) },
+                                    onClick = { onSongClick(song) },
                                     onLongClick = { onSongLongClick(song) }
                                 )
                             } else {
@@ -576,10 +577,17 @@ private fun QuickPickGridItem(
                     .background(Color.Black.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = com.example.looper_android.ui.theme.LocalAccentColor.current,
-                    strokeWidth = 2.dp
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val gifRequest = remember(context) {
+                    coil.request.ImageRequest.Builder(context)
+                        .data("file:///android_asset/android_icons/Playing.gif")
+                        .build()
+                }
+                coil.compose.AsyncImage(
+                    model = gifRequest,
+                    contentDescription = "Playing Indicator",
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

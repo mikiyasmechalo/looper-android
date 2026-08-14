@@ -109,7 +109,7 @@ import com.example.looper_android.ui.library.AllSongsViewModel
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class ActiveSheet {
-    OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO
+    OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO, PLAYLISTS
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,6 +130,8 @@ fun SongOptionsSheet(
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val allSongsViewModel: AllSongsViewModel = hiltViewModel()
     val songEditViewModel: SongEditViewModel = hiltViewModel()
+    val playlistsViewModel: com.example.looper_android.ui.library.PlaylistsViewModel = hiltViewModel()
+    val playlists by playlistsViewModel.playlists.collectAsState()
 
     val writePermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
@@ -139,6 +141,7 @@ fun SongOptionsSheet(
         } else {
             songEditViewModel.onPermissionDenied()
         }
+        onDismiss()
     }
 
     val pendingWritePermission by songEditViewModel.pendingPermission.collectAsState()
@@ -146,6 +149,25 @@ fun SongOptionsSheet(
         pendingWritePermission?.let { pending ->
             val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
             writePermissionLauncher.launch(request)
+        }
+    }
+
+    val deletePermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            allSongsViewModel.onDeletePermissionGranted()
+        } else {
+            allSongsViewModel.onDeletePermissionDenied()
+        }
+        onDismiss()
+    }
+
+    val pendingDeletePermission by allSongsViewModel.pendingDeletePermission.collectAsState()
+    LaunchedEffect(pendingDeletePermission) {
+        pendingDeletePermission?.let { pending ->
+            val request = androidx.activity.result.IntentSenderRequest.Builder(pending.intentSender).build()
+            deletePermissionLauncher.launch(request)
         }
     }
 
@@ -310,8 +332,7 @@ fun SongOptionsSheet(
                     }
                     add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
                         hapticLight()
-                        // TODO: Implement Add to Playlist
-                        onDismiss()
+                        activeSheet = ActiveSheet.PLAYLISTS
                     })
                     if (showSleepTimer) {
                         add(OptionTileData(null, Lucide.Timer, if (showSleepTimer) sleepTimerLabel else "Sleep Timer") {
@@ -326,14 +347,14 @@ fun SongOptionsSheet(
                         if (isFavorite) "Remove from Favorites" else "Add to Favorites"
                     ) {
                         hapticLight()
-                        allSongsViewModel.updateSong(song.copy(isFavorite = !song.isFavorite))
+                        playbackViewModel.toggleFavorite(song)
                         onDismiss()
                     })
 
                     if (playlist != null) {
                         add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
                             hapticMedium()
-                            // TODO: Implement Remove from Playlist
+                            playlistsViewModel.removeSongFromPlaylist(playlist, song.path)
                             onDismiss()
                         })
                     }
@@ -494,8 +515,11 @@ fun SongOptionsSheet(
                         newGenre = genre,
                         newLyrics = lyrics,
                         newArtPath = artPath
-                    )
-                    onDismiss()
+                    ) { success ->
+                        if (success) {
+                            onDismiss()
+                        }
+                    }
                 }
             )
         }
@@ -507,8 +531,11 @@ fun SongOptionsSheet(
                     if (isCurrentlyPlaying) {
                         playbackViewModel.skipToNext()
                     }
-                    allSongsViewModel.deleteSong(song)
-                    onDismiss()
+                    allSongsViewModel.deleteSong(song) { success ->
+                        if (success) {
+                            onDismiss()
+                        }
+                    }
                 }
             )
         }
@@ -537,6 +564,20 @@ fun SongOptionsSheet(
                 song = song,
                 onDismiss = { activeSheet = ActiveSheet.DETAILS },
                 accentColor = accentColor
+            )
+        }
+        ActiveSheet.PLAYLISTS -> {
+            PlaylistSelectorDialog(
+                playlists = playlists,
+                accentColor = accentColor,
+                onDismiss = { activeSheet = ActiveSheet.OPTIONS },
+                onCreateNewPlaylist = { name ->
+                    playlistsViewModel.createPlaylist(name)
+                },
+                onPlaylistSelected = { targetPlaylist ->
+                    playlistsViewModel.addSongToPlaylist(targetPlaylist, song.path)
+                    onDismiss()
+                }
             )
         }
         null -> {}
@@ -1453,29 +1494,83 @@ fun PlaylistSelectorDialog(
     playlists: List<com.example.looper_android.data.db.PlaylistEntity>,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
     onDismiss: () -> Unit,
+    onCreateNewPlaylist: (String) -> Unit,
     onPlaylistSelected: (com.example.looper_android.data.db.PlaylistEntity) -> Unit
 ) {
+    var isCreatingNew by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(24.dp),
         title = {
             Text(
-                text = "Add to Playlists",
+                text = if (isCreatingNew) "New Playlist" else "Add to Playlists",
                 color = Color.White,
                 fontFamily = DmSansFontFamily,
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
-            if (playlists.isEmpty()) {
-                Text(
-                    text = "No playlists created yet.",
-                    color = Color.White.copy(alpha = 0.54f),
-                    fontFamily = DmSansFontFamily
+            if (isCreatingNew) {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    placeholder = { Text("Playlist name", color = Color.White.copy(alpha = 0.4f), fontFamily = DmSansFontFamily) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = accentColor,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isCreatingNew = true }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(accentColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "Create New Playlist",
+                            color = accentColor,
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (playlists.isNotEmpty()) {
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+
                     playlists.forEach { playlist ->
                         Row(
                             modifier = Modifier
@@ -1485,9 +1580,9 @@ fun PlaylistSelectorDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.PlaylistPlay,
+                                imageVector = Lucide.ListMusic,
                                 contentDescription = null,
-                                tint = accentColor,
+                                tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(22.dp)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
@@ -1502,9 +1597,34 @@ fun PlaylistSelectorDialog(
                 }
             }
         },
-        confirmButton = { },
+        confirmButton = {
+            if (isCreatingNew) {
+                Button(
+                    onClick = {
+                        val trimmed = newPlaylistName.trim()
+                        if (trimmed.isNotEmpty()) {
+                            onCreateNewPlaylist(trimmed)
+                            isCreatingNew = false
+                        }
+                    },
+                    enabled = newPlaylistName.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Create", color = Color.White, fontFamily = DmSansFontFamily)
+                }
+            }
+        },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = {
+                    if (isCreatingNew) {
+                        isCreatingNew = false
+                    } else {
+                        onDismiss()
+                    }
+                }
+            ) {
                 Text(
                     text = "Cancel",
                     color = Color.White.copy(alpha = 0.54f),

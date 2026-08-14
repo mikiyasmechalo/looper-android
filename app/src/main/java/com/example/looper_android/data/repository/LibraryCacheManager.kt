@@ -107,12 +107,19 @@ class LibraryCacheManager @Inject constructor(
             _artists.value = filteredArtists
         }.launchIn(scope)
 
-        // Process Genres
+        // Process Genres (filter out unknown/blank genres)
         _songs.onEach { songList ->
             val genreMap = mutableMapOf<String, MutableList<SongEntity>>()
             for (s in songList) {
-                val genre = s.genre?.trim()?.ifBlank { null } ?: "Unknown"
-                genreMap.getOrPut(genre) { mutableListOf() }.add(s)
+                val rawGenre = s.genre?.trim()
+                if (!rawGenre.isNullOrBlank() &&
+                    !rawGenre.equals("unknown", ignoreCase = true) &&
+                    !rawGenre.equals("unknown genre", ignoreCase = true) &&
+                    !rawGenre.equals("<unknown>", ignoreCase = true) &&
+                    !rawGenre.equals("null", ignoreCase = true) &&
+                    !rawGenre.equals("undefined", ignoreCase = true)) {
+                    genreMap.getOrPut(rawGenre) { mutableListOf() }.add(s)
+                }
             }
             _genres.value = genreMap.entries.map { GenreData(it.key, it.value) }
         }.launchIn(scope)
@@ -153,6 +160,53 @@ class LibraryCacheManager @Inject constructor(
                     dateModified = System.currentTimeMillis()
                 )
             )
+        }
+    }
+
+    fun addSongToPlaylist(playlist: PlaylistEntity, songPath: String) {
+        scope.launch(Dispatchers.IO) {
+            val jsonArray = try {
+                org.json.JSONArray(playlist.songPaths.ifBlank { "[]" })
+            } catch (_: Exception) {
+                org.json.JSONArray()
+            }
+            var exists = false
+            for (i in 0 until jsonArray.length()) {
+                if (jsonArray.optString(i) == songPath) {
+                    exists = true
+                    break
+                }
+            }
+            if (!exists) {
+                jsonArray.put(songPath)
+                val updated = playlist.copy(
+                    songPaths = jsonArray.toString(),
+                    dateModified = System.currentTimeMillis()
+                )
+                libraryDao.insertPlaylist(updated)
+            }
+        }
+    }
+
+    fun removeSongFromPlaylist(playlist: PlaylistEntity, songPath: String) {
+        scope.launch(Dispatchers.IO) {
+            val jsonArray = try {
+                org.json.JSONArray(playlist.songPaths.ifBlank { "[]" })
+            } catch (_: Exception) {
+                org.json.JSONArray()
+            }
+            val newArray = org.json.JSONArray()
+            for (i in 0 until jsonArray.length()) {
+                val p = jsonArray.optString(i)
+                if (p != songPath) {
+                    newArray.put(p)
+                }
+            }
+            val updated = playlist.copy(
+                songPaths = newArray.toString(),
+                dateModified = System.currentTimeMillis()
+            )
+            libraryDao.insertPlaylist(updated)
         }
     }
 

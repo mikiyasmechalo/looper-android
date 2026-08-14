@@ -350,6 +350,111 @@ class QueueManager @Inject constructor(
         }
     }
 
+    fun addNext(song: SongEntity) {
+        scope.launch(Dispatchers.Main) {
+            if (workingSongs.isEmpty() || player.mediaItemCount == 0) {
+                loadAndPlayQueue("All Songs", listOf(song), 0, false)
+                return@launch
+            }
+
+            // Remove if already in working list
+            val filteredWorking = workingSongs.filter { it.id != song.id }
+            val currentMediaItem = player.currentMediaItem
+            val currentSongId = currentMediaItem?.mediaId?.toLongOrNull()
+            val currentIndex = if (currentSongId != null) {
+                filteredWorking.indexOfFirst { it.id == currentSongId }.coerceAtLeast(0)
+            } else {
+                player.currentMediaItemIndex.coerceIn(0, (filteredWorking.size - 1).coerceAtLeast(0))
+            }
+
+            val insertIndex = (currentIndex + 1).coerceAtMost(filteredWorking.size)
+            val newWorking = filteredWorking.toMutableList().apply {
+                add(insertIndex, song)
+            }
+            workingSongs = newWorking
+
+            val newOriginal = originalSongs.filter { it.id != song.id }.toMutableList().apply {
+                add(song)
+            }
+            originalSongs = newOriginal
+
+            // Update ExoPlayer
+            val mediaItem = buildMediaItem(song)
+            for (i in 0 until player.mediaItemCount) {
+                if (player.getMediaItemAt(i).mediaId == song.id.toString()) {
+                    player.removeMediaItem(i)
+                    break
+                }
+            }
+            val exoInsertIndex = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+            player.addMediaItem(exoInsertIndex, mediaItem)
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, newWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)
+        }
+    }
+
+    fun addToQueue(song: SongEntity) {
+        scope.launch(Dispatchers.Main) {
+            if (workingSongs.isEmpty() || player.mediaItemCount == 0) {
+                loadAndPlayQueue("All Songs", listOf(song), 0, false)
+                return@launch
+            }
+
+            val filteredWorking = workingSongs.filter { it.id != song.id }.toMutableList().apply {
+                add(song)
+            }
+            workingSongs = filteredWorking
+
+            val newOriginal = originalSongs.filter { it.id != song.id }.toMutableList().apply {
+                add(song)
+            }
+            originalSongs = newOriginal
+
+            val mediaItem = buildMediaItem(song)
+            for (i in 0 until player.mediaItemCount) {
+                if (player.getMediaItemAt(i).mediaId == song.id.toString()) {
+                    player.removeMediaItem(i)
+                    break
+                }
+            }
+            player.addMediaItem(mediaItem)
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, filteredWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)
+        }
+    }
+
+    fun removeSong(songId: Long) {
+        scope.launch(Dispatchers.Main) {
+            val currentWorking = workingSongs.filter { it.id != songId }
+            workingSongs = currentWorking
+            originalSongs = originalSongs.filter { it.id != songId }
+            cachedSongs = cachedSongs.filter { it.id != songId }
+
+            val currentMediaItem = player.currentMediaItem
+            val currentPlayingId = currentMediaItem?.mediaId?.toLongOrNull()
+
+            if (currentPlayingId == songId) {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                } else if (currentWorking.isNotEmpty()) {
+                    player.seekToDefaultPosition(0)
+                } else {
+                    player.stop()
+                    player.clearMediaItems()
+                }
+            }
+
+            for (i in 0 until player.mediaItemCount) {
+                if (player.getMediaItemAt(i).mediaId == songId.toString()) {
+                    player.removeMediaItem(i)
+                    break
+                }
+            }
+        }
+    }
+
     fun switchToQueue(queueId: Long) {
         queueJob?.cancel()
         scope.launch(Dispatchers.Main) {

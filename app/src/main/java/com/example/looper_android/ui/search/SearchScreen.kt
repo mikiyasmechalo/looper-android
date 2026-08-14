@@ -449,7 +449,10 @@ fun SearchScreen(
         selectedSongForOptions?.let { song ->
             com.example.looper_android.ui.player.SongOptionsSheet(
                 song = song,
-                onDismiss = { selectedSongForOptions = null }
+                accentColor = playbackState.accentColor,
+                onDismiss = { selectedSongForOptions = null },
+                onArtistClick = onArtistClick,
+                onAlbumClick = onAlbumClick
             )
         }
     }

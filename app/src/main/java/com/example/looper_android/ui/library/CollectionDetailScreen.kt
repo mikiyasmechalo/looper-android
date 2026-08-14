@@ -56,11 +56,7 @@ import com.composables.icons.lucide.Type
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.components.PremiumLoadingView
-import com.example.looper_android.ui.player.DeleteSongDialog
-import com.example.looper_android.ui.player.EditSongSheet
 import com.example.looper_android.ui.player.PlaybackViewModel
-import com.example.looper_android.ui.player.SongDetailsBottomSheet
-import com.example.looper_android.ui.player.SongEditViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.player.TechnicalInfoBottomSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
@@ -81,8 +77,7 @@ fun CollectionDetailScreen(
     onNavigateToAlbum: (String) -> Unit = {},
     allSongsViewModel: AllSongsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
-    viewModel: CollectionDetailViewModel = hiltViewModel(),
-    songEditViewModel: SongEditViewModel = hiltViewModel()
+    viewModel: CollectionDetailViewModel = hiltViewModel()
 ) {
     val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val collectionSongs by viewModel.collectionSongs.collectAsState()

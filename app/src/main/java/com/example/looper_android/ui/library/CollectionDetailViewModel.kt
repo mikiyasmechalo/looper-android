@@ -55,13 +55,24 @@ class CollectionDetailViewModel @Inject constructor(
         prefs.edit().putBoolean("collection_sort_ascending", next).apply()
     }
 
+    private data class CollectionConfig(
+        val title: String,
+        val type: String,
+        val sort: SongSortOption,
+        val asc: Boolean
+    )
+
     val collectionSongs: StateFlow<List<SongEntity>> = combine(
         libraryCacheManager.songs,
-        _title,
-        _type,
-        _sortOption,
-        _isAscending
-    ) { allSongs, title, type, sort, asc ->
+        libraryCacheManager.playlists,
+        combine(_title, _type, _sortOption, _isAscending) { title, type, sort, asc ->
+            CollectionConfig(title, type, sort, asc)
+        }
+    ) { allSongs, playlists, config ->
+        val title = config.title
+        val type = config.type
+        val sort = config.sort
+        val asc = config.asc
         if (title.isBlank() || type.isBlank()) return@combine emptyList()
 
         val filtered = when (type.lowercase()) {
@@ -80,6 +91,24 @@ class CollectionDetailViewModel @Inject constructor(
             "folder" -> allSongs.filter {
                 val parentName = java.io.File(it.path).parentFile?.name ?: ""
                 parentName.equals(title, ignoreCase = true) || (java.io.File(it.path).parent ?: "").equals(title, ignoreCase = true)
+            }
+            "playlist" -> {
+                val currentPlaylist = playlists.find { it.name.equals(title, ignoreCase = true) }
+                if (currentPlaylist != null) {
+                    val pathSet = try {
+                        val json = org.json.JSONArray(currentPlaylist.songPaths)
+                        val set = mutableSetOf<String>()
+                        for (i in 0 until json.length()) {
+                            set.add(json.optString(i))
+                        }
+                        set
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+                    allSongs.filter { pathSet.contains(it.path) }
+                } else {
+                    emptyList()
+                }
             }
             else -> allSongs
         }

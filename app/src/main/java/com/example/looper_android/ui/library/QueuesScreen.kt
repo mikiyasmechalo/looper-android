@@ -26,6 +26,10 @@ import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.theme.JostFontFamily
 import com.example.looper_android.ui.widgets.QueueSwitcher
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import kotlinx.coroutines.launch
+
 @Composable
 fun QueuesScreen(
     onBackClick: () -> Unit,
@@ -89,6 +93,7 @@ fun QueuesScreen(
             }
         } else {
             val listState = rememberLazyListState()
+            val coroutineScope = rememberCoroutineScope()
             
             LaunchedEffect(Unit) {
                 val index = queue.indexOfFirst { it.id == currentSong?.id }
@@ -97,65 +102,117 @@ fun QueuesScreen(
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                state = listState,
-                contentPadding = PaddingValues(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
-                    val isPlayingThis = song.id == currentSong?.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isPlayingThis) playbackState.accentColor.copy(alpha = 0.15f) else Color.Transparent)
-                            .clickable { 
-                                viewModel.skipToQueueItem(index)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
+                        val isPlayingThis = song.id == currentSong?.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isPlayingThis) playbackState.accentColor.copy(alpha = 0.15f) else Color.Transparent)
+                                .clickable { 
+                                    viewModel.skipToQueueItem(index)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            ) {
+                                OptimizedImage(
+                                    url = song.artPath,
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    color = if (isPlayingThis) playbackState.accentColor else Color.White,
+                                    fontFamily = JostFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val queueArtistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                                val queueAlbumName = song.album?.trim()?.ifBlank { null }
+                                val queueSubtitleText = if (!queueAlbumName.isNullOrEmpty() && !queueAlbumName.equals("Unknown Album", ignoreCase = true)) {
+                                    "$queueArtistName • $queueAlbumName"
+                                } else {
+                                    queueArtistName
+                                }
+
+                                Text(
+                                    text = queueSubtitleText,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontFamily = JostFontFamily,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Floating Current Song / Song Count Pill at bottom center
+                val currentIdx = queue.indexOfFirst { it.id == currentSong?.id }
+                val currentPosition = if (currentIdx >= 0) currentIdx + 1 else 1
+                val totalSongs = queue.size
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(Color(0xFF222222).copy(alpha = 0.95f))
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(32.dp)
+                        )
+                        .clickable {
+                            if (currentIdx >= 0) {
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(currentIdx)
+                                }
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        ) {
-                            OptimizedImage(
-                                url = song.artPath,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                color = if (isPlayingThis) playbackState.accentColor else Color.White,
-                                fontFamily = JostFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            val queueArtistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                            val queueAlbumName = song.album?.trim()?.ifBlank { null }
-                            val queueSubtitleText = if (!queueAlbumName.isNullOrEmpty() && !queueAlbumName.equals("Unknown Album", ignoreCase = true)) {
-                                "$queueArtistName • $queueAlbumName"
-                            } else {
-                                queueArtistName
-                            }
-
-                            Text(
-                                text = queueSubtitleText,
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontFamily = JostFontFamily,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(playbackState.accentColor)
+                        )
+                        Text(
+                            text = "$currentPosition of $totalSongs",
+                            color = Color.White,
+                            fontFamily = JostFontFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
                     }
                 }
             }
