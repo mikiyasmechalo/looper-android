@@ -83,6 +83,48 @@ class SettingsViewModel @Inject constructor(
     val appLanguage: StateFlow<String> = repository.appLanguage
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "System Default")
 
+    val pauseOnDisconnect: StateFlow<Boolean> = repository.pauseOnDisconnect
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val resumeOnlyIfPausedByDisconnect: StateFlow<Boolean> = repository.resumeOnlyIfPausedByDisconnect
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val resumeOnBluetoothConnect: StateFlow<Boolean> = repository.resumeOnBluetoothConnect
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val resumeOnWiredConnect: StateFlow<Boolean> = repository.resumeOnWiredConnect
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val fadePlayPauseStop: StateFlow<Boolean> = repository.fadePlayPauseStop
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val fadeLengthMs: StateFlow<Float> = repository.fadeLengthMs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 300f)
+
+    val persistQueue: StateFlow<Boolean> = repository.persistQueue
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val audioFocus: StateFlow<Boolean> = repository.audioFocus
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val audioFocusRequestOnPlay: StateFlow<Boolean> = repository.audioFocusRequestOnPlay
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val audioFocusReleaseOnPause: StateFlow<Boolean> = repository.audioFocusReleaseOnPause
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val audioFocusStopOnOtherSession: StateFlow<Boolean> = repository.audioFocusStopOnOtherSession
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val audioFocusRestartOnGain: StateFlow<Boolean> = repository.audioFocusRestartOnGain
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val resumeOnStart: StateFlow<Boolean> = repository.resumeOnStart
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val permanentAudioFocusChange: StateFlow<Boolean> = repository.permanentAudioFocusChange
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun setDynamicTheming(value: Boolean) = viewModelScope.launch { repository.setDynamicTheming(value) }
     fun setDisableBlur(value: Boolean) = viewModelScope.launch { repository.setDisableBlur(value) }
     fun setDynamicAccentColor(value: Boolean) = viewModelScope.launch { repository.setDynamicAccentColor(value) }
@@ -118,4 +160,26 @@ class SettingsViewModel @Inject constructor(
         }
     }
     fun setAppLanguage(value: String) = viewModelScope.launch { repository.setAppLanguage(value) }
+    fun setPauseOnDisconnect(value: Boolean) = viewModelScope.launch { repository.setPauseOnDisconnect(value) }
+    fun setResumeOnlyIfPausedByDisconnect(value: Boolean) =
+        viewModelScope.launch { repository.setResumeOnlyIfPausedByDisconnect(value) }
+    fun setResumeOnBluetoothConnect(value: Boolean) =
+        viewModelScope.launch { repository.setResumeOnBluetoothConnect(value) }
+    fun setResumeOnWiredConnect(value: Boolean) =
+        viewModelScope.launch { repository.setResumeOnWiredConnect(value) }
+    fun setFadePlayPauseStop(value: Boolean) = viewModelScope.launch { repository.setFadePlayPauseStop(value) }
+    fun setFadeLengthMs(value: Float) = viewModelScope.launch { repository.setFadeLengthMs(value) }
+    fun setPersistQueue(value: Boolean) = viewModelScope.launch { repository.setPersistQueue(value) }
+    fun setAudioFocus(value: Boolean) = viewModelScope.launch { repository.setAudioFocus(value) }
+    fun setAudioFocusRequestOnPlay(value: Boolean) =
+        viewModelScope.launch { repository.setAudioFocusRequestOnPlay(value) }
+    fun setAudioFocusReleaseOnPause(value: Boolean) =
+        viewModelScope.launch { repository.setAudioFocusReleaseOnPause(value) }
+    fun setAudioFocusStopOnOtherSession(value: Boolean) =
+        viewModelScope.launch { repository.setAudioFocusStopOnOtherSession(value) }
+    fun setAudioFocusRestartOnGain(value: Boolean) =
+        viewModelScope.launch { repository.setAudioFocusRestartOnGain(value) }
+    fun setResumeOnStart(value: Boolean) = viewModelScope.launch { repository.setResumeOnStart(value) }
+    fun setPermanentAudioFocusChange(value: Boolean) =
+        viewModelScope.launch { repository.setPermanentAudioFocusChange(value) }
 }

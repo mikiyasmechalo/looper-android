@@ -40,6 +40,22 @@ class SettingsRepository @Inject constructor(
         val ENABLE_INTERNET = booleanPreferencesKey("enable_internet")
         val DOWNLOAD_ARTWORK = booleanPreferencesKey("download_artwork")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
+
+        // Audio & Playback + Headphone settings
+        val PAUSE_ON_DISCONNECT = booleanPreferencesKey("pause_on_disconnect")
+        val RESUME_ONLY_IF_PAUSED_BY_DISCONNECT = booleanPreferencesKey("resume_only_if_paused_by_disconnect")
+        val RESUME_ON_BLUETOOTH_CONNECT = booleanPreferencesKey("resume_on_bluetooth_connect")
+        val RESUME_ON_WIRED_CONNECT = booleanPreferencesKey("resume_on_wired_connect")
+        val FADE_PLAY_PAUSE_STOP = booleanPreferencesKey("fade_play_pause_stop")
+        val FADE_LENGTH_MS = floatPreferencesKey("fade_length_ms")
+        val PERSIST_QUEUE = booleanPreferencesKey("persist_queue")
+        val AUDIO_FOCUS = booleanPreferencesKey("audio_focus")
+        val AUDIO_FOCUS_REQUEST_ON_PLAY = booleanPreferencesKey("audio_focus_request_on_play")
+        val AUDIO_FOCUS_RELEASE_ON_PAUSE = booleanPreferencesKey("audio_focus_release_on_pause")
+        val AUDIO_FOCUS_STOP_ON_OTHER_SESSION = booleanPreferencesKey("audio_focus_stop_on_other_session")
+        val AUDIO_FOCUS_RESTART_ON_GAIN = booleanPreferencesKey("audio_focus_restart_on_gain")
+        val RESUME_ON_START = booleanPreferencesKey("resume_on_start")
+        val PERMANENT_AUDIO_FOCUS_CHANGE = booleanPreferencesKey("permanent_audio_focus_change")
     }
 
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
@@ -72,6 +88,29 @@ class SettingsRepository @Inject constructor(
         dataStore.data.map { prefs -> prefs[Keys.ENABLE_INTERNET] ?: false } // to be turned true before relase.
     val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
     val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
+
+    val pauseOnDisconnect: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] ?: true }
+    val resumeOnlyIfPausedByDisconnect: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.RESUME_ONLY_IF_PAUSED_BY_DISCONNECT] ?: false }
+    val resumeOnBluetoothConnect: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.RESUME_ON_BLUETOOTH_CONNECT] ?: false }
+    val resumeOnWiredConnect: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.RESUME_ON_WIRED_CONNECT] ?: false }
+    val fadePlayPauseStop: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.FADE_PLAY_PAUSE_STOP] ?: true }
+    val fadeLengthMs: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.FADE_LENGTH_MS] ?: 300f }
+    val persistQueue: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PERSIST_QUEUE] ?: true }
+    val audioFocus: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS] ?: true }
+    val audioFocusRequestOnPlay: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS_REQUEST_ON_PLAY] ?: true }
+    val audioFocusReleaseOnPause: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS_RELEASE_ON_PAUSE] ?: true }
+    val audioFocusStopOnOtherSession: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS_STOP_ON_OTHER_SESSION] ?: false }
+    val audioFocusRestartOnGain: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS_RESTART_ON_GAIN] ?: true }
+    val resumeOnStart: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.RESUME_ON_START] ?: false }
+    val permanentAudioFocusChange: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] ?: false }
 
     suspend fun setDisableAnimatedDuration(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] = value }
@@ -164,5 +203,61 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setAppLanguage(value: String) {
         dataStore.edit { prefs -> prefs[Keys.APP_LANGUAGE] = value }
+    }
+
+    suspend fun setPauseOnDisconnect(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] = value }
+    }
+
+    suspend fun setResumeOnlyIfPausedByDisconnect(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.RESUME_ONLY_IF_PAUSED_BY_DISCONNECT] = value }
+    }
+
+    suspend fun setResumeOnBluetoothConnect(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.RESUME_ON_BLUETOOTH_CONNECT] = value }
+    }
+
+    suspend fun setResumeOnWiredConnect(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.RESUME_ON_WIRED_CONNECT] = value }
+    }
+
+    suspend fun setFadePlayPauseStop(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.FADE_PLAY_PAUSE_STOP] = value }
+    }
+
+    suspend fun setFadeLengthMs(value: Float) {
+        dataStore.edit { prefs -> prefs[Keys.FADE_LENGTH_MS] = value }
+    }
+
+    suspend fun setPersistQueue(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.PERSIST_QUEUE] = value }
+    }
+
+    suspend fun setAudioFocus(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUDIO_FOCUS] = value }
+    }
+
+    suspend fun setAudioFocusRequestOnPlay(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUDIO_FOCUS_REQUEST_ON_PLAY] = value }
+    }
+
+    suspend fun setAudioFocusReleaseOnPause(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUDIO_FOCUS_RELEASE_ON_PAUSE] = value }
+    }
+
+    suspend fun setAudioFocusStopOnOtherSession(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUDIO_FOCUS_STOP_ON_OTHER_SESSION] = value }
+    }
+
+    suspend fun setAudioFocusRestartOnGain(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUDIO_FOCUS_RESTART_ON_GAIN] = value }
+    }
+
+    suspend fun setResumeOnStart(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.RESUME_ON_START] = value }
+    }
+
+    suspend fun setPermanentAudioFocusChange(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] = value }
     }
 }

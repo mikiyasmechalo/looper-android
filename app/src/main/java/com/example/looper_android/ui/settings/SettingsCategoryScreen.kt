@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlin.math.roundToInt
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Coffee
@@ -140,6 +141,8 @@ fun SettingsCategoryScreen(
                 item { ThemeSettingsSection(accentColor = accentColor) }
             } else if (categoryId == "playback") {
                 item { LanguageAndServicesSection(accentColor = accentColor) }
+            } else if (categoryId == "audio_playback") {
+                item { AudioPlaybackSettingsSection(accentColor = accentColor) }
             } else {
                 item {
                     PremiumSection(
@@ -151,7 +154,6 @@ fun SettingsCategoryScreen(
                         Column {
                             when (categoryId) {
                                 "dashboard" -> DashboardSettingsSection(accentColor = accentColor)
-                                "audio_playback" -> AudioPlaybackSettingsSection(accentColor = accentColor)
                                 "library" -> LibrarySettingsSection(accentColor = accentColor)
                                 "support_us" -> SupportUsSettingsSection(accentColor = accentColor)
                                 else -> ThemeSettingsSection(accentColor = accentColor)
@@ -527,45 +529,208 @@ private fun LanguageAndServicesSection(
     }
 }
 
-// 4. Audio Playback Settings
+// 4. Audio & Playback Settings
 @Composable
-private fun AudioPlaybackSettingsSection(accentColor: Color) {
-    var fadePlayPauseStop by remember { mutableStateOf(true) }
-    var fadeLengthMs by remember { mutableFloatStateOf(300f) }
-    var audioFocus by remember { mutableStateOf(true) }
-    var shuffle by remember { mutableStateOf(false) }
-    var persistQueue by remember { mutableStateOf(true) }
-    var audioFocusRequestOnPlay by remember { mutableStateOf(true) }
-    var audioFocusReleaseOnPause by remember { mutableStateOf(true) }
-    var audioFocusStopOnOtherSession by remember { mutableStateOf(false) }
-    var audioFocusRestartOnGain by remember { mutableStateOf(true) }
-    var resumeOnStart by remember { mutableStateOf(false) }
-    var permanentAudioFocusChange by remember { mutableStateOf(false) }
+private fun AudioPlaybackSettingsSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
+    val fadePlayPauseStop by viewModel.fadePlayPauseStop.collectAsState()
+    val fadeLengthMs by viewModel.fadeLengthMs.collectAsState()
+    val pauseOnDisconnect by viewModel.pauseOnDisconnect.collectAsState()
+    val resumeOnlyIfPausedByDisconnect by viewModel.resumeOnlyIfPausedByDisconnect.collectAsState()
+    val resumeOnBluetoothConnect by viewModel.resumeOnBluetoothConnect.collectAsState()
+    val resumeOnWiredConnect by viewModel.resumeOnWiredConnect.collectAsState()
+    val audioFocus by viewModel.audioFocus.collectAsState()
+    val audioFocusRequestOnPlay by viewModel.audioFocusRequestOnPlay.collectAsState()
+    val audioFocusReleaseOnPause by viewModel.audioFocusReleaseOnPause.collectAsState()
+    val audioFocusStopOnOtherSession by viewModel.audioFocusStopOnOtherSession.collectAsState()
+    val audioFocusRestartOnGain by viewModel.audioFocusRestartOnGain.collectAsState()
+    val resumeOnStart by viewModel.resumeOnStart.collectAsState()
+    val permanentAudioFocusChange by viewModel.permanentAudioFocusChange.collectAsState()
+    val persistQueue by viewModel.persistQueue.collectAsState()
 
-    SettingsSwitchTile(title = "Fade Play/Pause/Stop", subtitle = "Smoothly ramp volume up when playback starts...", icon = Lucide.Music, checked = fadePlayPauseStop, onCheckedChange = { fadePlayPauseStop = it }, accentColor = accentColor)
-    if (fadePlayPauseStop) {
-        AboutDivider()
-        SettingsSliderTile(title = "Fade Duration", subtitle = "How long the fade takes for play, pause, and stop actions.", value = fadeLengthMs, valueRange = 10f..1000f, steps = 99, valueFormatter = { "${it.toInt()} ms" }, icon = LucideIcons.Sliders, onValueChange = { fadeLengthMs = it }, accentColor = accentColor)
-    }
-    AboutDivider()
-    SettingsSwitchTile(title = "Shuffle", subtitle = "Randomize queue track order", icon = LucideIcons.Shuffle, checked = shuffle, onCheckedChange = { shuffle = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Persist Queue", subtitle = "Save and restore the current queue and position across app restarts.", icon = Lucide.Save, checked = persistQueue, onCheckedChange = { persistQueue = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Manage Audio Focus", subtitle = "Respond properly to system audio focus changes.", icon = Lucide.Info, checked = audioFocus, onCheckedChange = { audioFocus = it }, accentColor = accentColor)
-    if (audioFocus) {
-        AboutDivider()
-        SettingsSwitchTile(title = "Request Focus On Play", subtitle = "Request audio focus when playback starts.", icon = Lucide.Play, checked = audioFocusRequestOnPlay, onCheckedChange = { audioFocusRequestOnPlay = it }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSwitchTile(title = "Release Focus On Pause", subtitle = "Release audio focus when playback pauses.", icon = Lucide.Pause, checked = audioFocusReleaseOnPause, onCheckedChange = { audioFocusReleaseOnPause = it }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSwitchTile(title = "Stop On Other Session", subtitle = "Stop playback when another app requests audio focus.", icon = Lucide.Square, checked = audioFocusStopOnOtherSession, onCheckedChange = { audioFocusStopOnOtherSession = it }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSwitchTile(title = "Restart On Gain", subtitle = "Resume playback when audio focus is regained.", icon = Lucide.RefreshCw, checked = audioFocusRestartOnGain, onCheckedChange = { audioFocusRestartOnGain = it }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSwitchTile(title = "Resume On Start", subtitle = "Automatically resume playback when the app starts.", icon = Lucide.Power, checked = resumeOnStart, onCheckedChange = { resumeOnStart = it }, accentColor = accentColor)
-        AboutDivider()
-        SettingsSwitchTile(title = "Permanent Focus Change", subtitle = "Pause playback when permanent focus loss occurs.", icon = Lucide.Info, checked = permanentAudioFocusChange, onCheckedChange = { permanentAudioFocusChange = it }, accentColor = accentColor)
+    Column {
+        // --- 1. VOLUME & TRANSITIONS ---
+        SettingsSubHeader(title = "Volume & Transitions", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Fade Play/Pause/Stop",
+                    subtitle = "Smoothly ramp volume up when playback starts and down when paused",
+                    icon = Lucide.Music,
+                    checked = fadePlayPauseStop,
+                    onCheckedChange = { viewModel.setFadePlayPauseStop(it) },
+                    accentColor = accentColor
+                )
+                if (fadePlayPauseStop) {
+                    AboutDivider()
+                    SettingsSliderTile(
+                        title = "Fade Duration",
+                        subtitle = "Length of the volume fade transition",
+                        value = fadeLengthMs,
+                        valueRange = 10f..1000f,
+                        steps = 0,
+                        valueFormatter = { "${it.toInt()} ms" },
+                        icon = LucideIcons.Sliders,
+                        onValueChange = { viewModel.setFadeLengthMs((it / 10).roundToInt() * 10f) },
+                        accentColor = accentColor
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 2. HEADPHONE ACTIONS ---
+        SettingsSubHeader(title = "Headphone Actions", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Pause on Disconnect",
+                    subtitle = "Pause playback when wired or Bluetooth headphones are disconnected",
+                    icon = Lucide.Pause,
+                    checked = pauseOnDisconnect,
+                    onCheckedChange = { viewModel.setPauseOnDisconnect(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Resume Only If Paused by Disconnection",
+                    subtitle = "Only auto-resume if music was previously paused by disconnection",
+                    icon = Lucide.RefreshCw,
+                    checked = resumeOnlyIfPausedByDisconnect,
+                    onCheckedChange = { viewModel.setResumeOnlyIfPausedByDisconnect(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Resume on Bluetooth Connect",
+                    subtitle = "Automatically resume playback when Bluetooth headphones or speaker connect",
+                    icon = Lucide.Play,
+                    checked = resumeOnBluetoothConnect,
+                    onCheckedChange = { viewModel.setResumeOnBluetoothConnect(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Resume on Wired Earphones Connect",
+                    subtitle = "Automatically resume playback when wired earphones are plugged in",
+                    icon = Lucide.Play,
+                    checked = resumeOnWiredConnect,
+                    onCheckedChange = { viewModel.setResumeOnWiredConnect(it) },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 3. AUDIO FOCUS & SESSIONS ---
+        SettingsSubHeader(title = "Audio Focus & Sessions", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Manage Audio Focus",
+                    subtitle = "Respond properly to system audio focus and external player requests",
+                    icon = Lucide.Info,
+                    checked = audioFocus,
+                    onCheckedChange = { viewModel.setAudioFocus(it) },
+                    accentColor = accentColor
+                )
+                if (audioFocus) {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Request Focus On Play",
+                        subtitle = "Request audio focus from the system when starting playback",
+                        icon = Lucide.Play,
+                        checked = audioFocusRequestOnPlay,
+                        onCheckedChange = { viewModel.setAudioFocusRequestOnPlay(it) },
+                        accentColor = accentColor
+                    )
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Release Focus On Pause",
+                        subtitle = "Release audio focus back to the system when playback is paused",
+                        icon = Lucide.Pause,
+                        checked = audioFocusReleaseOnPause,
+                        onCheckedChange = { viewModel.setAudioFocusReleaseOnPause(it) },
+                        accentColor = accentColor
+                    )
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Stop On Other Session",
+                        subtitle = "Stop playback service when another media app starts playing",
+                        icon = Lucide.Square,
+                        checked = audioFocusStopOnOtherSession,
+                        onCheckedChange = { viewModel.setAudioFocusStopOnOtherSession(it) },
+                        accentColor = accentColor
+                    )
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Restart On Gain",
+                        subtitle = "Automatically resume playback when audio focus is regained",
+                        icon = Lucide.RefreshCw,
+                        checked = audioFocusRestartOnGain,
+                        onCheckedChange = { viewModel.setAudioFocusRestartOnGain(it) },
+                        accentColor = accentColor
+                    )
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Resume on App Launch",
+                        subtitle = "Automatically resume playback of your last track when opening app",
+                        icon = Lucide.Power,
+                        checked = resumeOnStart,
+                        onCheckedChange = { viewModel.setResumeOnStart(it) },
+                        accentColor = accentColor
+                    )
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Permanent Focus Change Pause",
+                        subtitle = "Pause playback when permanent audio focus loss occurs",
+                        icon = Lucide.Info,
+                        checked = permanentAudioFocusChange,
+                        onCheckedChange = { viewModel.setPermanentAudioFocusChange(it) },
+                        accentColor = accentColor
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 4. PLAYBACK STATE ---
+        SettingsSubHeader(title = "Playback State", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            SettingsSwitchTile(
+                title = "Persist Queue & Timeline",
+                subtitle = "Save and restore the current queue and position across app restarts",
+                icon = Lucide.Save,
+                checked = persistQueue,
+                onCheckedChange = { viewModel.setPersistQueue(it) },
+                accentColor = accentColor
+            )
+        }
     }
 }
 
