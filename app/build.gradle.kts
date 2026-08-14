@@ -94,5 +94,8 @@ dependencies {
     
     // Haze for glassmorphism
     implementation("dev.chrisbanes.haze:haze:1.1.1")
+
+    // AndroidX Palette for dynamic artwork accent colors
+    implementation("androidx.palette:palette-ktx:1.0.0")
 }
 

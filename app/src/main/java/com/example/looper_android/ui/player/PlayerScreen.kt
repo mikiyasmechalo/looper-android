@@ -100,13 +100,25 @@ fun PlayerScreen(
 
     val darkTheme by settingsViewModel.darkTheme.collectAsState()
     val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
-    val effectiveDarkTheme = darkTheme && !dynamicTheming
-    val containerColor = if (effectiveDarkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
     val disableBlur by settingsViewModel.disableBlur.collectAsState()
     val disableSquiggle by settingsViewModel.disableSquiggle.collectAsState()
     val disableAnimatedDuration by settingsViewModel.disableAnimatedDuration.collectAsState()
     val showQualityBadge by settingsViewModel.showQualityBadge.collectAsState()
     val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+
+    val effectiveDarkTheme = darkTheme && !dynamicTheming
+    val containerColor = when {
+        dynamicTheming -> {
+            if (disableBlur) {
+                Color(0xFF1C1C1C).copy(alpha = 0.65f) // Smoked dark acrylic when blur is off
+            } else {
+                Color.White.copy(alpha = 0.08f) // Frosted light glassmorphism when blur is on
+            }
+        }
+        effectiveDarkTheme -> Color(0xFF0A0A0A)
+        enablePlayerGradient -> Color(0xAA262626) // Noticeable gray tint to distinguish from gradient background
+        else -> Color(0xFF1E1E1E)
+    }
 
     var showQueueSheet by remember { mutableStateOf(false) }
     var showOptionsSheet by remember { mutableStateOf(false) }
@@ -561,7 +573,7 @@ fun PlayerScreen(
 
                 // Play / Pause (22dp) (Morphs from Mini Player play button)
                 PremiumSection(
-                    enableBlur = !disableBlur,
+                    enableBlur = if (state.isPlaying) !disableBlur else false,
                     hazeState = playerHazeState,
                     modifier = Modifier
                         .weight(1f)
@@ -574,10 +586,26 @@ fun PlayerScreen(
                         viewModel.togglePlayPause()
                     }
                 ) {
+                    val iconTint = if (state.isPlaying) {
+                        Color.White
+                    } else {
+                        val hsl = FloatArray(3)
+                        androidx.core.graphics.ColorUtils.colorToHSL(
+                            android.graphics.Color.rgb(
+                                (state.accentColor.red * 255).toInt(),
+                                (state.accentColor.green * 255).toInt(),
+                                (state.accentColor.blue * 255).toInt()
+                            ),
+                            hsl
+                        )
+                        hsl[2] = 0.15f
+                        Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
+                    }
+
                     AnimatedPlayPauseIcon(
                         isPlaying = state.isPlaying,
                         modifier = Modifier.size(22.dp),
-                        tint = if (state.isPlaying) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.background
+                        tint = iconTint
                     )
                 }
 

@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -58,34 +60,37 @@ fun FlatSlider(
 
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableStateOf<Float?>(null) }
-    var lastSeekProgress by remember { mutableStateOf<Float?>(null) }
 
     var smoothPositionMs by remember { mutableLongStateOf(positionMs) }
 
     LaunchedEffect(durationMs) {
-        lastSeekProgress = null
         dragProgress = null
         smoothPositionMs = 0L
     }
 
     LaunchedEffect(positionMs, isPlaying) {
-        smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
-        if (isPlaying) {
-            val startPos = smoothPositionMs
-            val startTime = SystemClock.elapsedRealtime()
-            while (isActive && isPlaying) {
-                val elapsed = SystemClock.elapsedRealtime() - startTime
-                val nextPos = (startPos + elapsed).coerceAtMost(totalDurationMs)
-                smoothPositionMs = nextPos
-                kotlinx.coroutines.delay(16)
+        if (!isDragging) {
+            smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
+        }
+        if (isPlaying && !isDragging) {
+            var lastRealtime = SystemClock.elapsedRealtime()
+            while (isActive && isPlaying && !isDragging) {
+                withFrameNanos {
+                    val now = SystemClock.elapsedRealtime()
+                    val delta = now - lastRealtime
+                    lastRealtime = now
+                    if (delta > 0) {
+                        smoothPositionMs = (smoothPositionMs + delta).coerceAtMost(totalDurationMs)
+                    }
+                }
             }
         }
     }
 
-    val displayPositionMs = when {
-        isDragging && dragProgress != null -> (dragProgress!! * totalDurationMs).toLong()
-        lastSeekProgress != null -> (lastSeekProgress!! * totalDurationMs).toLong()
-        else -> smoothPositionMs
+    val displayPositionMs = if (isDragging && dragProgress != null) {
+        (dragProgress!! * totalDurationMs).toLong()
+    } else {
+        smoothPositionMs
     }
 
     val actualProgress = (displayPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
@@ -96,42 +101,38 @@ fun FlatSlider(
                 .fillMaxWidth()
                 .height(32.dp)
                 .pointerInput(totalDurationMs) {
-                    detectTapGestures { offset ->
-                        val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        val targetMs = (fraction * totalDurationMs).toLong()
-                        lastSeekProgress = fraction
-                        onSeek(targetMs)
-                    }
-                }
-                .pointerInput(totalDurationMs) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val initialFraction = (down.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                            
                             isDragging = true
-                            val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            dragProgress = fraction
+                            dragProgress = initialFraction
                             onSeekStart?.invoke()
-                        },
-                        onDragEnd = {
-                            dragProgress?.let { fraction ->
-                                lastSeekProgress = fraction
-                                onSeek((fraction * totalDurationMs).toLong())
+                            
+                            var currentFraction = initialFraction
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.pressed) {
+                                    currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                    dragProgress = currentFraction
+                                    change.consume()
+                                } else {
+                                    change.consume()
+                                    break
+                                }
                             }
+                            
+                            val targetMs = (currentFraction * totalDurationMs).toLong()
+                            smoothPositionMs = targetMs
+                            onSeek(targetMs)
+                            
                             isDragging = false
                             dragProgress = null
                             onSeekEnd?.invoke()
-                        },
-                        onDragCancel = {
-                            isDragging = false
-                            dragProgress = null
-                            onSeekEnd?.invoke()
-                        },
-                        onHorizontalDrag = { change, _ ->
-                            change.consume()
-                            val fraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            dragProgress = fraction
-                            onSeek((fraction * totalDurationMs).toLong())
                         }
-                    )
+                    }
                 }
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {

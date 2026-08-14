@@ -136,6 +136,8 @@ fun SettingsCategoryScreen(
         ) {
             if (categoryId == "about") {
                 item { AboutSettingsSection(accentColor = accentColor) }
+            } else if (categoryId == "theme") {
+                item { ThemeSettingsSection(accentColor = accentColor) }
             } else {
                 item {
                     PremiumSection(
@@ -146,7 +148,6 @@ fun SettingsCategoryScreen(
                     ) {
                         Column {
                             when (categoryId) {
-                                "theme" -> ThemeSettingsSection(accentColor = accentColor)
                                 "dashboard" -> DashboardSettingsSection(accentColor = accentColor)
                                 "playback" -> PlaybackSettingsSection(accentColor = accentColor)
                                 "audio_playback" -> AudioPlaybackSettingsSection(accentColor = accentColor)
@@ -188,188 +189,223 @@ private fun ThemeSettingsSection(
 
     val selectedPresetColor = remember(customAccentColorInt) { Color(customAccentColorInt) }
 
-    SettingsSwitchTile(
-        title = "Dynamic Theming",
-        subtitle = "Adapt app colors to album artwork",
-        icon = Lucide.Palette,
-        checked = dynamicTheming,
-        onCheckedChange = { viewModel.setDynamicTheming(it) },
-        accentColor = accentColor
-    )
-    
-    if (dynamicTheming) {
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Disable Blur Effects",
-            subtitle = "Turn off heavy blurs to optimize performance",
-            icon = LucideIcons.Eye,
-            checked = disableBlur,
-            onCheckedChange = { viewModel.setDisableBlur(it) },
-            accentColor = accentColor
-        )
-    } else {
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Dynamic Accent Color",
-            subtitle = "Update only the accent color dynamically from the artwork",
-            icon = Lucide.PaintBucket,
-            checked = dynamicAccentColor,
-            onCheckedChange = { viewModel.setDynamicAccentColor(it) },
-            accentColor = accentColor
-        )
+    Column {
+        // --- 1. COLOR SUB-SECTION ---
+        SettingsSubHeader(title = "Color", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Dynamic Theming",
+                    subtitle = "Adapt app colors to album artwork",
+                    icon = Lucide.Palette,
+                    checked = dynamicTheming,
+                    onCheckedChange = { viewModel.setDynamicTheming(it) },
+                    accentColor = accentColor
+                )
+                
+                if (dynamicTheming) {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Disable Blur Effects",
+                        subtitle = "Turn off heavy blurs to optimize performance",
+                        icon = LucideIcons.Eye,
+                        checked = disableBlur,
+                        onCheckedChange = { viewModel.setDisableBlur(it) },
+                        accentColor = accentColor
+                    )
+                } else {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Dynamic Accent Color",
+                        subtitle = "Update only the accent color dynamically from the artwork",
+                        icon = Lucide.PaintBucket,
+                        checked = dynamicAccentColor,
+                        onCheckedChange = { viewModel.setDynamicAccentColor(it) },
+                        accentColor = accentColor
+                    )
 
-        if (!dynamicAccentColor) {
-            AboutDivider()
-            SettingsColorPaletteTile(
-                title = "Accent Color",
-                selectedColor = selectedPresetColor,
-                colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF), Color(0xFFFF5252), Color(0xFFAB47BC)),
-                onColorSelected = { viewModel.setCustomAccentColor(it.toArgb()) }
-            )
+                    if (!dynamicAccentColor) {
+                        AboutDivider()
+                        SettingsColorPaletteTile(
+                            title = "Accent Color",
+                            selectedColor = selectedPresetColor,
+                            colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF), Color(0xFFFF5252), Color(0xFFAB47BC)),
+                            onColorSelected = { viewModel.setCustomAccentColor(it.toArgb()) }
+                        )
+                    }
+
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Pure Black (OLED)",
+                        subtitle = "Use absolute black (#000000) for backgrounds",
+                        icon = Lucide.Moon,
+                        checked = darkTheme,
+                        onCheckedChange = { viewModel.setDarkTheme(it) },
+                        accentColor = accentColor
+                    )
+                    
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Music Screen Gradient",
+                        subtitle = "Enable the radial accent gradient background on the now playing screen",
+                        icon = Lucide.Droplet,
+                        checked = enablePlayerGradient,
+                        onCheckedChange = { viewModel.setEnablePlayerGradient(it) },
+                        accentColor = accentColor
+                    )
+
+                    if (enablePlayerGradient) {
+                        AboutDivider()
+                        SettingsSwitchTile(
+                            title = "Keep Background Gradient",
+                            subtitle = "Keep the background gradient across all application screens",
+                            icon = Lucide.Layers,
+                            checked = keepBackgroundGradient,
+                            onCheckedChange = { viewModel.setKeepBackgroundGradient(it) },
+                            accentColor = accentColor
+                        )
+                    }
+                }
+            }
         }
 
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Pure Black (OLED)",
-            subtitle = "Use absolute black (#000000) for backgrounds",
-            icon = Lucide.Moon,
-            checked = darkTheme,
-            onCheckedChange = { viewModel.setDarkTheme(it) },
-            accentColor = accentColor
-        )
-        
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Music Screen Gradient",
-            subtitle = "Enable the radial accent gradient background on the now playing screen",
-            icon = Lucide.Droplet,
-            checked = enablePlayerGradient,
-            onCheckedChange = { viewModel.setEnablePlayerGradient(it) },
-            accentColor = accentColor
-        )
+        Spacer(modifier = Modifier.height(12.dp))
 
-        if (enablePlayerGradient) {
-            AboutDivider()
-            SettingsSwitchTile(
-                title = "Keep Background Gradient",
-                subtitle = "Keep the background gradient across all application screens",
-                icon = Lucide.Layers,
-                checked = keepBackgroundGradient,
-                onCheckedChange = { viewModel.setKeepBackgroundGradient(it) },
-                accentColor = accentColor
-            )
+        // --- 2. LYRICS SUB-SECTION ---
+        SettingsSubHeader(title = "Lyrics", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Dynamic Lyrics BG",
+                    subtitle = "Apply album-art blur to lyrics screen",
+                    icon = Lucide.Music,
+                    checked = dynamicLyrics,
+                    onCheckedChange = { viewModel.setDynamicLyrics(it) },
+                    accentColor = accentColor
+                )
+
+                if (dynamicLyrics) {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Use blurred album art for lyrics background",
+                        subtitle = "Apply the dynamic theme style blurred artwork to the lyrics screen",
+                        icon = Lucide.Sparkles,
+                        checked = blurredArtworkForLyrics,
+                        onCheckedChange = { viewModel.setBlurredArtworkForLyrics(it) },
+                        accentColor = accentColor
+                    )
+                }
+
+                if (dynamicTheming || dynamicLyrics) {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Dynamic Color Active Line",
+                        subtitle = "Use extracted artwork colors for the currently playing lyrics line",
+                        icon = Lucide.Baseline,
+                        checked = dynamicColorActiveLyrics,
+                        onCheckedChange = { viewModel.setDynamicColorActiveLyrics(it) },
+                        accentColor = accentColor
+                    )
+                }
+
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Static Lyric Font Size",
+                    subtitle = "Keep active and inactive lyric lines at the same font size",
+                    icon = Lucide.Type,
+                    checked = disableLyricFontScaling,
+                    onCheckedChange = { viewModel.setDisableLyricFontScaling(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsSegmentedTile(
+                    title = "Lyrics Alignment",
+                    subtitle = "Align text position for scrolling lyrics",
+                    options = listOf("Left" to "left", "Center" to "center", "Right" to "right"),
+                    selectedOption = lyricsAlignment,
+                    onOptionSelected = { viewModel.setLyricsAlignment(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsSliderTile(
+                    title = "Lyric Screen Darkness",
+                    subtitle = "Darkness overlay opacity for lyrics background artwork",
+                    value = lyricsScreenDarkness,
+                    valueRange = 0f..1f,
+                    steps = 19,
+                    valueFormatter = { "${(it * 100).toInt()}%" },
+                    icon = LucideIcons.Eye,
+                    onValueChange = { viewModel.setLyricsScreenDarkness(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsDropdownTile(
+                    title = "Online Lyrics Provider",
+                    subtitle = "Choose online service for fetching synchronized lyrics",
+                    icon = Lucide.Globe,
+                    options = listOf("LRCLIB" to "lrclib", "Genius" to "genius", "Musixmatch" to "musixmatch", "Netease" to "netease"),
+                    selectedOption = primaryLyricsProvider,
+                    onOptionSelected = { viewModel.setPrimaryLyricsProvider(it) },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 3. PLAYER SUB-SECTION ---
+        SettingsSubHeader(title = "Player", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Flat Progress Bar",
+                    subtitle = "Disable squiggly wave progress bar animation",
+                    icon = LucideIcons.Sliders,
+                    checked = disableSquiggle,
+                    onCheckedChange = { viewModel.setDisableSquiggle(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Plain Timestamps",
+                    subtitle = "Disable animated rolling duration numbers",
+                    icon = Lucide.Clock,
+                    checked = disableAnimatedDuration,
+                    onCheckedChange = { viewModel.setDisableAnimatedDuration(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Quality Badge",
+                    subtitle = "Display audio quality information badge on the now playing screen",
+                    icon = Lucide.Info,
+                    checked = showQualityBadge,
+                    onCheckedChange = { viewModel.setShowQualityBadge(it) },
+                    accentColor = accentColor
+                )
+            }
         }
     }
-    
-    AboutDivider()
-    SettingsSwitchTile(
-        title = "Dynamic Lyrics BG",
-        subtitle = "Apply album-art blur to lyrics screen",
-        icon = Lucide.Music,
-        checked = dynamicLyrics,
-        onCheckedChange = { viewModel.setDynamicLyrics(it) },
-        accentColor = accentColor
-    )
-
-    if (dynamicLyrics) {
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Use blurred album art for lyrics background",
-            subtitle = "Apply the dynamic theme style blurred artwork to the lyrics screen",
-            icon = Lucide.Sparkles,
-            checked = blurredArtworkForLyrics,
-            onCheckedChange = { viewModel.setBlurredArtworkForLyrics(it) },
-            accentColor = accentColor
-        )
-    }
-
-    if (dynamicTheming || dynamicLyrics) {
-        AboutDivider()
-        SettingsSwitchTile(
-            title = "Dynamic Color Active Line",
-            subtitle = "Use extracted artwork colors for the currently playing lyrics line",
-            icon = Lucide.Baseline,
-            checked = dynamicColorActiveLyrics,
-            onCheckedChange = { viewModel.setDynamicColorActiveLyrics(it) },
-            accentColor = accentColor
-        )
-    }
-
-    AboutDivider()
-    SettingsSwitchTile(
-        title = "Static Lyric Font Size",
-        subtitle = "Keep active and inactive lyric lines at the same font size",
-        icon = Lucide.Type,
-        checked = disableLyricFontScaling,
-        onCheckedChange = { viewModel.setDisableLyricFontScaling(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsSegmentedTile(
-        title = "Lyrics Alignment",
-        subtitle = "Align text position for scrolling lyrics",
-        options = listOf("Left" to "left", "Center" to "center", "Right" to "right"),
-        selectedOption = lyricsAlignment,
-        onOptionSelected = { viewModel.setLyricsAlignment(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsSliderTile(
-        title = "Lyric Screen Darkness",
-        subtitle = "Darkness overlay opacity for lyrics background artwork",
-        value = lyricsScreenDarkness,
-        valueRange = 0f..1f,
-        steps = 19,
-        valueFormatter = { "${(it * 100).toInt()}%" },
-        icon = LucideIcons.Eye,
-        onValueChange = { viewModel.setLyricsScreenDarkness(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsDropdownTile(
-        title = "Online Lyrics Provider",
-        subtitle = "Choose online service for fetching synchronized lyrics",
-        icon = Lucide.Globe,
-        options = listOf("LRCLIB" to "lrclib", "Genius" to "genius", "Musixmatch" to "musixmatch", "Netease" to "netease"),
-        selectedOption = primaryLyricsProvider,
-        onOptionSelected = { viewModel.setPrimaryLyricsProvider(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsSwitchTile(
-        title = "Flat Progress Bar",
-        subtitle = "Disable squiggly wave progress bar animation",
-        icon = LucideIcons.Sliders,
-        checked = disableSquiggle,
-        onCheckedChange = { viewModel.setDisableSquiggle(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsSwitchTile(
-        title = "Plain Timestamps",
-        subtitle = "Disable animated rolling duration numbers",
-        icon = Lucide.Clock,
-        checked = disableAnimatedDuration,
-        onCheckedChange = { viewModel.setDisableAnimatedDuration(it) },
-        accentColor = accentColor
-    )
-
-    AboutDivider()
-    SettingsSwitchTile(
-        title = "Show Quality Badge",
-        subtitle = "Display audio quality information badge on the now playing screen",
-        icon = Lucide.Info,
-        checked = showQualityBadge,
-        onCheckedChange = { viewModel.setShowQualityBadge(it) },
-        accentColor = accentColor
-    )
-
-
 }
 
 // 2. Dashboard Settings

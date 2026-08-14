@@ -3,6 +3,7 @@ package com.example.looper_android.ui.widgets
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -45,21 +46,21 @@ fun ExpressiveSlider(
 
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableStateOf<Float?>(null) }
-    var lastSeekProgress by remember { mutableStateOf<Float?>(null) }
 
     var smoothPositionMs by remember { mutableLongStateOf(positionMs) }
 
     LaunchedEffect(durationMs) {
-        lastSeekProgress = null
         dragProgress = null
         smoothPositionMs = 0L
     }
 
     LaunchedEffect(positionMs, isPlaying) {
-        smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
-        if (isPlaying) {
+        if (!isDragging) {
+            smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
+        }
+        if (isPlaying && !isDragging) {
             var lastRealtime = SystemClock.elapsedRealtime()
-            while (isActive) {
+            while (isActive && isPlaying && !isDragging) {
                 withFrameNanos {
                     val now = SystemClock.elapsedRealtime()
                     val delta = now - lastRealtime
@@ -72,25 +73,13 @@ fun ExpressiveSlider(
         }
     }
 
-    LaunchedEffect(positionMs) {
-        if (positionMs <= 1000L) {
-            lastSeekProgress = null
-            dragProgress = null
-        }
-        lastSeekProgress?.let { seek ->
-            val currentProgress = (positionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
-            if (kotlin.math.abs(currentProgress - seek) < 0.05f) {
-                lastSeekProgress = null
-            }
-        }
+    val displayPositionMs = if (isDragging && dragProgress != null) {
+        (dragProgress!! * totalDurationMs).toLong()
+    } else {
+        smoothPositionMs
     }
-
-    val activePositionMs = if (isDragging || lastSeekProgress != null) positionMs else smoothPositionMs
-    val rawProgress = (activePositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
-    val progress = if (positionMs > totalDurationMs) 0f else rawProgress
-
-    val displayProgress = dragProgress ?: lastSeekProgress ?: progress
-    val displayPositionMs = (displayProgress * totalDurationMs).toLong()
+    val rawProgress = (displayPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    val displayProgress = if (positionMs > totalDurationMs && !isDragging) 0f else rawProgress
 
     val density = LocalDensity.current
     val targetAmplitudePx = with(density) { if (isPlaying && displayProgress > 0.12f) 2.dp.toPx() else 0f }
@@ -120,50 +109,38 @@ fun ExpressiveSlider(
                 .fillMaxWidth()
                 .height(32.dp)
                 .pointerInput(totalDurationMs) {
-                    detectTapGestures(
-                        onPress = { offset ->
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val initialFraction = (down.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                            
                             isDragging = true
+                            dragProgress = initialFraction
                             onSeekStart?.invoke()
-                            val clickedFraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            dragProgress = clickedFraction
-                            val targetMs = (clickedFraction * totalDurationMs).toLong()
-                            onSeek(targetMs)
-                            tryAwaitRelease()
-                            isDragging = false
-                            dragProgress = null
-                            onSeekEnd?.invoke()
-                        }
-                    )
-                }
-                .pointerInput(totalDurationMs) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            isDragging = true
-                            onSeekStart?.invoke()
-                            val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            dragProgress = fraction
-                        },
-                        onDragEnd = {
-                            dragProgress?.let { fraction ->
-                                lastSeekProgress = fraction
-                                onSeek((fraction * totalDurationMs).toLong())
+                            
+                            var currentFraction = initialFraction
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.pressed) {
+                                    currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                    dragProgress = currentFraction
+                                    change.consume()
+                                } else {
+                                    change.consume()
+                                    break
+                                }
                             }
+                            
+                            val targetMs = (currentFraction * totalDurationMs).toLong()
+                            smoothPositionMs = targetMs
+                            onSeek(targetMs)
+                            
                             isDragging = false
                             dragProgress = null
                             onSeekEnd?.invoke()
-                        },
-                        onDragCancel = {
-                            isDragging = false
-                            dragProgress = null
-                            onSeekEnd?.invoke()
-                        },
-                        onHorizontalDrag = { change, _ ->
-                            change.consume()
-                            val fraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            dragProgress = fraction
-                            onSeek((fraction * totalDurationMs).toLong())
                         }
-                    )
+                    }
                 }
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {

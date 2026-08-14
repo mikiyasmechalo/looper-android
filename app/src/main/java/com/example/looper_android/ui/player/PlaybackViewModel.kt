@@ -279,7 +279,7 @@ class PlaybackViewModel @Inject constructor(
         val fallbackColor = Color(0xFF808080)
 
         var bitmap: android.graphics.Bitmap? = null
-        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
 
         try {
             // 1. Read directly from the album art content URI stored during scan
@@ -330,55 +330,21 @@ class PlaybackViewModel @Inject constructor(
                 }
             }
 
-
             val b = bitmap ?: return fallbackColor
 
-            var vibrantRedSum = 0L
-            var vibrantGreenSum = 0L
-            var vibrantBlueSum = 0L
-            var vibrantCount = 0
-
-            var allRedSum = 0L
-            var allGreenSum = 0L
-            var allBlueSum = 0L
-            var allCount = 0
-
-            val width = b.width
-            val height = b.height
-            for (x in 0 until width step 2) {
-                for (y in 0 until height step 2) {
-                    val pixel = b.getPixel(x, y)
-                    val r = android.graphics.Color.red(pixel)
-                    val g = android.graphics.Color.green(pixel)
-                    val bl = android.graphics.Color.blue(pixel)
-                    val max = maxOf(r, g, bl)
-                    val min = minOf(r, g, bl)
-
-                    if (max > 30) {
-                        allRedSum += r
-                        allGreenSum += g
-                        allBlueSum += bl
-                        allCount++
-
-                        if ((max - min) > 18) {
-                            vibrantRedSum += r
-                            vibrantGreenSum += g
-                            vibrantBlueSum += bl
-                            vibrantCount++
-                        }
-                    }
-                }
-            }
+            val palette = androidx.palette.graphics.Palette.from(b).generate()
             b.recycle()
 
-            val rawColor = when {
-                vibrantCount > 0 -> {
-                    Color((vibrantRedSum / vibrantCount).toInt(), (vibrantGreenSum / vibrantCount).toInt(), (vibrantBlueSum / vibrantCount).toInt())
-                }
-                allCount > 0 -> {
-                    Color((allRedSum / allCount).toInt(), (allGreenSum / allCount).toInt(), (allBlueSum / allCount).toInt())
-                }
-                else -> fallbackColor
+            val chosenSwatch = palette.vibrantSwatch
+                ?: palette.lightVibrantSwatch
+                ?: palette.darkVibrantSwatch
+                ?: palette.dominantSwatch
+                ?: palette.mutedSwatch
+
+            val rawColor = if (chosenSwatch != null) {
+                Color(chosenSwatch.rgb)
+            } else {
+                fallbackColor
             }
 
             return ensureVibrantAccentColor(rawColor)
@@ -399,20 +365,17 @@ class PlaybackViewModel @Inject constructor(
             hsl
         )
 
-        // Boost saturation if too gray/washed out
-        if (hsl[1] < 0.15f) {
-            hsl[1] = 0.40f
+        // Only boost saturation if there is some subtle color, preserving the exact hue
+        if (hsl[1] < 0.25f && hsl[1] > 0.05f) {
+            hsl[1] = 0.45f
         }
 
-        // Match Flutter theme_provider.dart 1-to-1:
-        // double newLightness = hsl.lightness + 0.15;
-        // if (newLightness < 0.60) newLightness = 0.60;
-        // newLightness = newLightness.clamp(0.0, 0.95);
-        var newLightness = hsl[2] + 0.15f
-        if (newLightness < 0.60f) {
-            newLightness = 0.60f
+        // Ensure proper contrast and brightness for dark theme UI
+        var newLightness = hsl[2]
+        if (newLightness < 0.55f) {
+            newLightness = (newLightness + 0.20f).coerceAtLeast(0.55f)
         }
-        hsl[2] = newLightness.coerceIn(0.60f, 0.95f)
+        hsl[2] = newLightness.coerceIn(0.55f, 0.88f)
 
         val intColor = androidx.core.graphics.ColorUtils.HSLToColor(hsl)
         return Color(intColor)
@@ -472,7 +435,13 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
-        player.seekTo(positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L)))
+        val target = positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L))
+        _currentPosition.value = target
+        _playbackState.value = _playbackState.value.copy(position = target)
+        player.seekTo(target)
+        if (player.playWhenReady && !player.isPlaying && player.playbackState != Player.STATE_ENDED) {
+            player.play()
+        }
     }
 
     fun skipToQueueItem(index: Int) {

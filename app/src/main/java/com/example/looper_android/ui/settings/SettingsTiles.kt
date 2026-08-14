@@ -44,6 +44,23 @@ import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
 
 @Composable
+fun SettingsSubHeader(
+    title: String,
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = title.uppercase(),
+        color = accentColor,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        fontFamily = DmSansFontFamily,
+        letterSpacing = 1.2.sp,
+        modifier = modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
 fun SettingsTileContainer(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,

@@ -51,11 +51,6 @@ fun PremiumSection(
             Color.White.copy(alpha = 0.08f)
         } else if (backgroundColor == androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant || backgroundColor == Color.White.copy(alpha = 0.05f)) {
             Color.White.copy(alpha = 0.05f) // Matches Flutter app's 5% white glass tint
-        } else if (backgroundColor == Color.Transparent) {
-            Color.Transparent
-        } else if (backgroundColor.alpha == 1f) {
-            // Retain opaque accent color but make it glassmorphic!
-            backgroundColor.copy(alpha = 0.55f)
         } else {
             backgroundColor
         }
