@@ -269,8 +269,8 @@ fun SearchScreen(
                     }
                 }
                 
-                // Songs (if context is global or songs)
-                if ((searchContext == "global" || searchContext == "songs") && results.songs.isNotEmpty()) {
+                // Songs (if context is global, songs, or library)
+                if ((searchContext == "global" || searchContext == "songs" || searchContext == "library") && results.songs.isNotEmpty()) {
                     val displaySongs = if (showAllSongs) results.songs else results.songs.take(5)
                     items(displaySongs, key = { it.id }) { song ->
                         SongTile(

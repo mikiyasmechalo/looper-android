@@ -326,27 +326,28 @@ fun PlayerScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             // 2. Large Album Art with Gestures (Morphs from Mini Player album artwork)
+            val currentIdx = remember(state.queue, song.id) {
+                val idx = state.queue.indexOfFirst { it.id == song.id }
+                if (idx >= 0) idx else 0
+            }
+
             Padding(
                 modifier = Modifier.padding(horizontal = 30.dp)
             ) {
                 GestureArtwork(
                     song = song,
-                    nextSong = state.queue.getOrNull(1),
-                    prevSong = null,
+                    queue = state.queue.ifEmpty { listOf(song) },
+                    currentSongIndex = currentIdx,
+                    onSkipToIndex = { index ->
+                        haptics.mediumImpact()
+                        viewModel.skipToQueueItem(index)
+                    },
                     onTap = {
                         haptics.lightImpact()
                         onNavigateToLyrics()
                     },
                     onSeekRelative = { offsetMs ->
                         viewModel.seekRelative(offsetMs)
-                    },
-                    onSkipNext = {
-                        haptics.mediumImpact()
-                        viewModel.skipToNext()
-                    },
-                    onSkipPrevious = {
-                        haptics.mediumImpact()
-                        viewModel.skipToPrevious()
                     },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope

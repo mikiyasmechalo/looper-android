@@ -87,28 +87,51 @@ class SearchViewModel @Inject constructor(
             else if (title.startsWith(lowerQuery)) score = 90
             else if (title.contains(lowerQuery)) score = 80
             else if (lyrics.contains(lowerQuery)) score = 50
+            else if (artist == lowerQuery || album == lowerQuery) score = 35
             else if (artist.contains(lowerQuery) || album.contains(lowerQuery)) score = 30
 
             if (score > 0) Pair(song, score) else null
-        }
-        val sortedSongs = scoredSongs
-            .sortedWith(compareByDescending<Pair<SongEntity, Int>> { it.second }.thenBy { it.first.title.lowercase() })
-            .map { it.first }
+        }.sortedWith(compareByDescending<Pair<SongEntity, Int>> { it.second }.thenBy { it.first.title.lowercase() })
+        val sortedSongs = scoredSongs.map { it.first }
+        val bestSong = scoredSongs.firstOrNull()
 
-        // 2. Filter Albums
-        val filteredAlbums = allAlbums.filter {
-            it.name.lowercase().contains(lowerQuery)
-        }
+        // 2. Filter & Score Albums
+        val scoredAlbums = allAlbums.mapNotNull { album ->
+            val name = album.name.lowercase()
+            val artist = (album.artist ?: "").lowercase()
+            var score = 0
+            if (name == lowerQuery) score = 100
+            else if (name.startsWith(lowerQuery)) score = 90
+            else if (name.contains(lowerQuery)) score = 80
+            else if (artist.contains(lowerQuery)) score = 40
+            if (score > 0) Pair(album, score) else null
+        }.sortedWith(compareByDescending<Pair<AlbumEntity, Int>> { it.second }.thenBy { it.first.name.lowercase() })
+        val filteredAlbums = scoredAlbums.map { it.first }
+        val bestAlbum = scoredAlbums.firstOrNull()
 
-        // 3. Filter Artists
-        val filteredArtists = allArtists.filter {
-            it.name.lowercase().contains(lowerQuery)
-        }
+        // 3. Filter & Score Artists
+        val scoredArtists = allArtists.mapNotNull { artist ->
+            val name = artist.name.lowercase()
+            var score = 0
+            if (name == lowerQuery) score = 100
+            else if (name.startsWith(lowerQuery)) score = 90
+            else if (name.contains(lowerQuery)) score = 80
+            if (score > 0) Pair(artist, score) else null
+        }.sortedWith(compareByDescending<Pair<ArtistEntity, Int>> { it.second }.thenBy { it.first.name.lowercase() })
+        val filteredArtists = scoredArtists.map { it.first }
+        val bestArtist = scoredArtists.firstOrNull()
 
-        // 4. Filter Genres
-        val filteredGenres = allGenres.filter {
-            it.name.lowercase().contains(lowerQuery)
-        }
+        // 4. Filter & Score Genres
+        val scoredGenres = allGenres.mapNotNull { genre ->
+            val name = genre.name.lowercase()
+            var score = 0
+            if (name == lowerQuery) score = 100
+            else if (name.startsWith(lowerQuery)) score = 90
+            else if (name.contains(lowerQuery)) score = 80
+            if (score > 0) Pair(genre, score) else null
+        }.sortedWith(compareByDescending<Pair<GenreData, Int>> { it.second }.thenBy { it.first.name.lowercase() })
+        val filteredGenres = scoredGenres.map { it.first }
+        val bestGenre = scoredGenres.firstOrNull()
 
         // 5. Determine Top Result and Order based on context
         var topResult: Any? = null
@@ -160,20 +183,21 @@ class SearchViewModel @Inject constructor(
                     artists = emptyList()
                 )
             }
-            else -> { // global or songs
-                if (sortedSongs.isNotEmpty()) {
-                    topResult = sortedSongs.first()
-                } else if (filteredAlbums.isNotEmpty()) {
-                    topResult = filteredAlbums.first()
-                } else if (filteredArtists.isNotEmpty()) {
-                    topResult = filteredArtists.first()
-                }
+            else -> { // global, songs, or library
+                val candidates = listOfNotNull(
+                    bestSong?.let { Pair(it.first, it.second) },
+                    bestAlbum?.let { Pair(it.first, it.second) },
+                    bestArtist?.let { Pair(it.first, it.second) }
+                )
+                val topCandidate = candidates.maxByOrNull { it.second }
+                topResult = topCandidate?.first
+
                 SearchResults(
                     topResult = topResult,
                     songs = if (topResult is SongEntity) sortedSongs.drop(1) else sortedSongs,
                     albums = if (topResult is AlbumEntity) filteredAlbums.drop(1) else filteredAlbums,
                     artists = if (topResult is ArtistEntity) filteredArtists.drop(1) else filteredArtists,
-                    genres = emptyList() // User requested not to include genres in results in other pages
+                    genres = emptyList()
                 )
             }
         }

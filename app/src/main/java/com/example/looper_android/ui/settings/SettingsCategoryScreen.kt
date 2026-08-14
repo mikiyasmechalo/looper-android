@@ -217,6 +217,17 @@ private fun ThemeSettingsSection(
             onCheckedChange = { viewModel.setDynamicAccentColor(it) },
             accentColor = accentColor
         )
+
+        if (!dynamicAccentColor) {
+            AboutDivider()
+            SettingsColorPaletteTile(
+                title = "Accent Color",
+                selectedColor = selectedPresetColor,
+                colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF), Color(0xFFFF5252), Color(0xFFAB47BC)),
+                onColorSelected = { viewModel.setCustomAccentColor(it.toArgb()) }
+            )
+        }
+
         AboutDivider()
         SettingsSwitchTile(
             title = "Pure Black (OLED)",
@@ -246,15 +257,6 @@ private fun ThemeSettingsSection(
                 checked = keepBackgroundGradient,
                 onCheckedChange = { viewModel.setKeepBackgroundGradient(it) },
                 accentColor = accentColor
-            )
-        }
-        if (!dynamicAccentColor) {
-            AboutDivider()
-            SettingsColorPaletteTile(
-                title = "Accent Color",
-                selectedColor = selectedPresetColor,
-                colors = listOf(Color(0xFF41C25E), Color(0xFFF7EAA6), Color(0xFF448AFF), Color(0xFFFF5252), Color(0xFFAB47BC)),
-                onColorSelected = { viewModel.setCustomAccentColor(it.toArgb()) }
             )
         }
     }

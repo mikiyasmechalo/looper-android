@@ -107,19 +107,12 @@ class LibraryCacheManager @Inject constructor(
             _artists.value = filteredArtists
         }.launchIn(scope)
 
-        // Process Genres (filter out unknown/blank genres)
+        // Process Genres
         _songs.onEach { songList ->
             val genreMap = mutableMapOf<String, MutableList<SongEntity>>()
             for (s in songList) {
-                val rawGenre = s.genre?.trim()
-                if (!rawGenre.isNullOrBlank() &&
-                    !rawGenre.equals("unknown", ignoreCase = true) &&
-                    !rawGenre.equals("unknown genre", ignoreCase = true) &&
-                    !rawGenre.equals("<unknown>", ignoreCase = true) &&
-                    !rawGenre.equals("null", ignoreCase = true) &&
-                    !rawGenre.equals("undefined", ignoreCase = true)) {
-                    genreMap.getOrPut(rawGenre) { mutableListOf() }.add(s)
-                }
+                val rawGenre = s.genre?.trim()?.ifBlank { null } ?: "Unknown Genre"
+                genreMap.getOrPut(rawGenre) { mutableListOf() }.add(s)
             }
             _genres.value = genreMap.entries.map { GenreData(it.key, it.value) }
         }.launchIn(scope)

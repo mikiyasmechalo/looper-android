@@ -102,6 +102,11 @@ fun QueuesScreen(
                 }
             }
 
+            val isMiniPlayerVisible = currentSong != null
+            val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val pillBottomPadding = if (isMiniPlayerVisible) (155.dp + bottomInsets) else (95.dp + bottomInsets)
+            val listBottomPadding = if (isMiniPlayerVisible) (220.dp + bottomInsets) else (160.dp + bottomInsets)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -110,7 +115,7 @@ fun QueuesScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     state = listState,
-                    contentPadding = PaddingValues(bottom = 120.dp),
+                    contentPadding = PaddingValues(bottom = listBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
@@ -170,7 +175,7 @@ fun QueuesScreen(
                     }
                 }
 
-                // Floating Current Song / Song Count Pill at bottom center
+                // Floating Current Song / Song Count Pill at bottom center (floating above MiniPlayer)
                 val currentIdx = queue.indexOfFirst { it.id == currentSong?.id }
                 val currentPosition = if (currentIdx >= 0) currentIdx + 1 else 1
                 val totalSongs = queue.size
@@ -178,7 +183,7 @@ fun QueuesScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp)
+                        .padding(bottom = pillBottomPadding)
                         .clip(RoundedCornerShape(32.dp))
                         .background(Color(0xFF222222).copy(alpha = 0.95f))
                         .border(

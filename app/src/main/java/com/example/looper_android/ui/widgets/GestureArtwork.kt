@@ -4,10 +4,10 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +17,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
@@ -29,50 +30,53 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.theme.JostFontFamily
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun GestureArtwork(
     song: SongEntity,
-    nextSong: SongEntity?,
-    prevSong: SongEntity?,
+    queue: List<SongEntity>,
+    currentSongIndex: Int,
+    onSkipToIndex: (Int) -> Unit,
     onTap: () -> Unit,
     onSeekRelative: (Long) -> Unit,
-    onSkipNext: () -> Unit,
-    onSkipPrevious: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val screenWidthPx = LocalConfiguration.current.screenWidthDp * 2.5f
+    val safeQueue = if (queue.isEmpty()) listOf(song) else queue
+    val safeCurrentIndex = currentSongIndex.coerceIn(0, maxOf(0, safeQueue.size - 1))
 
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val pagerState = rememberPagerState(
+        initialPage = safeCurrentIndex,
+        pageCount = { safeQueue.size }
+    )
+
     var feedbackType by remember { mutableStateOf<String?>(null) }
-
-    // Animate feedback overlay
     val feedbackAnimProgress = remember { Animatable(0f) }
 
     fun triggerFeedback(type: String) {
@@ -87,73 +91,106 @@ fun GestureArtwork(
         }
     }
 
+    // Programmatic skip animation (e.g. Next / Previous button tap or song finishes)
+    LaunchedEffect(safeCurrentIndex) {
+        if (safeCurrentIndex in 0 until pagerState.pageCount && pagerState.currentPage != safeCurrentIndex) {
+            val distance = (pagerState.currentPage - safeCurrentIndex).absoluteValue
+            if (distance == 1) {
+                pagerState.animateScrollToPage(
+                    page = safeCurrentIndex,
+                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                )
+            } else {
+                pagerState.scrollToPage(safeCurrentIndex)
+            }
+        }
+    }
+
+    // User gesture swipe detection: when pager settles on a new page, trigger skip
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }
+            .collect { settledPage ->
+                if (settledPage != safeCurrentIndex && settledPage in safeQueue.indices) {
+                    onSkipToIndex(settledPage)
+                }
+            }
+    }
+
+    // Sync pager if queue list changes
+    LaunchedEffect(safeQueue) {
+        if (safeCurrentIndex in 0 until pagerState.pageCount && pagerState.currentPage != safeCurrentIndex) {
+            pagerState.scrollToPage(safeCurrentIndex)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1f)
-            .pointerInput(song.id) {
-                detectTapGestures(
-                    onTap = { onTap() },
-                    onDoubleTap = { offset ->
-                        val isLeft = offset.x < size.width / 2f
-                        if (isLeft) {
-                            onSeekRelative(-10000L)
-                            triggerFeedback("rewind")
-                        } else {
-                            onSeekRelative(10000L)
-                            triggerFeedback("forward")
-                        }
-                    }
-                )
-            }
-            .pointerInput(song.id) {
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragOffset += dragAmount
-                    },
-                    onDragEnd = {
-                        val threshold = screenWidthPx * 0.20f
-                        if (dragOffset < -threshold) {
-                            if (nextSong != null) {
-                                triggerFeedback("next")
-                                onSkipNext()
-                            }
-                        } else if (dragOffset > threshold) {
-                            if (prevSong != null) {
-                                triggerFeedback("previous")
-                                onSkipPrevious()
-                            }
-                        }
-                        dragOffset = 0f
-                    },
-                    onDragCancel = { dragOffset = 0f }
-                )
-            },
+            .aspectRatio(1f),
         contentAlignment = Alignment.Center
     ) {
-        // Carousel translation for smooth artwork swipe peek (Hero tag matching Flutter)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(dragOffset.roundToInt(), 0) }
-                .sharedBoundsOrElement(
-                    key = "album_art",
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedVisibilityScope = animatedVisibilityScope,
-                    clipShape = RoundedCornerShape(24.dp)
-                )
-        ) {
-            OptimizedImage(
-                url = song.artPath,
-                modifier = Modifier.fillMaxSize()
-            )
+        HorizontalPager(
+            state = pagerState,
+            pageSpacing = 16.dp,
+            beyondViewportPageCount = 1,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val pageSong = safeQueue.getOrNull(page) ?: song
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+            val scale = lerp(1f, 0.90f, pageOffset)
+            val alpha = lerp(1f, 0.65f, pageOffset)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    }
+                    .pointerInput(pageSong.id) {
+                        detectTapGestures(
+                            onTap = { onTap() },
+                            onDoubleTap = { offset ->
+                                val isLeft = offset.x < size.width / 2f
+                                if (isLeft) {
+                                    onSeekRelative(-10000L)
+                                    triggerFeedback("rewind")
+                                } else {
+                                    onSeekRelative(10000L)
+                                    triggerFeedback("forward")
+                                }
+                            }
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(24.dp))
+                        .then(
+                            if (page == safeCurrentIndex) {
+                                Modifier.sharedBoundsOrElement(
+                                    key = "album_art",
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    clipShape = RoundedCornerShape(24.dp)
+                                )
+                            } else Modifier
+                        )
+                ) {
+                    OptimizedImage(
+                        url = pageSong.artPath,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
 
         // Feedback Overlay Animation (-10s / +10s / Next / Prev)
         feedbackType?.let { type ->
             val opacity = (1f - feedbackAnimProgress.value).coerceIn(0f, 1f)
-            val scale = 0.8f + (feedbackAnimProgress.value * 0.3f)
+            val feedbackScale = 0.8f + (feedbackAnimProgress.value * 0.3f)
             val alignment = when (type) {
                 "rewind" -> Alignment.CenterStart
                 "forward" -> Alignment.CenterEnd
@@ -170,7 +207,7 @@ fun GestureArtwork(
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
-                        .scale(scale)
+                        .scale(feedbackScale)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black.copy(alpha = 0.60f))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
