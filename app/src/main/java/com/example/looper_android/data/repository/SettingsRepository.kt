@@ -35,25 +35,43 @@ class SettingsRepository @Inject constructor(
         val SHOW_QUALITY_BADGE = booleanPreferencesKey("show_quality_badge")
         val ENABLE_PLAYER_GRADIENT = booleanPreferencesKey("enable_player_gradient")
         val KEEP_BACKGROUND_GRADIENT = booleanPreferencesKey("keep_background_gradient")
+        val ENABLE_SLIDE_GESTURE = booleanPreferencesKey("enable_slide_gesture")
+        val STOP_ON_TASK_REMOVED = booleanPreferencesKey("stop_on_task_removed")
+        val ENABLE_INTERNET = booleanPreferencesKey("enable_internet")
+        val DOWNLOAD_ARTWORK = booleanPreferencesKey("download_artwork")
+        val APP_LANGUAGE = stringPreferencesKey("app_language")
     }
 
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
     val disableBlur: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_BLUR] ?: false }
     val dynamicAccentColor: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_ACCENT_COLOR] ?: true }
     val darkTheme: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DARK_THEME] ?: false }
-    val customAccentColor: Flow<Int> = dataStore.data.map { prefs -> prefs[Keys.CUSTOM_ACCENT_COLOR] ?: 0xFF41C25E.toInt() }
+    val customAccentColor: Flow<Int> =
+        dataStore.data.map { prefs -> prefs[Keys.CUSTOM_ACCENT_COLOR] ?: 0xFF41C25E.toInt() }
     val dynamicLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_LYRICS] ?: true }
-    val blurredArtworkForLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.BLURRED_ARTWORK_FOR_LYRICS] ?: true }
-    val dynamicColorActiveLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_COLOR_ACTIVE_LYRICS] ?: true }
-    val disableLyricFontScaling: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_LYRIC_FONT_SCALING] ?: true }
+    val blurredArtworkForLyrics: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.BLURRED_ARTWORK_FOR_LYRICS] ?: true }
+    val dynamicColorActiveLyrics: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_COLOR_ACTIVE_LYRICS] ?: true }
+    val disableLyricFontScaling: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.DISABLE_LYRIC_FONT_SCALING] ?: true }
     val lyricsAlignment: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_ALIGNMENT] ?: "center" }
     val lyricsScreenDarkness: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_SCREEN_DARKNESS] ?: 0.6f }
-    val primaryLyricsProvider: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.PRIMARY_LYRICS_PROVIDER] ?: "lrclib" }
+    val primaryLyricsProvider: Flow<String> =
+        dataStore.data.map { prefs -> prefs[Keys.PRIMARY_LYRICS_PROVIDER] ?: "lrclib" }
     val disableSquiggle: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_SQUIGGLE] ?: false }
-    val disableAnimatedDuration: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] ?: false }
+    val disableAnimatedDuration: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] ?: false }
     val showQualityBadge: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_QUALITY_BADGE] ?: true }
     val enablePlayerGradient: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_PLAYER_GRADIENT] ?: true }
-    val keepBackgroundGradient: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.KEEP_BACKGROUND_GRADIENT] ?: false }
+    val keepBackgroundGradient: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.KEEP_BACKGROUND_GRADIENT] ?: false }
+    val enableSlideGesture: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_SLIDE_GESTURE] ?: true }
+    val stopOnTaskRemoved: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.STOP_ON_TASK_REMOVED] ?: false }
+    val enableInternet: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.ENABLE_INTERNET] ?: false } // to be turned true before relase.
+    val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
+    val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
 
     suspend fun setDisableAnimatedDuration(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] = value }
@@ -126,5 +144,25 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setKeepBackgroundGradient(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.KEEP_BACKGROUND_GRADIENT] = value }
+    }
+
+    suspend fun setEnableSlideGesture(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.ENABLE_SLIDE_GESTURE] = value }
+    }
+
+    suspend fun setStopOnTaskRemoved(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.STOP_ON_TASK_REMOVED] = value }
+    }
+
+    suspend fun setEnableInternet(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.ENABLE_INTERNET] = value }
+    }
+
+    suspend fun setDownloadArtwork(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] = value }
+    }
+
+    suspend fun setAppLanguage(value: String) {
+        dataStore.edit { prefs -> prefs[Keys.APP_LANGUAGE] = value }
     }
 }

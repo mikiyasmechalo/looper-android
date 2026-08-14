@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -476,6 +477,11 @@ fun ArtistsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(artists, key = { it.id }) { artist ->
+                    if (artist.artistImageUrl.isNullOrEmpty()) {
+                        LaunchedEffect(artist.name) {
+                            viewModel.fetchArtistImage(artist.name)
+                        }
+                    }
                     val count = songCounts[artist.name] ?: 0
                     Row(
                         modifier = Modifier
@@ -539,6 +545,11 @@ fun ArtistsScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(artists, key = { it.id }) { artist ->
+                    if (artist.artistImageUrl.isNullOrEmpty()) {
+                        LaunchedEffect(artist.name) {
+                            viewModel.fetchArtistImage(artist.name)
+                        }
+                    }
                     val count = songCounts[artist.name] ?: 0
                     Column(
                         modifier = Modifier

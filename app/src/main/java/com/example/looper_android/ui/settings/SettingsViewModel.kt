@@ -2,6 +2,7 @@ package com.example.looper_android.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.looper_android.data.repository.ArtworkService
 import com.example.looper_android.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: SettingsRepository
+    private val repository: SettingsRepository,
+    private val artworkService: ArtworkService
 ) : ViewModel() {
 
     val dynamicTheming: StateFlow<Boolean> = repository.dynamicTheming
@@ -66,6 +68,21 @@ class SettingsViewModel @Inject constructor(
     val keepBackgroundGradient: StateFlow<Boolean> = repository.keepBackgroundGradient
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val enableSlideGesture: StateFlow<Boolean> = repository.enableSlideGesture
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val stopOnTaskRemoved: StateFlow<Boolean> = repository.stopOnTaskRemoved
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val enableInternet: StateFlow<Boolean> = repository.enableInternet
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val downloadArtwork: StateFlow<Boolean> = repository.downloadArtwork
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val appLanguage: StateFlow<String> = repository.appLanguage
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "System Default")
+
     fun setDynamicTheming(value: Boolean) = viewModelScope.launch { repository.setDynamicTheming(value) }
     fun setDisableBlur(value: Boolean) = viewModelScope.launch { repository.setDisableBlur(value) }
     fun setDynamicAccentColor(value: Boolean) = viewModelScope.launch { repository.setDynamicAccentColor(value) }
@@ -83,4 +100,22 @@ class SettingsViewModel @Inject constructor(
     fun setShowQualityBadge(value: Boolean) = viewModelScope.launch { repository.setShowQualityBadge(value) }
     fun setEnablePlayerGradient(value: Boolean) = viewModelScope.launch { repository.setEnablePlayerGradient(value) }
     fun setKeepBackgroundGradient(value: Boolean) = viewModelScope.launch { repository.setKeepBackgroundGradient(value) }
+    fun setEnableSlideGesture(value: Boolean) = viewModelScope.launch { repository.setEnableSlideGesture(value) }
+    fun setStopOnTaskRemoved(value: Boolean) = viewModelScope.launch { repository.setStopOnTaskRemoved(value) }
+    fun setEnableInternet(value: Boolean) = viewModelScope.launch {
+        repository.setEnableInternet(value)
+        if (value) {
+            artworkService.downloadAllMissingArtistImages()
+            if (downloadArtwork.value) {
+                artworkService.downloadAllMissingArtworks()
+            }
+        }
+    }
+    fun setDownloadArtwork(value: Boolean) = viewModelScope.launch {
+        repository.setDownloadArtwork(value)
+        if (value && enableInternet.value) {
+            artworkService.downloadAllMissingArtworks()
+        }
+    }
+    fun setAppLanguage(value: String) = viewModelScope.launch { repository.setAppLanguage(value) }
 }

@@ -138,6 +138,8 @@ fun SettingsCategoryScreen(
                 item { AboutSettingsSection(accentColor = accentColor) }
             } else if (categoryId == "theme") {
                 item { ThemeSettingsSection(accentColor = accentColor) }
+            } else if (categoryId == "playback") {
+                item { LanguageAndServicesSection(accentColor = accentColor) }
             } else {
                 item {
                     PremiumSection(
@@ -149,7 +151,6 @@ fun SettingsCategoryScreen(
                         Column {
                             when (categoryId) {
                                 "dashboard" -> DashboardSettingsSection(accentColor = accentColor)
-                                "playback" -> PlaybackSettingsSection(accentColor = accentColor)
                                 "audio_playback" -> AudioPlaybackSettingsSection(accentColor = accentColor)
                                 "library" -> LibrarySettingsSection(accentColor = accentColor)
                                 "support_us" -> SupportUsSettingsSection(accentColor = accentColor)
@@ -424,26 +425,105 @@ private fun DashboardSettingsSection(accentColor: Color) {
     SettingsActionTile(title = "Reorder Dashboard Sections", subtitle = "Drag and drop to set preferred dashboard order", icon = Lucide.List, onClick = {}, accentColor = accentColor)
 }
 
-// 3. Playback Settings
+// 3. Language & Services Settings
 @Composable
-private fun PlaybackSettingsSection(accentColor: Color) {
-    var language by remember { mutableStateOf("System Default") }
-    var enableSlideGesture by remember { mutableStateOf(true) }
-    var stopOnTaskRemoved by remember { mutableStateOf(false) }
-    var enableInternet by remember { mutableStateOf(true) }
-    var downloadArtwork by remember { mutableStateOf(true) }
+private fun LanguageAndServicesSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
+    val appLanguage by viewModel.appLanguage.collectAsState()
+    val enableSlideGesture by viewModel.enableSlideGesture.collectAsState()
+    val stopOnTaskRemoved by viewModel.stopOnTaskRemoved.collectAsState()
+    val enableInternet by viewModel.enableInternet.collectAsState()
+    val downloadArtwork by viewModel.downloadArtwork.collectAsState()
+
     val languages = listOf("System Default", "English", "Español", "Français", "Deutsch", "Português")
 
-    SettingsOptionTile(title = "Language", subtitle = "Select application language", selectedValue = language, icon = Lucide.Globe, onClick = { language = languages[(languages.indexOf(language) + 1) % languages.size] }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Vertical Motion Effect Player", subtitle = "Swipe down on the expanded player to dismiss it", icon = Lucide.Play, checked = enableSlideGesture, onCheckedChange = { enableSlideGesture = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Stop Service on App Dismissal", subtitle = "Stop background service and close app when dismissed", icon = LucideIcons.Power, checked = stopOnTaskRemoved, onCheckedChange = { stopOnTaskRemoved = it }, accentColor = accentColor)
-    AboutDivider()
-    SettingsSwitchTile(title = "Internet Mode", subtitle = "Enable network use for online lyrics & artist art", icon = Lucide.Globe, checked = enableInternet, onCheckedChange = { enableInternet = it }, accentColor = accentColor)
-    if (enableInternet) {
-        AboutDivider()
-        SettingsSwitchTile(title = "Download Missing Artwork", subtitle = "Automatically download high-resolution cover artwork for songs from iTunes", icon = Lucide.Sparkles, checked = downloadArtwork, onCheckedChange = { downloadArtwork = it }, accentColor = accentColor)
+    Column {
+        // --- 1. LANGUAGE ---
+        SettingsSubHeader(title = "Language", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            SettingsOptionTile(
+                title = "Language",
+                subtitle = "Select application interface language",
+                selectedValue = appLanguage,
+                icon = Lucide.Globe,
+                onClick = {
+                    val nextIdx = (languages.indexOf(appLanguage) + 1) % languages.size
+                    viewModel.setAppLanguage(languages[nextIdx])
+                },
+                accentColor = accentColor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 2. SERVICES & GESTURES ---
+        SettingsSubHeader(title = "Services & Gestures", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Vertical Motion Effect Player",
+                    subtitle = "Swipe down on the expanded player to smoothly dismiss it",
+                    icon = Lucide.Play,
+                    checked = enableSlideGesture,
+                    onCheckedChange = { viewModel.setEnableSlideGesture(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Stop Service on App Dismissal",
+                    subtitle = "Stop playback service and close app when swiped away from recent apps",
+                    icon = LucideIcons.Power,
+                    checked = stopOnTaskRemoved,
+                    onCheckedChange = { viewModel.setStopOnTaskRemoved(it) },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 3. NETWORK SERVICES ---
+        SettingsSubHeader(title = "Network Services", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Internet Mode",
+                    subtitle = "Allow network access for online lyrics and high-res cover art",
+                    icon = Lucide.Globe,
+                    checked = enableInternet,
+                    onCheckedChange = { viewModel.setEnableInternet(it) },
+                    accentColor = accentColor
+                )
+                if (enableInternet) {
+                    AboutDivider()
+                    SettingsSwitchTile(
+                        title = "Download Missing Artwork",
+                        subtitle = "Automatically download high-resolution cover artwork for songs from iTunes",
+                        icon = Lucide.Sparkles,
+                        checked = downloadArtwork,
+                        onCheckedChange = { viewModel.setDownloadArtwork(it) },
+                        accentColor = accentColor
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -84,7 +84,8 @@ class LyricsFetcher @Inject constructor(
             localRes
         }
 
-        val tryNetwork = suspend { fetchFromLrcLib(song) }
+        val enableInternet = settingsRepository.enableInternet.first()
+        val tryNetwork = suspend { if (enableInternet) fetchFromLrcLib(song) else null }
 
         val providers: List<suspend () -> String?> = listOf(tryEmbedded, tryLocal, tryNetwork)
 

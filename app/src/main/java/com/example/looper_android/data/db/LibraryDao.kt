@@ -35,6 +35,9 @@ interface LibraryDao {
     @Query("SELECT lyrics FROM songs WHERE path = :path LIMIT 1")
     suspend fun getSongLyricsByPath(path: String): String?
 
+    @Query("SELECT * FROM songs WHERE artPath IS NULL OR artPath = ''")
+    suspend fun getSongsWithMissingArt(): List<SongEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSong(song: SongEntity): Long
 
@@ -87,6 +90,12 @@ interface LibraryDao {
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()
+
+    @Query("UPDATE artists SET artistImageUrl = :imageUrl WHERE name = :name")
+    suspend fun updateArtistImageUrl(name: String, imageUrl: String)
+
+    @Query("SELECT * FROM artists WHERE artistImageUrl IS NULL OR artistImageUrl = ''")
+    suspend fun getArtistsWithMissingImage(): List<ArtistEntity>
 
     // --- Playlists ---
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE ASC")

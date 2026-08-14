@@ -105,6 +105,7 @@ fun PlayerScreen(
     val disableAnimatedDuration by settingsViewModel.disableAnimatedDuration.collectAsState()
     val showQualityBadge by settingsViewModel.showQualityBadge.collectAsState()
     val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+    val enableSlideGesture by settingsViewModel.enableSlideGesture.collectAsState()
 
     val effectiveDarkTheme = darkTheme && !dynamicTheming
     val containerColor = when {
@@ -116,7 +117,7 @@ fun PlayerScreen(
             }
         }
         effectiveDarkTheme -> Color(0xFF0A0A0A)
-        enablePlayerGradient -> Color(0xAA262626) // Noticeable gray tint to distinguish from gradient background
+        enablePlayerGradient -> Color(0xFF262626) // Noticeable gray tint to distinguish from gradient background
         else -> Color(0xFF1E1E1E)
     }
 
@@ -163,32 +164,36 @@ fun PlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = {
-                        rawVerticalOffset = 0f
-                        isDismissing = false
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        if (dragAmount > 0 || rawVerticalOffset > 0) {
-                            change.consume()
-                            rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
-                        }
-                    },
-                    onDragEnd = {
-                        if (rawVerticalOffset > 80.dp.toPx() && !isDismissing) {
-                            isDismissing = true
-                            haptics.mediumImpact()
-                            onBack()
-                        }
-                        rawVerticalOffset = 0f
-                    },
-                    onDragCancel = {
-                        rawVerticalOffset = 0f
-                        isDismissing = false
+            .then(
+                if (enableSlideGesture) {
+                    Modifier.pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                rawVerticalOffset = 0f
+                                isDismissing = false
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                if (dragAmount > 0 || rawVerticalOffset > 0) {
+                                    change.consume()
+                                    rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
+                                }
+                            },
+                            onDragEnd = {
+                                if (rawVerticalOffset > 80.dp.toPx() && !isDismissing) {
+                                    isDismissing = true
+                                    haptics.mediumImpact()
+                                    onBack()
+                                }
+                                rawVerticalOffset = 0f
+                            },
+                            onDragCancel = {
+                                rawVerticalOffset = 0f
+                                isDismissing = false
+                            }
+                        )
                     }
-                )
-            }
+                } else Modifier
+            )
     ) {
         Box(
             modifier = Modifier.fillMaxSize().background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Database
+import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
@@ -86,7 +87,7 @@ fun SettingsScreen(
         listOf(
             SettingCategory("theme", "Theme", "Customize Colors, Theme & OLED", Lucide.Palette),
             SettingCategory("dashboard", "Home Screen", "Home Dashboard & Layout Settings", Lucide.List),
-            SettingCategory("playback", "Playback & Language", "Manage Language, Audio Focus & Pause", Lucide.Play),
+            SettingCategory("playback", "Language & Services", "Language, Gestures, Background Tasks & Network Services", Lucide.Globe),
             SettingCategory("audio_playback", "Audio & Playback", "Crossfade, Equalizer & Audio Engine", Lucide.Music),
             SettingCategory("library", "Music Library", "Library Folders, Scanning & Rescan", Lucide.Database),
             SettingCategory("about", "About & Maintainers", "App Details, Version & Creators", Lucide.Info),
@@ -115,11 +116,11 @@ fun SettingsScreen(
             SearchableSetting("dashboard", "Home Screen", "Show Albums Row", "Display horizontal album card list on Home"),
             SearchableSetting("dashboard", "Home Screen", "Show Genres Row", "Display colorful genre pills row on Home"),
             SearchableSetting("dashboard", "Home Screen", "Reorder Dashboard Sections", "Customize vertical order of Home tab cards"),
-            SearchableSetting("playback", "Playback & Language", "App Language", "Choose app localization language"),
-            SearchableSetting("playback", "Playback & Language", "Vertical Motion Effect", "Enable smooth vertical drag/slide gesture on Player"),
-            SearchableSetting("playback", "Playback & Language", "Stop Service on App Dismissal", "Terminate background playback service on app dismiss"),
-            SearchableSetting("playback", "Playback & Language", "Internet Mode", "Allow app to fetch lyrics and high-res artwork online"),
-            SearchableSetting("playback", "Playback & Language", "Download Missing Artwork", "Automatically download missing album art online"),
+            SearchableSetting("playback", "Language & Services", "App Language", "Choose app localization language"),
+            SearchableSetting("playback", "Language & Services", "Vertical Motion Effect Player", "Enable smooth vertical drag/slide gesture on Player"),
+            SearchableSetting("playback", "Language & Services", "Stop Service on App Dismissal", "Terminate background playback service on app dismiss"),
+            SearchableSetting("playback", "Language & Services", "Internet Mode", "Allow app to fetch lyrics and high-res artwork online"),
+            SearchableSetting("playback", "Language & Services", "Download Missing Artwork", "Automatically download missing album art online"),
             SearchableSetting("audio_playback", "Audio & Playback", "Fade on Play / Pause / Stop", "Smooth volume fade when starting or changing tracks"),
             SearchableSetting("audio_playback", "Audio & Playback", "Fade Duration", "Length of volume fade transition in milliseconds"),
             SearchableSetting("audio_playback", "Audio & Playback", "Manage Audio Focus", "Pause playback when another app requests focus"),

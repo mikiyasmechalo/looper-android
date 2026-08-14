@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class ViewMode { GRID_2, GRID_3, LIST }
@@ -86,7 +87,9 @@ class AlbumsViewModel @Inject constructor(
 @HiltViewModel
 class ArtistsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    libraryCacheManager: LibraryCacheManager
+    libraryCacheManager: LibraryCacheManager,
+    private val artworkService: com.example.looper_android.data.repository.ArtworkService,
+    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE)
 
@@ -106,6 +109,22 @@ class ArtistsViewModel @Inject constructor(
 
     private val _isAscending = MutableStateFlow(true)
     val isAscending: StateFlow<Boolean> = _isAscending.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(libraryCacheManager.artists, settingsRepository.enableInternet) { rawArtists, internetEnabled ->
+                if (internetEnabled && rawArtists.isNotEmpty()) {
+                    artworkService.downloadAllMissingArtistImages()
+                }
+            }.collect {}
+        }
+    }
+
+    fun fetchArtistImage(artistName: String) {
+        viewModelScope.launch {
+            artworkService.getArtistImageUrl(artistName)
+        }
+    }
 
     val artists: StateFlow<List<ArtistEntity>> = combine(
         libraryCacheManager.artists,
