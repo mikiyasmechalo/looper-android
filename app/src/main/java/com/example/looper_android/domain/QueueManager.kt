@@ -298,12 +298,13 @@ class QueueManager @Inject constructor(
             }
         }
 
+        val currentPos = try { player.currentPosition.coerceAtLeast(0L) } catch (_: Exception) { 0L }
         val queueId = if (existingQueue != null) {
             queueDao.deleteQueueItems(existingQueue.id)
             queueDao.updateQueueState(
                 existingQueue.id, 
                 startIndex, 
-                0L, 
+                currentPos, 
                 shuffled, 
                 System.currentTimeMillis()
             )
@@ -452,6 +453,72 @@ class QueueManager @Inject constructor(
                     break
                 }
             }
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, currentWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)
+        }
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        scope.launch(Dispatchers.Main) {
+            if (fromIndex !in workingSongs.indices || toIndex !in workingSongs.indices || fromIndex == toIndex) return@launch
+            val list = workingSongs.toMutableList()
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+            workingSongs = list
+            originalSongs = list
+
+            if (fromIndex in 0 until player.mediaItemCount && toIndex in 0 until player.mediaItemCount) {
+                player.moveMediaItem(fromIndex, toIndex)
+            }
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, list, _isShuffleEnabled.value, player.currentMediaItemIndex)
+        }
+    }
+
+    fun setQueueOrder(newOrder: List<SongEntity>, fromIndex: Int, toIndex: Int) {
+        scope.launch(Dispatchers.Main) {
+            workingSongs = newOrder
+            originalSongs = newOrder
+
+            if (fromIndex in 0 until player.mediaItemCount && toIndex in 0 until player.mediaItemCount) {
+                player.moveMediaItem(fromIndex, toIndex)
+            }
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, newOrder, _isShuffleEnabled.value, player.currentMediaItemIndex)
+        }
+    }
+
+    fun removeQueueItem(index: Int) {
+        scope.launch(Dispatchers.Main) {
+            if (index !in workingSongs.indices) return@launch
+            val songToRemove = workingSongs[index]
+            val currentWorking = workingSongs.toMutableList().apply { removeAt(index) }
+            workingSongs = currentWorking
+            originalSongs = originalSongs.filter { it.id != songToRemove.id }
+
+            val currentMediaItem = player.currentMediaItem
+            val currentPlayingId = currentMediaItem?.mediaId?.toLongOrNull()
+
+            if (currentPlayingId == songToRemove.id) {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                } else if (currentWorking.isNotEmpty()) {
+                    player.seekToDefaultPosition(0)
+                } else {
+                    player.stop()
+                    player.clearMediaItems()
+                }
+            }
+
+            if (index in 0 until player.mediaItemCount) {
+                player.removeMediaItem(index)
+            }
+
+            val activeQName = _activeQueueName.value
+            persistFullQueue(activeQName, currentWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)
         }
     }
 
@@ -461,7 +528,7 @@ class QueueManager @Inject constructor(
             val autoPlay = player.isPlaying
             
             withContext(Dispatchers.IO) {
-                saveCurrentStateSync() // synchronous wait
+                saveCurrentStateSync()
                 
                 val queue = queueDao.getAllQueues().firstOrNull()?.find { it.id == queueId } ?: return@withContext
                 val items = queueDao.getItemsForQueue(queueId).firstOrNull() ?: return@withContext
@@ -470,16 +537,30 @@ class QueueManager @Inject constructor(
                 setActiveQueueIdInPrefs(queueId)
                 _activeQueueName.value = queue.name
                 
-                while (!cacheReady.get()) delay(50)
-                
-                val songMap = cachedSongs.associateBy { it.id }
-                val restoredSongs = items.mapNotNull { item ->
-                    val songId = item.mediaId.toLongOrNull()
-                    songId?.let { songMap[it] }
+                val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
+                val restoredSongs = items.map { item ->
+                    val sId = item.mediaId.toLongOrNull()
+                    (if (sId != null) songMap[sId] else null) ?: SongEntity(
+                        id = sId ?: 0L,
+                        path = item.uri,
+                        title = item.title,
+                        artist = item.artist,
+                        albumArtist = item.artist,
+                        album = item.album,
+                        genre = null,
+                        duration = item.durationMs.toInt(),
+                        trackNumber = null,
+                        year = null,
+                        artPath = item.albumArtUri,
+                        dateAdded = 0L,
+                        isFavorite = false
+                    )
                 }
                 
                 if (restoredSongs.isNotEmpty()) {
-                    val mediaItems = restoredSongs.map { buildMediaItem(it) }
+                    val startIdx = queue.currentItemIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
+                    val startSong = restoredSongs[startIdx]
+                    val targetMediaItem = buildMediaItem(startSong)
                     
                     withContext(Dispatchers.Main) {
                         workingSongs = restoredSongs
@@ -488,14 +569,36 @@ class QueueManager @Inject constructor(
                         
                         val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
                         if (exoPlayer != null) {
-                            exoPlayer.clearMediaItems()
-                            exoPlayer.addMediaItems(mediaItems)
-                            
-                            val startIdx = queue.currentItemIndex.coerceIn(0, restoredSongs.size - 1)
-                            exoPlayer.seekTo(startIdx, queue.currentPlaybackPositionMs)
+                            exoPlayer.setMediaItem(targetMediaItem)
+                            exoPlayer.seekTo(0, queue.currentPlaybackPositionMs)
                             exoPlayer.prepare()
                             if (autoPlay) {
                                 exoPlayer.play()
+                            }
+                        }
+                    }
+
+                    queueJob = scope.launch(Dispatchers.Default) {
+                        delay(250)
+                        val afterItems = mutableListOf<androidx.media3.common.MediaItem>()
+                        for (i in startIdx + 1 until restoredSongs.size) {
+                            kotlinx.coroutines.yield()
+                            afterItems.add(buildMediaItem(restoredSongs[i]))
+                        }
+                        val beforeItems = mutableListOf<androidx.media3.common.MediaItem>()
+                        for (i in 0 until startIdx) {
+                            kotlinx.coroutines.yield()
+                            beforeItems.add(buildMediaItem(restoredSongs[i]))
+                        }
+                        withContext(Dispatchers.Main) {
+                            val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
+                            if (exoPlayer != null) {
+                                if (afterItems.isNotEmpty()) {
+                                    exoPlayer.addMediaItems(afterItems)
+                                }
+                                if (beforeItems.isNotEmpty()) {
+                                    exoPlayer.addMediaItems(0, beforeItems)
+                                }
                             }
                         }
                     }
@@ -561,16 +664,30 @@ class QueueManager @Inject constructor(
                 val items = queueDao.getItemsForQueue(lastQueueId).firstOrNull()
                 if (items.isNullOrEmpty()) return@withContext
                 
-                while (!cacheReady.get()) delay(50)
-                
-                val songMap = cachedSongs.associateBy { it.id }
-                val restoredSongs = items.mapNotNull { item ->
-                    val songId = item.mediaId.toLongOrNull()
-                    songId?.let { songMap[it] }
+                val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
+                val restoredSongs = items.map { item ->
+                    val sId = item.mediaId.toLongOrNull()
+                    (if (sId != null) songMap[sId] else null) ?: SongEntity(
+                        id = sId ?: 0L,
+                        path = item.uri,
+                        title = item.title,
+                        artist = item.artist,
+                        albumArtist = item.artist,
+                        album = item.album,
+                        genre = null,
+                        duration = item.durationMs.toInt(),
+                        trackNumber = null,
+                        year = null,
+                        artPath = item.albumArtUri,
+                        dateAdded = 0L,
+                        isFavorite = false
+                    )
                 }
                 
                 if (restoredSongs.isNotEmpty()) {
-                    val mediaItems = restoredSongs.map { buildMediaItem(it) }
+                    val startIdx = queue.currentItemIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
+                    val startSong = restoredSongs[startIdx]
+                    val targetMediaItem = buildMediaItem(startSong)
                     
                     withContext(Dispatchers.Main) {
                         workingSongs = restoredSongs
@@ -579,12 +696,34 @@ class QueueManager @Inject constructor(
                         
                         val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
                         if (exoPlayer != null) {
-                            exoPlayer.clearMediaItems()
-                            exoPlayer.addMediaItems(mediaItems)
-                            
-                            val startIdx = queue.currentItemIndex.coerceIn(0, restoredSongs.size - 1)
-                            exoPlayer.seekTo(startIdx, queue.currentPlaybackPositionMs)
+                            exoPlayer.setMediaItem(targetMediaItem)
+                            exoPlayer.seekTo(0, queue.currentPlaybackPositionMs)
                             exoPlayer.prepare()
+                        }
+                    }
+
+                    queueJob = scope.launch(Dispatchers.Default) {
+                        delay(250)
+                        val afterItems = mutableListOf<androidx.media3.common.MediaItem>()
+                        for (i in startIdx + 1 until restoredSongs.size) {
+                            kotlinx.coroutines.yield()
+                            afterItems.add(buildMediaItem(restoredSongs[i]))
+                        }
+                        val beforeItems = mutableListOf<androidx.media3.common.MediaItem>()
+                        for (i in 0 until startIdx) {
+                            kotlinx.coroutines.yield()
+                            beforeItems.add(buildMediaItem(restoredSongs[i]))
+                        }
+                        withContext(Dispatchers.Main) {
+                            val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
+                            if (exoPlayer != null) {
+                                if (afterItems.isNotEmpty()) {
+                                    exoPlayer.addMediaItems(afterItems)
+                                }
+                                if (beforeItems.isNotEmpty()) {
+                                    exoPlayer.addMediaItems(0, beforeItems)
+                                }
+                            }
                         }
                     }
                 }

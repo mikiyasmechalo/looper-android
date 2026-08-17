@@ -769,6 +769,14 @@ fun PlayerScreen(
             playbackViewModel = viewModel,
             onDismiss = { showQueueSheet = false },
             onSongSelect = { selectedSong ->
+            },
+            onArtistClick = { artist ->
+                showQueueSheet = false
+                onArtistClick(artist)
+            },
+            onAlbumClick = { album ->
+                showQueueSheet = false
+                onAlbumClick(album)
             }
         )
     }
@@ -779,6 +787,7 @@ fun PlayerScreen(
             onDismiss = { showOptionsSheet = false },
             accentColor = state.accentColor,
             isCurrentlyPlaying = true,
+            showSleepTimer = true,
             onArtistClick = { artist ->
                 onArtistClick(artist)
             },

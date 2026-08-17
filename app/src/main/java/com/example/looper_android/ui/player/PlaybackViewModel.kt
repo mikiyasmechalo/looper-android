@@ -44,6 +44,9 @@ data class PlaybackState(
     val accentColor: Color = Color(0xFF55DF69),
     val isSleepTimerActive: Boolean = false,
     val sleepTimerLabel: String = "",
+    val sleepTimerDurationRemainingMs: Long? = null,
+    val sleepTimerSongsRemaining: Int? = null,
+    val isStopAfterThisSongActive: Boolean = false,
     val activeQueueId: Long? = null,
     val activeQueueName: String = "Select Queue",
     /**
@@ -81,16 +84,36 @@ class PlaybackViewModel @Inject constructor(
 
     private var pendingTransition = false
 
+    // When true, any attempt by ExoPlayer to start playing is immediately cancelled.
+    // Set when a song-count sleep timer / stop-after-this-song fires during a track transition.
+    @Volatile private var shouldBlockNextPlay = false
+
     private val playerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             updatePlaybackState()
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying && shouldBlockNextPlay) {
+                player.pause()
+                _playbackState.value = _playbackState.value.copy(isPlaying = false)
+                return
+            }
             updatePlaybackState()
         }
 
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_ENDED) {
+                if (_playbackState.value.isSleepTimerActive) {
+                    stopSleepTimer()
+                }
+                if (player.mediaItemCount > 0) {
+                    player.seekToDefaultPosition(0)
+                    player.pause()
+                    _currentPosition.value = 0L
+                    _playbackState.value = _playbackState.value.copy(isPlaying = false, position = 0L)
+                }
+            }
             updatePlaybackState()
         }
 
@@ -138,6 +161,48 @@ class PlaybackViewModel @Inject constructor(
                     lastIncrementedSongId = songId
                     viewModelScope.launch(Dispatchers.IO) {
                         libraryDao.incrementPlayCount(songId)
+                    }
+                }
+
+                // Handle Sleep Timer by Song Count (Multi-song countdown)
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    val currentRemainingSongs = _playbackState.value.sleepTimerSongsRemaining
+                    if (currentRemainingSongs != null) {
+                        val newCount = currentRemainingSongs - 1
+                        if (newCount <= 0) {
+                            // This is the transition INTO the stopped track — block it from playing
+                            shouldBlockNextPlay = true
+                            player.pause()
+                            _currentPosition.value = 0L
+                            _playbackState.value = _playbackState.value.copy(
+                                isPlaying = false,
+                                position = 0L,
+                                isSleepTimerActive = false,
+                                isStopAfterThisSongActive = false,
+                                sleepTimerSongsRemaining = null,
+                                sleepTimerLabel = ""
+                            )
+                            sleepTimerJob?.cancel()
+                            sleepTimerJob = null
+                            // Release block after a short window (enough to absorb any late play() calls)
+                            viewModelScope.launch(Dispatchers.Main) {
+                                kotlinx.coroutines.delay(800L)
+                                shouldBlockNextPlay = false
+                            }
+                        } else if (newCount == 1) {
+                            _playbackState.value = _playbackState.value.copy(
+                                sleepTimerSongsRemaining = 1,
+                                sleepTimerLabel = "1 song left",
+                                isStopAfterThisSongActive = true
+                            )
+                        } else {
+                            val label = "$newCount songs left"
+                            _playbackState.value = _playbackState.value.copy(
+                                sleepTimerSongsRemaining = newCount,
+                                sleepTimerLabel = label,
+                                isStopAfterThisSongActive = false
+                            )
+                        }
                     }
                 }
 
@@ -385,12 +450,15 @@ class PlaybackViewModel @Inject constructor(
         val state = player.playbackState
         val buffering = state == Player.STATE_BUFFERING
         val playing = player.playWhenReady && state != Player.STATE_ENDED && state != Player.STATE_IDLE
+        val pos = player.currentPosition.coerceAtLeast(0L)
+        val dur = player.duration.coerceAtLeast(0L)
         
+        _currentPosition.value = pos
         _playbackState.value = _playbackState.value.copy(
             isPlaying = playing,
             isBuffering = buffering,
-            position = if (pendingTransition) _playbackState.value.position else player.currentPosition.coerceAtLeast(0L),
-            duration = if (pendingTransition) _playbackState.value.duration else player.duration.coerceAtLeast(0L),
+            position = pos,
+            duration = dur,
             isShuffle = queueManager.isShuffleEnabled.value,
             repeatMode = when (player.repeatMode) {
                 Player.REPEAT_MODE_ONE -> RepeatMode.ONE
@@ -409,14 +477,17 @@ class PlaybackViewModel @Inject constructor(
     fun togglePlayPause() {
         if (player.isPlaying) {
             player.pause()
+            val pos = player.currentPosition.coerceAtLeast(0L)
+            _currentPosition.value = pos
+            _playbackState.value = _playbackState.value.copy(isPlaying = false, position = pos)
         } else {
+            (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
             player.play()
         }
     }
 
     fun skipToNext() {
         if (player.hasNextMediaItem()) {
-            pendingTransition = true
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToNextMediaItem()
@@ -424,7 +495,6 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun skipToPrevious() {
-        pendingTransition = true
         _currentPosition.value = 0L
         _playbackState.value = _playbackState.value.copy(position = 0L)
         if (player.hasPreviousMediaItem()) {
@@ -439,14 +509,10 @@ class PlaybackViewModel @Inject constructor(
         _currentPosition.value = target
         _playbackState.value = _playbackState.value.copy(position = target)
         player.seekTo(target)
-        if (player.playWhenReady && !player.isPlaying && player.playbackState != Player.STATE_ENDED) {
-            player.play()
-        }
     }
 
     fun skipToQueueItem(index: Int) {
         if (index in 0 until player.mediaItemCount) {
-            pendingTransition = true
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToDefaultPosition(index)
@@ -538,6 +604,114 @@ class PlaybackViewModel @Inject constructor(
 
     fun deleteQueue(queueId: Long) {
         queueManager.deleteQueue(queueId)
+    }
+
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+
+    private fun formatTimerMs(ms: Long): String {
+        val totalSeconds = (ms / 1000).coerceAtLeast(0)
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return "%d:%02d".format(minutes, seconds)
+    }
+
+    fun startSleepTimer(durationMinutes: Int? = null, songCount: Int? = null) {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+
+        if (durationMinutes != null && durationMinutes > 0) {
+            var remainingMs = durationMinutes * 60 * 1000L
+            _playbackState.value = _playbackState.value.copy(
+                isSleepTimerActive = true,
+                sleepTimerDurationRemainingMs = remainingMs,
+                sleepTimerSongsRemaining = null,
+                sleepTimerLabel = formatTimerMs(remainingMs),
+                isStopAfterThisSongActive = false
+            )
+
+            sleepTimerJob = viewModelScope.launch(Dispatchers.Main) {
+                while (remainingMs > 0) {
+                    kotlinx.coroutines.delay(1000L)
+                    remainingMs -= 1000L
+                    if (remainingMs <= 0L) {
+                        player.pause()
+                        val pos = player.currentPosition.coerceAtLeast(0L)
+                        _currentPosition.value = pos
+                        _playbackState.value = _playbackState.value.copy(
+                            isPlaying = false,
+                            position = pos,
+                            isSleepTimerActive = false,
+                            sleepTimerLabel = "",
+                            sleepTimerDurationRemainingMs = null,
+                            sleepTimerSongsRemaining = null,
+                            isStopAfterThisSongActive = false
+                        )
+                        sleepTimerJob = null
+                        break
+                    } else {
+                        _playbackState.value = _playbackState.value.copy(
+                            sleepTimerDurationRemainingMs = remainingMs,
+                            sleepTimerLabel = formatTimerMs(remainingMs)
+                        )
+                    }
+                }
+            }
+        } else if (songCount != null && songCount > 0) {
+            if (player.repeatMode == Player.REPEAT_MODE_ONE) {
+                player.repeatMode = Player.REPEAT_MODE_ALL
+            }
+            val label = if (songCount == 1) "1 song left" else "$songCount songs left"
+            _playbackState.value = _playbackState.value.copy(
+                isSleepTimerActive = true,
+                sleepTimerDurationRemainingMs = null,
+                sleepTimerSongsRemaining = songCount,
+                sleepTimerLabel = label,
+                isStopAfterThisSongActive = (songCount == 1)
+            )
+        }
+    }
+
+    fun stopSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        shouldBlockNextPlay = false
+        _playbackState.value = _playbackState.value.copy(
+            isSleepTimerActive = false,
+            sleepTimerLabel = "",
+            sleepTimerDurationRemainingMs = null,
+            sleepTimerSongsRemaining = null,
+            isStopAfterThisSongActive = false
+        )
+    }
+
+    fun toggleStopAfterThisSong() {
+        if (_playbackState.value.isStopAfterThisSongActive) {
+            stopSleepTimer()
+        } else {
+            startSleepTimer(songCount = 1)
+        }
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        queueManager.moveQueueItem(fromIndex, toIndex)
+    }
+
+    fun setQueueOrder(newOrder: List<SongEntity>, fromIndex: Int, toIndex: Int) {
+        _playbackState.value = _playbackState.value.copy(queue = newOrder)
+        queueManager.setQueueOrder(newOrder, fromIndex, toIndex)
+    }
+
+    fun removeQueueItem(index: Int) {
+        val currentQueue = _playbackState.value.queue
+        if (index in currentQueue.indices) {
+            val updated = currentQueue.toMutableList().apply { removeAt(index) }
+            _playbackState.value = _playbackState.value.copy(queue = updated)
+        }
+        queueManager.removeQueueItem(index)
+    }
+
+    fun removeFromQueue(song: SongEntity) {
+        queueManager.removeSong(song.id)
     }
 
     fun clearQueue() {

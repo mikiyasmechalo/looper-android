@@ -110,7 +110,7 @@ import com.example.looper_android.ui.library.AllSongsViewModel
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class ActiveSheet {
-    OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO, PLAYLISTS
+    OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO, PLAYLISTS, SLEEP_TIMER
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,6 +123,9 @@ fun SongOptionsSheet(
     isPureBlack: Boolean = false,
     playlist: com.example.looper_android.data.db.PlaylistEntity? = null,
     isCurrentlyPlaying: Boolean = false,
+    isFromQueue: Boolean = false,
+    queueIndex: Int? = null,
+    showSleepTimer: Boolean = false,
     showGoToArtist: Boolean = true,
     showGoToAlbum: Boolean = true,
     onArtistClick: ((String) -> Unit)? = null,
@@ -173,10 +176,7 @@ fun SongOptionsSheet(
     }
 
     val playbackState by playbackViewModel.playbackState.collectAsState()
-    val isFavorite = song.isFavorite
-    val showSleepTimer = playbackState.isSleepTimerActive
-    val sleepTimerLabel = playbackState.sleepTimerLabel
-
+    var isFavoriteState by remember(song.id, song.isFavorite) { mutableStateOf(song.isFavorite) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(ActiveSheet.OPTIONS) }
 
     val context = LocalContext.current
@@ -304,19 +304,73 @@ fun SongOptionsSheet(
                     val onClick: () -> Unit
                 )
 
+                val currentSongId = playbackState.currentSong?.id
+                val currentPlayingIdx = if (currentSongId != null) {
+                    playbackState.queue.indexOfFirst { it.id == currentSongId }
+                } else -1
+                val songQueueIdx = queueIndex ?: playbackState.queue.indexOfFirst { it.id == song.id }
+                val isEffectivelyPlaying = isCurrentlyPlaying || (currentSongId != null && currentSongId == song.id)
+                val isImmediatelyNext = isFromQueue && currentPlayingIdx >= 0 && (songQueueIdx == currentPlayingIdx + 1)
+
                 val options = buildList {
-                    if (!isCurrentlyPlaying) {
+                    // 1. Play Next (hide if currently playing or immediately next in queue)
+                    if (!isEffectivelyPlaying && !isImmediatelyNext) {
                         add(OptionTileData(null, Lucide.CirclePlay, "Play Next") {
                             hapticLight()
                             playbackViewModel.addNext(song)
                             onDismiss()
                         })
+                    }
+
+                    // 2. Add to Queue (hide when on queue pages or when currently playing)
+                    if (!isEffectivelyPlaying && !isFromQueue) {
                         add(OptionTileData(null, Lucide.ListPlus, "Add to Queue") {
                             hapticLight()
                             playbackViewModel.addToQueue(song)
                             onDismiss()
                         })
                     }
+
+                    // 3. Stop after this song (on EVERY song in the queue, or active song outside queue)
+                    if (isFromQueue && songQueueIdx >= 0 && currentPlayingIdx >= 0 && songQueueIdx >= currentPlayingIdx) {
+                        val songsUntilThis = (songQueueIdx - currentPlayingIdx + 1)
+                        val isThisTargeted = playbackState.isSleepTimerActive && playbackState.sleepTimerSongsRemaining == songsUntilThis
+                        add(OptionTileData(
+                            null,
+                            Lucide.Timer,
+                            if (isThisTargeted) "Cancel Stop After This Song" else "Stop after this song"
+                        ) {
+                            hapticLight()
+                            if (isThisTargeted) {
+                                playbackViewModel.stopSleepTimer()
+                            } else {
+                                playbackViewModel.startSleepTimer(songCount = songsUntilThis)
+                            }
+                            onDismiss()
+                        })
+                    } else if (isEffectivelyPlaying) {
+                        val isStopAfterActive = playbackState.isStopAfterThisSongActive
+                        add(OptionTileData(
+                            null,
+                            Lucide.Timer,
+                            if (isStopAfterActive) "Cancel Stop After This Song" else "Stop after this song"
+                        ) {
+                            hapticLight()
+                            playbackViewModel.toggleStopAfterThisSong()
+                            onDismiss()
+                        })
+                    }
+
+                    // 4. Remove from Queue (ONLY on queue pages)
+                    if (isFromQueue && !isEffectivelyPlaying) {
+                        add(OptionTileData(null, Lucide.Trash2, "Remove from Queue") {
+                            hapticLight()
+                            playbackViewModel.removeFromQueue(song)
+                            onDismiss()
+                        })
+                    }
+
+                    // 5. Go to Artist
                     if (showGoToArtist && onArtistClick != null && !song.artist.isNullOrBlank()) {
                         add(OptionTileData(null, Lucide.User, "Go to Artist") {
                             hapticLight()
@@ -324,6 +378,8 @@ fun SongOptionsSheet(
                             onArtistClick(song.artist!!)
                         })
                     }
+
+                    // 6. Go to Album
                     if (showGoToAlbum && onAlbumClick != null && !song.album.isNullOrBlank()) {
                         add(OptionTileData(null, Lucide.Disc, "Go to Album") {
                             hapticLight()
@@ -331,27 +387,26 @@ fun SongOptionsSheet(
                             onAlbumClick(song.album!!)
                         })
                     }
+
+                    // 7. Add to Playlists
                     add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
                         hapticLight()
                         activeSheet = ActiveSheet.PLAYLISTS
                     })
-                    if (showSleepTimer) {
-                        add(OptionTileData(null, Lucide.Timer, if (showSleepTimer) sleepTimerLabel else "Sleep Timer") {
-                            hapticLight()
-                            // TODO: Implement Sleep Timer dialog
-                            onDismiss()
-                        })
-                    }
+
+                    // 8. Add to Favorites
                     add(OptionTileData(
                         null,
                         Lucide.Star,
-                        if (isFavorite) "Remove from Favorites" else "Add to Favorites"
+                        if (isFavoriteState) "Remove from Favorites" else "Add to Favorites"
                     ) {
                         hapticLight()
-                        playbackViewModel.toggleFavorite(song)
+                        playbackViewModel.toggleFavorite(song.copy(isFavorite = isFavoriteState))
+                        isFavoriteState = !isFavoriteState
                         onDismiss()
                     })
 
+                    // 9. Remove from Playlist
                     if (playlist != null) {
                         add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
                             hapticMedium()
@@ -360,15 +415,33 @@ fun SongOptionsSheet(
                         })
                     }
 
+                    // 10. Edit Song Info
                     add(OptionTileData(null, Lucide.SquarePen, "Edit Song Info") {
                         hapticLight()
                         activeSheet = ActiveSheet.EDIT
                     })
+
+                    // 11. Sleep Timer (ONLY in Now Playing and Queue sheets)
+                    if (showSleepTimer) {
+                        val sleepTimerText = if (playbackState.isSleepTimerActive && playbackState.sleepTimerLabel.isNotBlank()) {
+                            "Sleep Timer (${playbackState.sleepTimerLabel})"
+                        } else {
+                            "Sleep Timer"
+                        }
+                        add(OptionTileData(null, Lucide.Timer, sleepTimerText) {
+                            hapticLight()
+                            activeSheet = ActiveSheet.SLEEP_TIMER
+                        })
+                    }
+
+                    // 12. Equalizer
                     add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
                         hapticLight()
                         // TODO: Implement Equalizer
                         onDismiss()
                     })
+
+                    // 13. Song Details
                     add(OptionTileData(null, Lucide.Info, "Song Details") {
                         hapticLight()
                         activeSheet = ActiveSheet.DETAILS
@@ -429,7 +502,7 @@ fun SongOptionsSheet(
                                     val (svgAsset, vectorIcon, label, onClick) = option
                                     val isDelete = label == "Delete Song"
                                     val isRemoveFromPlaylist = label == "Remove from Playlist"
-                                    val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavorite
+                                    val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavoriteState
                                     val iconColor = when {
                                         isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
                                         else -> accentColor
@@ -579,6 +652,13 @@ fun SongOptionsSheet(
                     playlistsViewModel.addSongToPlaylist(targetPlaylist, song.path)
                     onDismiss()
                 }
+            )
+        }
+        ActiveSheet.SLEEP_TIMER -> {
+            SleepTimerBottomSheet(
+                onDismiss = onDismiss,
+                playbackViewModel = playbackViewModel,
+                accentColor = accentColor
             )
         }
         null -> {}
