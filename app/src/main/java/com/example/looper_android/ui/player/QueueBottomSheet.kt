@@ -78,7 +78,7 @@ data class QueueSongItem(
 )
 
 @Composable
-private fun ReorderGripIcon(tint: Color, modifier: Modifier = Modifier) {
+fun ReorderGripIcon(tint: Color, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.size(18.dp),
         verticalArrangement = Arrangement.Center,
@@ -103,7 +103,7 @@ private fun ReorderGripIcon(tint: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun QueueSongRow(
+fun QueueSongRow(
     index: Int,
     stableKey: String,
     song: SongEntity,
@@ -662,6 +662,7 @@ fun QueueBottomSheet(
                 isFromQueue = true,
                 queueIndex = selectedSongIndexForOptions,
                 showSleepTimer = true,
+                accentColor = playbackState.accentColor,
                 onArtistClick = { artist ->
                     selectedSongForOptions = null
                     selectedSongIndexForOptions = null

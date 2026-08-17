@@ -1,11 +1,16 @@
 package com.example.looper_android.ui.library
 
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,21 +18,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.Lucide
 import com.example.looper_android.data.db.SongEntity
-import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.player.PlaybackViewModel
+import com.example.looper_android.ui.player.QueueSongItem
+import com.example.looper_android.ui.player.QueueSongRow
+import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.theme.JostFontFamily
 import com.example.looper_android.ui.widgets.QueueSwitcher
-
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.CircleShape
 import kotlinx.coroutines.launch
 
 @Composable
@@ -39,6 +46,46 @@ fun QueuesScreen(
     val playbackState by viewModel.playbackState.collectAsState()
     val queue = playbackState.queue
     val currentSong = playbackState.currentSong
+
+    var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongIndexForOptions by remember { mutableStateOf<Int?>(null) }
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val itemHeightPx = with(density) { 68.dp.toPx() }
+
+    // Stable local list representing items with invariant stable keys
+    var localQueue by remember {
+        mutableStateOf(
+            queue.mapIndexed { idx, song ->
+                QueueSongItem(stableKey = "queue_${song.id}_#$idx", song = song)
+            }
+        )
+    }
+    var draggedKey by remember { mutableStateOf<String?>(null) }
+    var initialDragIndex by remember { mutableStateOf<Int?>(null) }
+    var dragVisualOffset by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(queue) {
+        if (draggedKey == null) {
+            val currentIds = localQueue.map { it.song.id }
+            val newIds = queue.map { it.id }
+            if (currentIds != newIds) {
+                val existingMap = localQueue.groupBy { it.song.id }.mapValues { it.value.toMutableList() }
+                localQueue = queue.mapIndexed { idx, song ->
+                    val existing = existingMap[song.id]?.removeFirstOrNull()
+                    existing ?: QueueSongItem(stableKey = "queue_${song.id}_#$idx", song = song)
+                }
+            }
+        }
+    }
+
+    fun hapticTick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        } else {
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -77,7 +124,7 @@ fun QueuesScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (queue.isEmpty()) {
+        if (localQueue.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,11 +141,11 @@ fun QueuesScreen(
         } else {
             val listState = rememberLazyListState()
             val coroutineScope = rememberCoroutineScope()
-            
+            val currentIdx = localQueue.indexOfFirst { it.song.id == currentSong?.id }
+
             LaunchedEffect(Unit) {
-                val index = queue.indexOfFirst { it.id == currentSong?.id }
-                if (index >= 0) {
-                    listState.scrollToItem(index)
+                if (currentIdx >= 0) {
+                    listState.scrollToItem(currentIdx)
                 }
             }
 
@@ -118,67 +165,102 @@ fun QueuesScreen(
                     contentPadding = PaddingValues(bottom = listBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(queue, key = { index, song -> "${index}_${song.id}" }) { index, song ->
-                        val isPlayingThis = song.id == currentSong?.id
-                        Row(
+                    itemsIndexed(
+                        items = localQueue,
+                        key = { _, item -> item.stableKey }
+                    ) { index, item ->
+                        val isPlayingThis = item.song.id == currentSong?.id
+                        val isPlayed = currentIdx >= 0 && index < currentIdx
+                        val showReorderHandle = currentIdx >= 0 && index > currentIdx
+                        val showOptionsButton = currentIdx < 0 || index >= currentIdx
+                        val isBeingDragged = draggedKey == item.stableKey
+
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isPlayingThis) playbackState.accentColor.copy(alpha = 0.15f) else Color.Transparent)
-                                .clickable { 
-                                    viewModel.skipToQueueItem(index)
+                                .animateItem(
+                                    fadeInSpec = null,
+                                    fadeOutSpec = null,
+                                    placementSpec = if (isBeingDragged) null else spring(stiffness = 500f, dampingRatio = 0.85f)
+                                )
+                                .zIndex(if (isBeingDragged) 10f else 1f)
+                                .graphicsLayer {
+                                    if (isBeingDragged) {
+                                        translationY = dragVisualOffset
+                                        scaleX = 1.02f
+                                        scaleY = 1.02f
+                                        alpha = 0.96f
+                                    }
                                 }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                            ) {
-                                OptimizedImage(
-                                    url = song.artPath,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    color = if (isPlayingThis) playbackState.accentColor else Color.White,
-                                    fontFamily = JostFontFamily,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                val queueArtistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                                val queueAlbumName = song.album?.trim()?.ifBlank { null }
-                                val queueSubtitleText = if (!queueAlbumName.isNullOrEmpty() && !queueAlbumName.equals("Unknown Album", ignoreCase = true)) {
-                                    "$queueArtistName • $queueAlbumName"
-                                } else {
-                                    queueArtistName
+                            QueueSongRow(
+                                index = index,
+                                stableKey = item.stableKey,
+                                song = item.song,
+                                isPlayingThis = isPlayingThis,
+                                isPlayed = isPlayed,
+                                showReorderHandle = showReorderHandle,
+                                showOptionsButton = showOptionsButton,
+                                isBeingDragged = isBeingDragged,
+                                accentColor = playbackState.accentColor,
+                                onClick = {
+                                    viewModel.skipToQueueItem(index)
+                                },
+                                onOptionsClick = {
+                                    selectedSongForOptions = item.song
+                                    selectedSongIndexForOptions = index
+                                },
+                                onReorderDragStart = {
+                                    draggedKey = item.stableKey
+                                    initialDragIndex = index
+                                    dragVisualOffset = 0f
+                                    hapticTick()
+                                },
+                                onReorderDragEnd = {
+                                    val start = initialDragIndex
+                                    val end = localQueue.indexOfFirst { it.stableKey == item.stableKey }
+                                    if (start != null && end != -1 && start != end) {
+                                        viewModel.setQueueOrder(localQueue.map { it.song }, start, end)
+                                    }
+                                    draggedKey = null
+                                    initialDragIndex = null
+                                    dragVisualOffset = 0f
+                                },
+                                onReorderDragCancel = {
+                                    draggedKey = null
+                                    initialDragIndex = null
+                                    dragVisualOffset = 0f
+                                },
+                                onReorderDragDelta = { deltaY ->
+                                    dragVisualOffset += deltaY
+                                    val currentIndex = localQueue.indexOfFirst { it.stableKey == item.stableKey }
+                                    if (currentIndex != -1) {
+                                        val minIndex = (currentIdx + 1).coerceAtLeast(0)
+                                        val targetShift = (dragVisualOffset / itemHeightPx).toInt()
+                                        val targetIndex = (currentIndex + targetShift).coerceIn(minIndex, localQueue.size - 1)
+                                        if (targetIndex != currentIndex) {
+                                            val mutable = localQueue.toMutableList()
+                                            val moved = mutable.removeAt(currentIndex)
+                                            mutable.add(targetIndex, moved)
+                                            localQueue = mutable
+                                            dragVisualOffset -= (targetIndex - currentIndex) * itemHeightPx
+                                            hapticTick()
+                                        }
+                                    }
+                                },
+                                onDelete = {
+                                    val curIndex = localQueue.indexOfFirst { it.stableKey == item.stableKey }
+                                    if (curIndex != -1) {
+                                        viewModel.removeQueueItem(curIndex)
+                                    }
                                 }
-
-                                Text(
-                                    text = queueSubtitleText,
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontFamily = JostFontFamily,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                            )
                         }
                     }
                 }
 
                 // Floating Current Song / Song Count Pill at bottom center (floating above MiniPlayer)
-                val currentIdx = queue.indexOfFirst { it.id == currentSong?.id }
                 val currentPosition = if (currentIdx >= 0) currentIdx + 1 else 1
-                val totalSongs = queue.size
+                val totalSongs = localQueue.size
 
                 Box(
                     modifier = Modifier
@@ -222,5 +304,22 @@ fun QueuesScreen(
                 }
             }
         }
+
+        // Show SongOptionsSheet when 3-dot is clicked on a queue item
+        if (selectedSongForOptions != null) {
+            SongOptionsSheet(
+                song = selectedSongForOptions!!,
+                onDismiss = {
+                    selectedSongForOptions = null
+                    selectedSongIndexForOptions = null
+                },
+                isCurrentlyPlaying = (selectedSongForOptions?.id == currentSong?.id),
+                isFromQueue = true,
+                queueIndex = selectedSongIndexForOptions,
+                showSleepTimer = true,
+                accentColor = playbackState.accentColor
+            )
+        }
     }
 }
+
