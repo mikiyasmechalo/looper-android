@@ -17,6 +17,9 @@ interface LibraryDao {
     @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongs(): Flow<List<SongEntity>>
 
+    @Query("SELECT DISTINCT path FROM songs")
+    fun getAllSongPathsFlow(): Flow<List<String>>
+
     @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs WHERE isFavorite = 1 ORDER BY title COLLATE NOCASE ASC")
     fun getFavoriteSongs(): Flow<List<SongEntity>>
 
@@ -61,6 +64,12 @@ interface LibraryDao {
 
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: Long)
+
+    @Query("DELETE FROM songs WHERE path LIKE :pathPrefix || '%'")
+    suspend fun deleteSongsByPathPrefix(pathPrefix: String)
+
+    @Query("DELETE FROM songs WHERE path LIKE 'content://%'")
+    suspend fun deleteContentUriSongs(): Int
 
     @Query("DELETE FROM songs")
     suspend fun clearSongs()

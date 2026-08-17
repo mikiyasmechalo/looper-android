@@ -18,13 +18,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 
 @Singleton
 class LibraryScanner @Inject constructor(
     @ApplicationContext private val context: Context,
     private val libraryDao: LibraryDao,
     private val db: AppDatabase,
-    private val tagReader: AudioTagReader
+    private val tagReader: AudioTagReader,
+    private val settingsRepository: SettingsRepository,
+    private val safScanner: SafScanner
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -153,10 +156,16 @@ class LibraryScanner @Inject constructor(
 
             val totalSongs = cursor.count
             var scannedCount = 0
+            val excludedFolders = try { settingsRepository.excludedFolders.first() } catch (_: Exception) { emptySet() }
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn) ?: continue
+
+                if (excludedFolders.isNotEmpty() && excludedFolders.any { path.startsWith(it, ignoreCase = true) }) {
+                    continue
+                }
+
                 val existing = existingByPath[path]
 
                 val mediaStoreTitle = cursor.getString(titleColumn) ?: "Unknown"
@@ -244,6 +253,8 @@ class LibraryScanner @Inject constructor(
 
         // OPTIMIZATION: Single bulk transaction for all DB writes
         db.withTransaction {
+            // Purge any legacy content:// songs so only canonical physical paths remain
+            libraryDao.deleteContentUriSongs()
             if (songsToInsert.isNotEmpty()) libraryDao.insertSongs(songsToInsert)
             if (songsToUpdate.isNotEmpty()) libraryDao.updateSongs(songsToUpdate)
             if (albumsToInsert.isNotEmpty()) libraryDao.insertAlbums(albumsToInsert)

@@ -46,13 +46,23 @@ object AppModule {
             ): androidx.media3.exoplayer.audio.AudioSink {
                 return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(true)
                     .setAudioProcessors(arrayOf(equalizerAudioProcessor))
                     .build()
             }
         }
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs */ 15_000,
+                /* maxBufferMs */ 50_000,
+                /* bufferForPlaybackMs */ 2_500,
+                /* bufferForPlaybackAfterRebufferMs */ 5_000
+            )
+            .build()
         return ExoPlayer.Builder(context, renderersFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
+            .setLoadControl(loadControl)
             .build()
     }
 

@@ -224,26 +224,30 @@ fun LyricsScreen(
                                 Modifier.pointerInput(Unit) {
                                     detectVerticalDragGestures(
                                         onDragStart = {
-                                            rawVerticalOffset = 0f
-                                            isDismissing = false
+                                            if (!isDismissing) {
+                                                rawVerticalOffset = 0f
+                                            }
                                         },
                                         onVerticalDrag = { change, dragAmount ->
-                                            if (dragAmount > 0 || rawVerticalOffset > 0) {
+                                            if (!isDismissing && (dragAmount > 0 || rawVerticalOffset > 0)) {
                                                 change.consume()
                                                 rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
                                             }
                                         },
                                         onDragEnd = {
-                                            if (rawVerticalOffset > 50.dp.toPx() && !isDismissing) {
-                                                isDismissing = true
-                                                haptics.mediumImpact()
-                                                onBack()
+                                            if (!isDismissing) {
+                                                if (rawVerticalOffset > 50.dp.toPx()) {
+                                                    isDismissing = true
+                                                    haptics.mediumImpact()
+                                                    onBack()
+                                                }
+                                                rawVerticalOffset = 0f
                                             }
-                                            rawVerticalOffset = 0f
                                         },
                                         onDragCancel = {
-                                            rawVerticalOffset = 0f
-                                            isDismissing = false
+                                            if (!isDismissing) {
+                                                rawVerticalOffset = 0f
+                                            }
                                         }
                                     )
                                 }

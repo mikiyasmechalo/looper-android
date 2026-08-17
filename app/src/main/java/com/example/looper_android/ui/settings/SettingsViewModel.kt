@@ -2,24 +2,74 @@ package com.example.looper_android.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.repository.ArtworkService
 import com.example.looper_android.data.repository.LibraryScanner
 import com.example.looper_android.data.repository.LyricsFetcher
+import com.example.looper_android.data.repository.SafPermissionRepository
+import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
+
+data class DiscoveredFolder(
+    val folderName: String,
+    val folderPath: String,
+    val songCount: Int
+)
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     private val artworkService: ArtworkService,
     private val lyricsFetcher: LyricsFetcher,
-    private val libraryScanner: LibraryScanner
+    private val libraryScanner: LibraryScanner,
+    private val safScanner: SafScanner,
+    private val safPermissionRepo: SafPermissionRepository,
+    private val libraryDao: LibraryDao,
+    @ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
+
+    val libraryFolders: StateFlow<Set<String>> = repository.libraryFolders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val excludedFolders: StateFlow<Set<String>> = repository.excludedFolders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val grantedSafUris: StateFlow<List<android.net.Uri>> = safPermissionRepo.grantedTreeUrisFlow
+
+    val discoveredFolders: StateFlow<List<DiscoveredFolder>> = combine(
+        libraryDao.getAllSongPathsFlow(),
+        repository.excludedFolders
+    ) { allPaths: List<String>, excluded: Set<String> ->
+        val folderCounts = mutableMapOf<String, Int>()
+        for (path in allPaths) {
+            if (path.startsWith("content://")) continue // skip legacy content URIs
+            val folderPath = if (path.endsWith("/")) path.dropLast(1) else path.substringBeforeLast('/', "")
+            if (folderPath.isNotBlank()) {
+                val isExcluded = excluded.isNotEmpty() && excluded.any { folderPath.startsWith(it, ignoreCase = true) }
+                if (!isExcluded) {
+                    folderCounts[folderPath] = (folderCounts[folderPath] ?: 0) + 1
+                }
+            }
+        }
+        folderCounts.map { (fPath, count) ->
+            val name = fPath.substringAfterLast('/', fPath)
+            DiscoveredFolder(
+                folderName = name.ifBlank { "Music" },
+                folderPath = fPath,
+                songCount = count
+            )
+        }.sortedBy { it.folderName.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val dynamicTheming: StateFlow<Boolean> = repository.dynamicTheming
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -129,6 +179,12 @@ class SettingsViewModel @Inject constructor(
     val permanentAudioFocusChange: StateFlow<Boolean> = repository.permanentAudioFocusChange
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val enableCrossfade: StateFlow<Boolean> = repository.enableCrossfade
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val crossfadeDuration: StateFlow<Float> = repository.crossfadeDuration
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 3f)
+
     val useAlbumArtist: StateFlow<Boolean> = repository.useAlbumArtist
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
@@ -204,6 +260,8 @@ class SettingsViewModel @Inject constructor(
     fun setResumeOnStart(value: Boolean) = viewModelScope.launch { repository.setResumeOnStart(value) }
     fun setPermanentAudioFocusChange(value: Boolean) =
         viewModelScope.launch { repository.setPermanentAudioFocusChange(value) }
+    fun setEnableCrossfade(value: Boolean) = viewModelScope.launch { repository.setEnableCrossfade(value) }
+    fun setCrossfadeDuration(value: Float) = viewModelScope.launch { repository.setCrossfadeDuration(value) }
 
     fun setUseAlbumArtist(value: Boolean) = viewModelScope.launch { repository.setUseAlbumArtist(value) }
     fun setDefaultScreen(value: String) = viewModelScope.launch { repository.setDefaultScreen(value) }
@@ -233,5 +291,38 @@ class SettingsViewModel @Inject constructor(
 
     fun resetLibrary() = viewModelScope.launch {
         libraryScanner.resetLibrary()
+    }
+
+    fun excludeDiscoveredFolder(folderPath: String) = viewModelScope.launch(Dispatchers.IO) {
+        val cleanPath = folderPath.trimEnd('/')
+        repository.addExcludedFolder(cleanPath)
+        libraryDao.deleteSongsByPathPrefix(cleanPath)
+    }
+
+    fun restoreExcludedFolder(folderPath: String) = viewModelScope.launch(Dispatchers.IO) {
+        val cleanPath = folderPath.trimEnd('/')
+        repository.removeExcludedFolder(cleanPath)
+        libraryScanner.scanMediaStore(forceDiskRead = true)
+    }
+
+    fun grantSafPermission(uri: android.net.Uri) = viewModelScope.launch(Dispatchers.IO) {
+        safPermissionRepo.saveGrantedTreeUri(uri)
+        libraryDao.deleteContentUriSongs()
+    }
+
+    fun revokeSafPermission(uri: android.net.Uri) = viewModelScope.launch(Dispatchers.IO) {
+        safPermissionRepo.removeGrantedTreeUri(uri)
+    }
+
+    fun addLibraryFolder(uri: android.net.Uri) = grantSafPermission(uri)
+
+    fun removeLibraryFolder(uriString: String) = viewModelScope.launch(Dispatchers.IO) {
+        try {
+            val uri = android.net.Uri.parse(uriString)
+            revokeSafPermission(uri)
+        } catch (_: Exception) {
+            repository.removeLibraryFolder(uriString)
+            libraryDao.deleteSongsByPathPrefix(uriString)
+        }
     }
 }

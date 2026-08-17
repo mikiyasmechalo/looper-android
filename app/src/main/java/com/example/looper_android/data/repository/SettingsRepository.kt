@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -42,6 +43,8 @@ class SettingsRepository @Inject constructor(
         val DOWNLOAD_ARTWORK = booleanPreferencesKey("download_artwork")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val USE_ALBUM_ARTIST = booleanPreferencesKey("use_album_artist")
+        val LIBRARY_FOLDERS = stringSetPreferencesKey("library_folders")
+        val EXCLUDED_FOLDERS = stringSetPreferencesKey("excluded_folders")
         val DEFAULT_SCREEN = stringPreferencesKey("default_screen")
         val SHOW_HOME_ARTISTS = booleanPreferencesKey("show_home_artists")
         val SHOW_HOME_ALBUMS = booleanPreferencesKey("show_home_albums")
@@ -63,6 +66,8 @@ class SettingsRepository @Inject constructor(
         val AUDIO_FOCUS_RESTART_ON_GAIN = booleanPreferencesKey("audio_focus_restart_on_gain")
         val RESUME_ON_START = booleanPreferencesKey("resume_on_start")
         val PERMANENT_AUDIO_FOCUS_CHANGE = booleanPreferencesKey("permanent_audio_focus_change")
+        val ENABLE_CROSSFADE = booleanPreferencesKey("enable_crossfade")
+        val CROSSFADE_DURATION = floatPreferencesKey("crossfade_duration")
     }
 
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
@@ -96,6 +101,8 @@ class SettingsRepository @Inject constructor(
     val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
     val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
     val useAlbumArtist: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.USE_ALBUM_ARTIST] ?: true }
+    val libraryFolders: Flow<Set<String>> = dataStore.data.map { prefs -> prefs[Keys.LIBRARY_FOLDERS] ?: emptySet() }
+    val excludedFolders: Flow<Set<String>> = dataStore.data.map { prefs -> prefs[Keys.EXCLUDED_FOLDERS] ?: emptySet() }
     val defaultScreen: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.DEFAULT_SCREEN] ?: "home" }
     val showHomeArtists: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ARTISTS] ?: true }
     val showHomeAlbums: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ALBUMS] ?: true }
@@ -131,6 +138,8 @@ class SettingsRepository @Inject constructor(
     val resumeOnStart: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.RESUME_ON_START] ?: false }
     val permanentAudioFocusChange: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] ?: false }
+    val enableCrossfade: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_CROSSFADE] ?: false }
+    val crossfadeDuration: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.CROSSFADE_DURATION] ?: 3f } // Default 3s
 
     suspend fun setDisableAnimatedDuration(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] = value }
@@ -281,6 +290,14 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] = value }
     }
 
+    suspend fun setEnableCrossfade(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.ENABLE_CROSSFADE] = value }
+    }
+
+    suspend fun setCrossfadeDuration(value: Float) {
+        dataStore.edit { prefs -> prefs[Keys.CROSSFADE_DURATION] = value }
+    }
+
     suspend fun setUseAlbumArtist(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.USE_ALBUM_ARTIST] = value }
     }
@@ -305,5 +322,41 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setHomeSectionsOrder(order: List<String>) {
         dataStore.edit { prefs -> prefs[Keys.HOME_SECTIONS_ORDER] = order.joinToString(",") }
+    }
+
+    suspend fun addLibraryFolder(folderUri: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.LIBRARY_FOLDERS] ?: emptySet()
+            prefs[Keys.LIBRARY_FOLDERS] = current + folderUri
+        }
+    }
+
+    suspend fun removeLibraryFolder(folderUri: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.LIBRARY_FOLDERS] ?: emptySet()
+            prefs[Keys.LIBRARY_FOLDERS] = current - folderUri
+        }
+    }
+
+    suspend fun setLibraryFolders(folders: Set<String>) {
+        dataStore.edit { prefs -> prefs[Keys.LIBRARY_FOLDERS] = folders }
+    }
+
+    suspend fun addExcludedFolder(folderPath: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.EXCLUDED_FOLDERS] ?: emptySet()
+            prefs[Keys.EXCLUDED_FOLDERS] = current + folderPath
+        }
+    }
+
+    suspend fun removeExcludedFolder(folderPath: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.EXCLUDED_FOLDERS] ?: emptySet()
+            prefs[Keys.EXCLUDED_FOLDERS] = current - folderPath
+        }
+    }
+
+    suspend fun setExcludedFolders(folders: Set<String>) {
+        dataStore.edit { prefs -> prefs[Keys.EXCLUDED_FOLDERS] = folders }
     }
 }

@@ -126,6 +126,49 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
+
+        // V-Fade (Crossfade) Monitor Loop
+        serviceScope.launch {
+            var crossfadeEnabled = false
+            var crossfadeDurationMs = 3000L
+
+            launch { settingsRepository.enableCrossfade.collect { crossfadeEnabled = it } }
+            launch { settingsRepository.crossfadeDuration.collect { crossfadeDurationMs = (it * 1000).toLong() } }
+
+            while (true) {
+                try {
+                    if (crossfadeEnabled && player.isPlaying && crossfadeDurationMs > 0) {
+                        val position = player.currentPosition
+                        val duration = player.duration
+
+                        if (duration > 0 && duration != androidx.media3.common.C.TIME_UNSET) {
+                            val remaining = duration - position
+                            val newVolume = when {
+                                position < crossfadeDurationMs -> {
+                                    // Fade in at the start of track
+                                    (position.toFloat() / crossfadeDurationMs.toFloat()).coerceIn(0f, 1f)
+                                }
+                                remaining < crossfadeDurationMs -> {
+                                    // Fade out at the end of track
+                                    (remaining.toFloat() / crossfadeDurationMs.toFloat()).coerceIn(0f, 1f)
+                                }
+                                else -> 1f
+                            }
+                            // Only update if change is significant to avoid spamming Volume changes
+                            if (kotlin.math.abs(player.volume - newVolume) > 0.02f) {
+                                player.volume = newVolume
+                            }
+                        }
+                    } else if (!crossfadeEnabled && player.volume < 1f) {
+                        // Restore volume instantly if crossfade is disabled while volume is ducked
+                        player.volume = 1f
+                    }
+                } catch (e: Exception) {
+                    // Ignore transient player access exceptions
+                }
+                kotlinx.coroutines.delay(50) // 20 Hz update rate for smooth volume transition
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

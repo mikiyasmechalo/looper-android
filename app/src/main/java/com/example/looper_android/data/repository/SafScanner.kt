@@ -18,12 +18,15 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.flow.first
+
 @Singleton
 class SafScanner @Inject constructor(
     @ApplicationContext private val context: Context,
     private val libraryDao: LibraryDao,
     private val db: AppDatabase,
-    private val tagReader: AudioTagReader
+    private val tagReader: AudioTagReader,
+    private val settingsRepository: SettingsRepository
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val supportedExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus")
@@ -41,6 +44,7 @@ class SafScanner @Inject constructor(
         val processedAlbums = mutableSetOf<String>()
         val processedArtists = mutableSetOf<String>()
         val songsToEnrich = mutableListOf<SongEntity>()
+        val excludedFolders = try { settingsRepository.excludedFolders.first() } catch (_: Exception) { emptySet() }
 
         onProgress?.invoke(0, 0, "Scanning SAF folder...")
 
@@ -48,11 +52,17 @@ class SafScanner @Inject constructor(
             suspend fun traverse(directory: DocumentFile) {
                 for (file in directory.listFiles()) {
                     if (file.isDirectory) {
-                        traverse(file)
+                        val dirPath = file.uri.toString()
+                        if (excludedFolders.isEmpty() || !excludedFolders.any { dirPath.startsWith(it, ignoreCase = true) }) {
+                            traverse(file)
+                        }
                     } else if (file.isFile) {
                         val ext = file.name?.substringAfterLast('.', "")?.lowercase()
                         if (ext != null && supportedExtensions.contains(ext)) {
                             val path = file.uri.toString()
+                            if (excludedFolders.isNotEmpty() && excludedFolders.any { path.startsWith(it, ignoreCase = true) }) {
+                                continue
+                            }
                             val existing = libraryDao.getSongByPath(path)
                             val dateAdded = System.currentTimeMillis()
                             val fileNameWithoutExt = file.name?.substringBeforeLast('.') ?: "Unknown"
@@ -152,6 +162,37 @@ class SafScanner @Inject constructor(
                     }
                 }
             } catch (_: Exception) { }
+        }
+    }
+
+    companion object {
+        fun getDisplayNameAndPath(context: Context, uriString: String): Pair<String, String> {
+            return try {
+                val uri = Uri.parse(uriString)
+                val docFile = DocumentFile.fromTreeUri(context, uri)
+                val docName = docFile?.name
+                val decoded = Uri.decode(uriString)
+                val treeIndex = decoded.indexOf("/tree/")
+                if (treeIndex != -1) {
+                    val rawPart = decoded.substring(treeIndex + 6)
+                    val colonIndex = rawPart.indexOf(':')
+                    if (colonIndex != -1) {
+                        val storageId = rawPart.substring(0, colonIndex)
+                        val relativePath = rawPart.substring(colonIndex + 1).trimStart('/')
+                        val fullPath = if (storageId.equals("primary", ignoreCase = true)) {
+                            "/storage/emulated/0" + if (relativePath.isNotEmpty()) "/$relativePath" else ""
+                        } else {
+                            "/storage/$storageId" + if (relativePath.isNotEmpty()) "/$relativePath" else ""
+                        }
+                        val folderName = docName ?: (relativePath.split('/').lastOrNull()?.ifEmpty { null } ?: fullPath.split('/').last())
+                        return Pair(folderName, fullPath)
+                    }
+                }
+                val fallbackName = docName ?: uri.lastPathSegment ?: "Music Folder"
+                Pair(fallbackName, decoded)
+            } catch (e: Exception) {
+                Pair("Music Folder", uriString)
+            }
         }
     }
 }

@@ -16,6 +16,9 @@ class SafPermissionRepository @Inject constructor(
 ) {
     private val prefs = context.getSharedPreferences("saf_permissions_prefs", Context.MODE_PRIVATE)
 
+    private val _grantedTreeUris = kotlinx.coroutines.flow.MutableStateFlow(getGrantedTreeUris())
+    val grantedTreeUrisFlow: kotlinx.coroutines.flow.StateFlow<List<Uri>> = _grantedTreeUris
+
     /**
      * Takes persistable read & write URI permission for a selected SAF tree Uri
      * and saves it to local persistence.
@@ -28,6 +31,7 @@ class SafPermissionRepository @Inject constructor(
             val currentSet = getGrantedTreeUriStrings().toMutableSet()
             currentSet.add(uri.toString())
             prefs.edit { putStringSet("granted_tree_uris", currentSet) }
+            _grantedTreeUris.value = getGrantedTreeUris()
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -48,6 +52,7 @@ class SafPermissionRepository @Inject constructor(
         val currentSet = getGrantedTreeUriStrings().toMutableSet()
         currentSet.remove(uri.toString())
         prefs.edit { putStringSet("granted_tree_uris", currentSet) }
+        _grantedTreeUris.value = getGrantedTreeUris()
     }
 
     fun getGrantedTreeUris(): List<Uri> {

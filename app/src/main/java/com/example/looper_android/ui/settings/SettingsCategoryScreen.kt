@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -62,6 +63,7 @@ import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Power
 import com.composables.icons.lucide.RefreshCw
+import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.PaintBucket
 import com.composables.icons.lucide.Moon
@@ -70,9 +72,14 @@ import com.composables.icons.lucide.Layers
 import com.composables.icons.lucide.Baseline
 import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.Send
+import com.composables.icons.lucide.ShieldCheck
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.User
+import com.composables.icons.lucide.X
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.ui.theme.BrandAccent
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.theme.LucideIcons
@@ -85,12 +92,23 @@ fun SettingsCategoryScreen(
     onBackClick: () -> Unit,
     accentColor: Color = BrandAccent
 ) {
+    var activeSubScreen by remember { mutableStateOf<String?>(null) }
+
     val playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val isMiniPlayerVisible = playbackState.isSongReady && playbackState.currentSong != null
 
     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding = if (isMiniPlayerVisible) 200.dp + bottomInsets else 130.dp + bottomInsets
+
+    if (activeSubScreen == "library_folders") {
+        ManageLibraryFoldersScreen(
+            onBackClick = { activeSubScreen = null },
+            accentColor = accentColor,
+            bottomPadding = bottomPadding
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -151,7 +169,12 @@ fun SettingsCategoryScreen(
             } else if (categoryId == "audio_playback") {
                 item { AudioPlaybackSettingsSection(accentColor = accentColor) }
             } else if (categoryId == "library") {
-                item { LibrarySettingsSection(accentColor = accentColor) }
+                item {
+                    LibrarySettingsSection(
+                        onOpenFoldersSubScreen = { activeSubScreen = "library_folders" },
+                        accentColor = accentColor
+                    )
+                }
             } else {
                 item {
                     PremiumSection(
@@ -714,6 +737,8 @@ private fun AudioPlaybackSettingsSection(
     val resumeOnStart by viewModel.resumeOnStart.collectAsState()
     val permanentAudioFocusChange by viewModel.permanentAudioFocusChange.collectAsState()
     val persistQueue by viewModel.persistQueue.collectAsState()
+    val enableCrossfade by viewModel.enableCrossfade.collectAsState()
+    val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
 
     Column {
         // --- 1. VOLUME & TRANSITIONS ---
@@ -744,6 +769,29 @@ private fun AudioPlaybackSettingsSection(
                         valueFormatter = { "${it.toInt()} ms" },
                         icon = LucideIcons.Sliders,
                         onValueChange = { viewModel.setFadeLengthMs((it / 10).roundToInt() * 10f) },
+                        accentColor = accentColor
+                    )
+                }
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Crossfade (V-Fade)",
+                    subtitle = "Smoothly fade out at the end of a track and fade in the next",
+                    icon = Lucide.Baseline,
+                    checked = enableCrossfade,
+                    onCheckedChange = { viewModel.setEnableCrossfade(it) },
+                    accentColor = accentColor
+                )
+                if (enableCrossfade) {
+                    AboutDivider()
+                    SettingsSliderTile(
+                        title = "Crossfade Duration",
+                        subtitle = "Length of the fade transition between tracks",
+                        value = crossfadeDuration,
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        valueFormatter = { "${it.toInt()} s" },
+                        icon = LucideIcons.Sliders,
+                        onValueChange = { viewModel.setCrossfadeDuration(it) },
                         accentColor = accentColor
                     )
                 }
@@ -901,16 +949,528 @@ private fun AudioPlaybackSettingsSection(
 
 // 5. Library Settings
 @Composable
+private fun ManageLibraryFoldersScreen(
+    onBackClick: () -> Unit,
+    accentColor: Color,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    viewModel: SettingsViewModel = hiltViewModel()
+) {
+    val discoveredFolders by viewModel.discoveredFolders.collectAsState()
+    val excludedFolders by viewModel.excludedFolders.collectAsState()
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .background(Color.Transparent)
+    ) {
+        // Top Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PremiumSection(
+                width = 48.dp,
+                height = 48.dp,
+                backgroundColor = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
+                onClick = onBackClick
+            ) {
+                Icon(
+                    imageVector = Lucide.ChevronLeft,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Text(
+                text = "Library Folders",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp
+                ),
+                color = Color.White
+            )
+        }
+
+        // Segmented Tab Selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.06f))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selectedTab == 0) accentColor else Color.Transparent)
+                    .clickable { selectedTab = 0 }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Active (${discoveredFolders.size})",
+                    color = if (selectedTab == 0) Color.Black else Color.White.copy(alpha = 0.70f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selectedTab == 1) Color(0xFFFF5252) else Color.Transparent)
+                    .clickable { selectedTab = 1 }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Excluded (${excludedFolders.size})",
+                    color = if (selectedTab == 1) Color.White else Color.White.copy(alpha = 0.70f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 12.dp,
+                bottom = bottomPadding
+            )
+        ) {
+            if (selectedTab == 0) {
+                item {
+                    Text(
+                        text = "Folders currently contributing songs to your library. Tap Exclude to remove all songs in a folder from your library.",
+                        color = Color.White.copy(alpha = 0.50f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontFamily = DmSansFontFamily,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PremiumSection(
+                        cornerRadius = 24.dp,
+                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        Column {
+                            if (discoveredFolders.isNotEmpty()) {
+                                discoveredFolders.forEachIndexed { index, folder ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(accentColor.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Lucide.Folder,
+                                                    contentDescription = null,
+                                                    tint = accentColor,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = folder.folderName,
+                                                    color = Color.White,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontFamily = DmSansFontFamily,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${folder.folderPath} • ${folder.songCount} ${if (folder.songCount == 1) "song" else "songs"}",
+                                                    color = Color.White.copy(alpha = 0.50f),
+                                                    fontSize = 11.sp,
+                                                    fontFamily = DmSansFontFamily,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFFFF5252).copy(alpha = 0.12f))
+                                                .clickable {
+                                                    viewModel.excludeDiscoveredFolder(folder.folderPath)
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        "Excluded ${folder.folderName} (${folder.songCount} songs removed)",
+                                                        android.widget.Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Lucide.X,
+                                                    contentDescription = "Exclude Folder",
+                                                    tint = Color(0xFFFF5252),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Exclude",
+                                                    color = Color(0xFFFF5252),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontFamily = DmSansFontFamily
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (index < discoveredFolders.size - 1) {
+                                        AboutDivider()
+                                    }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No active music folders found. Use Maintenance to Rescan Library.",
+                                        color = Color.White.copy(alpha = 0.45f),
+                                        fontSize = 13.sp,
+                                        fontFamily = DmSansFontFamily
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Text(
+                        text = "These directories are blacklisted from scans. Tap Restore to include them back into your library.",
+                        color = Color.White.copy(alpha = 0.50f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontFamily = DmSansFontFamily,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PremiumSection(
+                        cornerRadius = 24.dp,
+                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        Column {
+                            if (excludedFolders.isNotEmpty()) {
+                                excludedFolders.toList().forEachIndexed { index, excludedPath ->
+                                    val folderName = excludedPath.split('/').lastOrNull()?.ifEmpty { "Folder" } ?: "Folder"
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White.copy(alpha = 0.08f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Lucide.Folder,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.50f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(14.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = folderName,
+                                                    color = Color.White.copy(alpha = 0.85f),
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontFamily = DmSansFontFamily,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = excludedPath,
+                                                    color = Color.White.copy(alpha = 0.40f),
+                                                    fontSize = 11.sp,
+                                                    fontFamily = DmSansFontFamily,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(accentColor.copy(alpha = 0.12f))
+                                                .clickable {
+                                                    viewModel.restoreExcludedFolder(excludedPath)
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        "Restored $folderName to library",
+                                                        android.widget.Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Lucide.RotateCcw,
+                                                    contentDescription = "Restore Folder",
+                                                    tint = accentColor,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Restore",
+                                                    color = accentColor,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontFamily = DmSansFontFamily
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (index < excludedFolders.size - 1) {
+                                        AboutDivider()
+                                    }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No folders excluded. All discovered music directories are active.",
+                                        color = Color.White.copy(alpha = 0.45f),
+                                        fontSize = 13.sp,
+                                        fontFamily = DmSansFontFamily
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibrarySettingsSection(
+    onOpenFoldersSubScreen: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     accentColor: Color
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val discoveredFolders by viewModel.discoveredFolders.collectAsState()
+    val excludedFolders by viewModel.excludedFolders.collectAsState()
+    val grantedSafUris by viewModel.grantedSafUris.collectAsState()
     val useAlbumArtist by viewModel.useAlbumArtist.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
 
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.grantSafPermission(uri)
+            android.widget.Toast.makeText(context, "Granted storage access for folder", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Column {
-        // --- 1. ORGANIZATION & TAGS ---
+        // --- 1. LIBRARY FOLDERS & EXCLUSION FILTER ---
+        SettingsSubHeader(title = "Folders & Scanning", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            SettingsActionTile(
+                title = "Discovered & Excluded Folders",
+                subtitle = "${discoveredFolders.size} active folders • ${excludedFolders.size} excluded",
+                icon = Lucide.Folder,
+                onClick = onOpenFoldersSubScreen,
+                accentColor = accentColor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 2. STORAGE PERMISSION ACCESS (SAF) ---
+        SettingsSubHeader(title = "SAF Permission Access", accentColor = accentColor)
+        Text(
+            text = "Grant Storage Access Framework (SAF) folder permissions to edit ID3 tags and delete audio files directly without system dialog prompts.",
+            color = Color.White.copy(alpha = 0.50f),
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            fontFamily = DmSansFontFamily,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            Column {
+                if (grantedSafUris.isNotEmpty()) {
+                    grantedSafUris.forEachIndexed { index, uri ->
+                        val uriString = uri.toString()
+                        val (folderName, folderPath) = remember(uriString) {
+                            SafScanner.getDisplayNameAndPath(context, uriString)
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(accentColor.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Lucide.ShieldCheck,
+                                        contentDescription = null,
+                                        tint = accentColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = folderName,
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = folderPath,
+                                        color = Color.White.copy(alpha = 0.50f),
+                                        fontSize = 11.sp,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable {
+                                        viewModel.revokeSafPermission(uri)
+                                        android.widget.Toast.makeText(context, "Revoked SAF access for $folderName", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Lucide.X,
+                                    contentDescription = "Revoke Permission",
+                                    tint = Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+
+                        AboutDivider()
+                    }
+                }
+
+                SettingsActionTile(
+                    title = "Grant Folder Access",
+                    subtitle = "Select folder or SD card directory for direct edit/delete access",
+                    icon = Lucide.Plus,
+                    onClick = {
+                        folderPickerLauncher.launch(null)
+                    },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 3. ORGANIZATION & TAGS ---
         SettingsSubHeader(title = "Organization & Tags", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
@@ -930,7 +1490,7 @@ private fun LibrarySettingsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- 2. OFFLINE DATA ---
+        // --- 4. OFFLINE DATA ---
         SettingsSubHeader(title = "Offline Data", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
@@ -952,7 +1512,7 @@ private fun LibrarySettingsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- 3. MAINTENANCE ---
+        // --- 5. MAINTENANCE ---
         SettingsSubHeader(title = "Maintenance", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
