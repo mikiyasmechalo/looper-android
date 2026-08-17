@@ -14,7 +14,8 @@ import javax.inject.Singleton
 
 @Singleton
 class SettingsRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) {
 
     object Keys {
@@ -41,6 +42,11 @@ class SettingsRepository @Inject constructor(
         val DOWNLOAD_ARTWORK = booleanPreferencesKey("download_artwork")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val USE_ALBUM_ARTIST = booleanPreferencesKey("use_album_artist")
+        val DEFAULT_SCREEN = stringPreferencesKey("default_screen")
+        val SHOW_HOME_ARTISTS = booleanPreferencesKey("show_home_artists")
+        val SHOW_HOME_ALBUMS = booleanPreferencesKey("show_home_albums")
+        val SHOW_HOME_GENRES = booleanPreferencesKey("show_home_genres")
+        val HOME_SECTIONS_ORDER = stringPreferencesKey("home_sections_order")
 
         // Audio & Playback + Headphone settings
         val PAUSE_ON_DISCONNECT = booleanPreferencesKey("pause_on_disconnect")
@@ -90,6 +96,18 @@ class SettingsRepository @Inject constructor(
     val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
     val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
     val useAlbumArtist: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.USE_ALBUM_ARTIST] ?: true }
+    val defaultScreen: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.DEFAULT_SCREEN] ?: "home" }
+    val showHomeArtists: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ARTISTS] ?: true }
+    val showHomeAlbums: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ALBUMS] ?: true }
+    val showHomeGenres: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_GENRES] ?: true }
+    val homeSectionsOrder: Flow<List<String>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.HOME_SECTIONS_ORDER]
+        if (raw.isNullOrBlank()) {
+            listOf("quick_picks", "songs", "artists", "albums", "genres")
+        } else {
+            raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+    }
 
     val pauseOnDisconnect: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] ?: true }
     val resumeOnlyIfPausedByDisconnect: Flow<Boolean> =
@@ -265,5 +283,27 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setUseAlbumArtist(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.USE_ALBUM_ARTIST] = value }
+    }
+
+    suspend fun setDefaultScreen(screen: String) {
+        context.getSharedPreferences("app_settings_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().putString("default_screen", screen).apply()
+        dataStore.edit { prefs -> prefs[Keys.DEFAULT_SCREEN] = screen }
+    }
+
+    suspend fun setShowHomeArtists(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_ARTISTS] = value }
+    }
+
+    suspend fun setShowHomeAlbums(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_ALBUMS] = value }
+    }
+
+    suspend fun setShowHomeGenres(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_GENRES] = value }
+    }
+
+    suspend fun setHomeSectionsOrder(order: List<String>) {
+        dataStore.edit { prefs -> prefs[Keys.HOME_SECTIONS_ORDER] = order.joinToString(",") }
     }
 }

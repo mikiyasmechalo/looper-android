@@ -62,6 +62,19 @@ fun WelcomeScreen(
 
     val isSufficientPermission = uiState.isAudioPermissionGranted || uiState.isAllFilesPermissionGranted
     val isGoStartEnabled = isSufficientPermission && !uiState.isScanning
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(isGoStartEnabled) {
+        if (isGoStartEnabled) {
+            scrollState.animateScrollTo(
+                value = scrollState.maxValue,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 600,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            )
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -107,7 +120,7 @@ fun WelcomeScreen(
                 .fillMaxSize()
                 .padding(top = stableTopDp)
                 .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

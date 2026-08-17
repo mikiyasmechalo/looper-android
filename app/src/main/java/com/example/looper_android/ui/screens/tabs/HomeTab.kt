@@ -85,6 +85,12 @@ fun HomeTab(
     onGenreClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = hiltViewModel()
+    val showHomeArtists by settingsViewModel.showHomeArtists.collectAsState()
+    val showHomeAlbums by settingsViewModel.showHomeAlbums.collectAsState()
+    val showHomeGenres by settingsViewModel.showHomeGenres.collectAsState()
+    val homeSectionsOrder by settingsViewModel.homeSectionsOrder.collectAsState()
+
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val currentSong = playbackState.currentSong
@@ -163,86 +169,91 @@ fun HomeTab(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding)
             ) {
-                // 1. QUICK PICKS SECTION
-                if (uiState.quickPicks.isNotEmpty()) {
-                    item {
-                        QuickPicksSection(
-                            quickPicks = uiState.quickPicks,
-                            currentSong = currentSong,
-                            isPlaying = playbackState.isPlaying,
-                            onPlayShuffle = { viewModel.playQuickPicks(shuffled = true) },
-                            onSongClick = { song -> viewModel.playSongFromQuickPicks(song) },
-                            onSongLongClick = { song -> selectedSongForOptions = song }
-                        )
-                    }
-                }
+                homeSectionsOrder.forEach { sectionKey ->
+                    when (sectionKey) {
+                        "quick_picks" -> {
+                            if (uiState.quickPicks.isNotEmpty()) {
+                                item(key = "home_section_quick_picks") {
+                                    QuickPicksSection(
+                                        quickPicks = uiState.quickPicks,
+                                        currentSong = currentSong,
+                                        isPlaying = playbackState.isPlaying,
+                                        onPlayShuffle = { viewModel.playQuickPicks(shuffled = true) },
+                                        onSongClick = { song -> viewModel.playSongFromQuickPicks(song) },
+                                        onSongLongClick = { song -> selectedSongForOptions = song }
+                                    )
+                                }
+                            }
+                        }
+                        "songs", "top_songs" -> {
+                            if (uiState.topSongs.isNotEmpty()) {
+                                item(key = "home_section_top_songs_header") {
+                                    SectionHeaderWithShuffle(
+                                        title = "Top Songs",
+                                        actionText = "All Songs",
+                                        onShuffleClick = { viewModel.playTopSongs(shuffled = true) },
+                                        onActionClick = onNavigateToSongs
+                                    )
+                                }
 
-                // 2. TOP SONGS SECTION (Icon-only shuffle button + "All Songs" action)
-                if (uiState.topSongs.isNotEmpty()) {
-                    item {
-                        SectionHeaderWithShuffle(
-                            title = "Top Songs",
-                            actionText = "All Songs",
-                            onShuffleClick = { viewModel.playTopSongs(shuffled = true) },
-                            onActionClick = onNavigateToSongs
-                        )
-                    }
-
-                    itemsIndexed(uiState.topSongs, key = { _, s -> "top_${s.id}" }) { index, song ->
-                        val isCurrent = currentSong?.path == song.path
-                        val isPlaying = isCurrent && playbackState.isPlaying
-                        SongTile(
-                            song = song,
-                            isCurrent = isCurrent,
-                            isPlaying = isPlaying,
-                            onClick = { viewModel.playAllTopSongs(startIndex = index) },
-                            onOptionsClick = { selectedSongForOptions = song }
-                        )
-                    }
-                }
-
-                // 3. TOP ARTISTS SECTION
-                if (uiState.artists.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Top Artists",
-                            actionText = "View all",
-                            onActionClick = onNavigateToArtists
-                        )
-                        HorizontalArtistsList(
-                            artists = uiState.artists,
-                            onArtistClick = onArtistClick
-                        )
-                    }
-                }
-
-                // 4. TOP ALBUMS SECTION
-                if (uiState.albums.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Top Albums",
-                            actionText = "View all",
-                            onActionClick = onNavigateToAlbums
-                        )
-                        HorizontalAlbumsList(
-                            albums = uiState.albums,
-                            onAlbumClick = onAlbumClick
-                        )
-                    }
-                }
-
-                // 5. GENRES SECTION
-                if (uiState.genres.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Top Genres",
-                            actionText = "View all",
-                            onActionClick = onNavigateToGenres
-                        )
-                        HorizontalGenresList(
-                            genres = uiState.genres,
-                            onGenreClick = onGenreClick
-                        )
+                                itemsIndexed(uiState.topSongs, key = { _, s -> "top_${s.id}" }) { index, song ->
+                                    val isCurrent = currentSong?.path == song.path
+                                    val isPlaying = isCurrent && playbackState.isPlaying
+                                    SongTile(
+                                        song = song,
+                                        isCurrent = isCurrent,
+                                        isPlaying = isPlaying,
+                                        onClick = { viewModel.playAllTopSongs(startIndex = index) },
+                                        onOptionsClick = { selectedSongForOptions = song }
+                                    )
+                                }
+                            }
+                        }
+                        "artists" -> {
+                            if (showHomeArtists && uiState.artists.isNotEmpty()) {
+                                item(key = "home_section_artists") {
+                                    SectionHeader(
+                                        title = "Top Artists",
+                                        actionText = "View all",
+                                        onActionClick = onNavigateToArtists
+                                    )
+                                    HorizontalArtistsList(
+                                        artists = uiState.artists,
+                                        onArtistClick = onArtistClick
+                                    )
+                                }
+                            }
+                        }
+                        "albums" -> {
+                            if (showHomeAlbums && uiState.albums.isNotEmpty()) {
+                                item(key = "home_section_albums") {
+                                    SectionHeader(
+                                        title = "Top Albums",
+                                        actionText = "View all",
+                                        onActionClick = onNavigateToAlbums
+                                    )
+                                    HorizontalAlbumsList(
+                                        albums = uiState.albums,
+                                        onAlbumClick = onAlbumClick
+                                    )
+                                }
+                            }
+                        }
+                        "genres" -> {
+                            if (showHomeGenres && uiState.genres.isNotEmpty()) {
+                                item(key = "home_section_genres") {
+                                    SectionHeader(
+                                        title = "Top Genres",
+                                        actionText = "View all",
+                                        onActionClick = onNavigateToGenres
+                                    )
+                                    HorizontalGenresList(
+                                        genres = uiState.genres,
+                                        onGenreClick = onGenreClick
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

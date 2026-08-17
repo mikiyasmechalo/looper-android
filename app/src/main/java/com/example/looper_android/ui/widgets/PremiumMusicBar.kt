@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -217,11 +218,19 @@ fun PremiumMusicBar(
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.sharedBoundsOrElement(
-                                        key = "song_title",
-                                        sharedTransitionScope = sharedTransitionScope,
-                                        animatedVisibilityScope = animatedVisibilityScope
-                                    )
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (miniPlayerState.isPlaying) {
+                                                Modifier.basicMarquee(
+                                                    iterations = Int.MAX_VALUE,
+                                                    velocity = 30.dp,
+                                                    initialDelayMillis = 1200
+                                                )
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
                                 )
                                 Text(
                                     text = subtitleText,
@@ -230,11 +239,7 @@ fun PremiumMusicBar(
                                     fontFamily = DmSansFontFamily,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.sharedBoundsOrElement(
-                                        key = "song_artist",
-                                        sharedTransitionScope = sharedTransitionScope,
-                                        animatedVisibilityScope = animatedVisibilityScope
-                                    )
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         }

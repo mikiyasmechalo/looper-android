@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -768,29 +769,11 @@ fun EditSongSheet(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                val nestedScrollConnection = remember(scrollState) {
-                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-                        override fun onPreScroll(
-                            available: androidx.compose.ui.geometry.Offset,
-                            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
-                        ): androidx.compose.ui.geometry.Offset {
-                            val delta = available.y
-                            return if (delta < 0 && scrollState.value < scrollState.maxValue) {
-                                val consumed = -scrollState.dispatchRawDelta(-delta)
-                                androidx.compose.ui.geometry.Offset(0f, -consumed)
-                            } else {
-                                androidx.compose.ui.geometry.Offset.Zero
-                            }
-                        }
-                    }
-                }
-
                 // Scrollable content
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .nestedScroll(nestedScrollConnection)
                         .verticalScroll(scrollState)
                         .padding(horizontal = 20.dp)
                 ) {
@@ -1664,14 +1647,47 @@ private fun EditField(
     hint: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val isMultiLine = maxLines > 1
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (isMultiLine) {
+                    Modifier
+                        .heightIn(min = 140.dp, max = 220.dp)
+                        .nestedScroll(remember {
+                            object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                                override fun onPreScroll(
+                                    available: androidx.compose.ui.geometry.Offset,
+                                    source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+                                ): androidx.compose.ui.geometry.Offset {
+                                    // Do NOT block onPreScroll; let OutlinedTextField process drag in real-time
+                                    return androidx.compose.ui.geometry.Offset.Zero
+                                }
+
+                                override fun onPostScroll(
+                                    consumed: androidx.compose.ui.geometry.Offset,
+                                    available: androidx.compose.ui.geometry.Offset,
+                                    source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+                                ): androidx.compose.ui.geometry.Offset {
+                                    // Absorb leftover drag so parent popup does not scroll when scrolling lyrics
+                                    return if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
+                                        available
+                                    } else {
+                                        androidx.compose.ui.geometry.Offset.Zero
+                                    }
+                                }
+                            }
+                        })
+                } else Modifier
+            ),
         textStyle = androidx.compose.ui.text.TextStyle(
             color = Color.White,
             fontFamily = DmSansFontFamily,
-            fontSize = 15.sp
+            fontSize = 14.sp
         ),
         label = {
             Text(
@@ -1701,8 +1717,9 @@ private fun EditField(
                 )
             }
         },
-        singleLine = maxLines == 1,
+        singleLine = !isMultiLine,
         maxLines = maxLines,
+        minLines = if (isMultiLine) 5 else 1,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(

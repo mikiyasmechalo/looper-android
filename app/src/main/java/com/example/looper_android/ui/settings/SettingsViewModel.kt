@@ -132,6 +132,21 @@ class SettingsViewModel @Inject constructor(
     val useAlbumArtist: StateFlow<Boolean> = repository.useAlbumArtist
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val defaultScreen: StateFlow<String> = repository.defaultScreen
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "home")
+
+    val showHomeArtists: StateFlow<Boolean> = repository.showHomeArtists
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val showHomeAlbums: StateFlow<Boolean> = repository.showHomeAlbums
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val showHomeGenres: StateFlow<Boolean> = repository.showHomeGenres
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val homeSectionsOrder: StateFlow<List<String>> = repository.homeSectionsOrder
+        .stateIn(viewModelScope, SharingStarted.Eagerly, listOf("quick_picks", "songs", "artists", "albums", "genres"))
+
     fun setDynamicTheming(value: Boolean) = viewModelScope.launch { repository.setDynamicTheming(value) }
     fun setDisableBlur(value: Boolean) = viewModelScope.launch { repository.setDisableBlur(value) }
     fun setDynamicAccentColor(value: Boolean) = viewModelScope.launch { repository.setDynamicAccentColor(value) }
@@ -191,6 +206,22 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { repository.setPermanentAudioFocusChange(value) }
 
     fun setUseAlbumArtist(value: Boolean) = viewModelScope.launch { repository.setUseAlbumArtist(value) }
+    fun setDefaultScreen(value: String) = viewModelScope.launch { repository.setDefaultScreen(value) }
+    fun setShowHomeArtists(value: Boolean) = viewModelScope.launch { repository.setShowHomeArtists(value) }
+    fun setShowHomeAlbums(value: Boolean) = viewModelScope.launch { repository.setShowHomeAlbums(value) }
+    fun setShowHomeGenres(value: Boolean) = viewModelScope.launch { repository.setShowHomeGenres(value) }
+    fun setHomeSectionsOrder(order: List<String>) = viewModelScope.launch { repository.setHomeSectionsOrder(order) }
+    fun moveHomeSection(fromIndex: Int, toIndex: Int) {
+        val current = homeSectionsOrder.value.toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices && fromIndex != toIndex) {
+            val item = current.removeAt(fromIndex)
+            current.add(toIndex, item)
+            setHomeSectionsOrder(current)
+        }
+    }
+    fun resetHomeSectionsOrder() {
+        setHomeSectionsOrder(listOf("quick_picks", "songs", "artists", "albums", "genres"))
+    }
 
     fun syncLyricsOffline() = viewModelScope.launch {
         lyricsFetcher.prefetchAllMissingLyrics()

@@ -7,6 +7,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -393,11 +394,19 @@ fun PlayerScreen(
                         letterSpacing = 0.3.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.sharedBoundsOrElement(
-                            key = "song_title",
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (state.isPlaying) {
+                                    Modifier.basicMarquee(
+                                        iterations = Int.MAX_VALUE,
+                                        velocity = 30.dp,
+                                        initialDelayMillis = 1200
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
@@ -416,11 +425,6 @@ fun PlayerScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
-                                .sharedBoundsOrElement(
-                                    key = "song_artist",
-                                    sharedTransitionScope = sharedTransitionScope,
-                                    animatedVisibilityScope = animatedVisibilityScope
-                                )
                                 .clickable {
                                     song.artist?.let {
                                         onBack()

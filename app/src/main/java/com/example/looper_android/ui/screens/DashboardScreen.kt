@@ -95,10 +95,16 @@ fun DashboardScreen(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
-    // Default screen is Home tab (index 0)
-    var selectedTabIndex by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    val pagerState = rememberPagerState(initialPage = selectedTabIndex, pageCount = { 3 })
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val initialPage = remember {
+        val prefs = context.getSharedPreferences("app_settings_prefs", android.content.Context.MODE_PRIVATE)
+        if (prefs.getString("default_screen", "home") == "songs") 1 else 0
+    }
+    // Default screen is Home tab (index 0) or Songs tab (index 1)
+    var selectedTabIndex by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(initialPage) }
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
+    val allSongsListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     val childNavController = rememberNavController()
 
@@ -106,7 +112,6 @@ fun DashboardScreen(
     val homeViewModel: com.example.looper_android.ui.screens.tabs.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val libraryViewModel: com.example.looper_android.ui.screens.tabs.LibraryViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     
-    val context = androidx.compose.ui.platform.LocalContext.current
     val isDbLoaded by allSongsViewModel.isDbLoaded.collectAsState()
     val songs by allSongsViewModel.songs.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
@@ -287,6 +292,7 @@ fun DashboardScreen(
                         )
                         1 -> AllSongsScreen(
                             viewModel = allSongsViewModel,
+                            listState = allSongsListState,
                             onNavigateToSearch = { childNavController.navigate("search/songs") },
                             onNavigateToSettings = { childNavController.navigate("settings") },
                             onNavigateToArtist = { artist ->
@@ -566,6 +572,11 @@ fun DashboardScreen(
             PremiumNavbar(
                 currentIndex = selectedTabIndex,
                 onTap = { index ->
+                    if (index == 1 && selectedTabIndex == 1 && (currentRoute == "tabs" || currentRoute == null)) {
+                        coroutineScope.launch {
+                            allSongsListState.animateScrollToItem(0)
+                        }
+                    }
                     if (childNavController.previousBackStackEntry != null) {
                         childNavController.popBackStack("tabs", inclusive = false)
                     }

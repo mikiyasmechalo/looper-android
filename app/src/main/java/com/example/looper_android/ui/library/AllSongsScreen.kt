@@ -65,6 +65,7 @@ import com.example.looper_android.ui.widgets.PremiumSection
 @Composable
 fun AllSongsScreen(
     viewModel: AllSongsViewModel = hiltViewModel(),
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onNavigateToSearch: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
@@ -242,7 +243,6 @@ fun AllSongsScreen(
                     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     val targetBottomPadding = if (isMiniPlayerVisible) (190.dp + bottomInsets) else (120.dp + bottomInsets)
                     val bottomPadding = targetBottomPadding
-                    val listState = rememberLazyListState()
                     Box(modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
                             state = listState,

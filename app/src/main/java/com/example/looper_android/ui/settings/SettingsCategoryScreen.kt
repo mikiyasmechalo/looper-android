@@ -414,18 +414,175 @@ private fun ThemeSettingsSection(
 
 // 2. Dashboard Settings
 @Composable
-private fun DashboardSettingsSection(accentColor: Color) {
-    var showHomeArtists by remember { mutableStateOf(true) }
-    var showHomeAlbums by remember { mutableStateOf(true) }
-    var showHomeGenres by remember { mutableStateOf(true) }
+private fun DashboardSettingsSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
+    val defaultScreen by viewModel.defaultScreen.collectAsState()
+    val showHomeArtists by viewModel.showHomeArtists.collectAsState()
+    val showHomeAlbums by viewModel.showHomeAlbums.collectAsState()
+    val showHomeGenres by viewModel.showHomeGenres.collectAsState()
+    val homeSectionsOrder by viewModel.homeSectionsOrder.collectAsState()
+    var showReorderDialog by remember { mutableStateOf(false) }
 
-    SettingsSwitchTile(title = "Show Artists Row", subtitle = "Display a horizontal list of artists on your Home screen", icon = Lucide.User, checked = showHomeArtists, onCheckedChange = { showHomeArtists = it }, accentColor = accentColor)
+    SettingsOptionTile(
+        title = "Default Startup Screen",
+        subtitle = "Select which tab opens when launching Looper",
+        selectedValue = if (defaultScreen == "songs") "All Songs" else "Home",
+        icon = if (defaultScreen == "songs") Lucide.Music else Lucide.List,
+        onClick = {
+            val newScreen = if (defaultScreen == "songs") "home" else "songs"
+            viewModel.setDefaultScreen(newScreen)
+        },
+        accentColor = accentColor
+    )
     AboutDivider()
-    SettingsSwitchTile(title = "Show Albums Row", subtitle = "Display a horizontal list of albums on your Home screen", icon = LucideIcons.Disc, checked = showHomeAlbums, onCheckedChange = { showHomeAlbums = it }, accentColor = accentColor)
+    SettingsSwitchTile(
+        title = "Show Artists Row",
+        subtitle = "Display a horizontal list of artists on your Home screen",
+        icon = Lucide.User,
+        checked = showHomeArtists,
+        onCheckedChange = { viewModel.setShowHomeArtists(it) },
+        accentColor = accentColor
+    )
     AboutDivider()
-    SettingsSwitchTile(title = "Show Genres Row", subtitle = "Display a horizontal list of genres on your Home screen", icon = Lucide.Music, checked = showHomeGenres, onCheckedChange = { showHomeGenres = it }, accentColor = accentColor)
+    SettingsSwitchTile(
+        title = "Show Albums Row",
+        subtitle = "Display a horizontal list of albums on your Home screen",
+        icon = LucideIcons.Disc,
+        checked = showHomeAlbums,
+        onCheckedChange = { viewModel.setShowHomeAlbums(it) },
+        accentColor = accentColor
+    )
     AboutDivider()
-    SettingsActionTile(title = "Reorder Dashboard Sections", subtitle = "Drag and drop to set preferred dashboard order", icon = Lucide.List, onClick = {}, accentColor = accentColor)
+    SettingsSwitchTile(
+        title = "Show Genres Row",
+        subtitle = "Display a horizontal list of genres on your Home screen",
+        icon = Lucide.Music,
+        checked = showHomeGenres,
+        onCheckedChange = { viewModel.setShowHomeGenres(it) },
+        accentColor = accentColor
+    )
+    AboutDivider()
+    SettingsActionTile(
+        title = "Reorder Dashboard Sections",
+        subtitle = "Customize the display order of sections on your Home dashboard",
+        icon = Lucide.List,
+        onClick = { showReorderDialog = true },
+        accentColor = accentColor
+    )
+
+    if (showReorderDialog) {
+        val sectionTitles = mapOf(
+            "quick_picks" to "Quick Picks",
+            "songs" to "Top Songs",
+            "artists" to "Top Artists",
+            "albums" to "Top Albums",
+            "genres" to "Top Genres"
+        )
+        val sectionIcons = mapOf(
+            "quick_picks" to Lucide.Sparkles,
+            "songs" to Lucide.Music,
+            "artists" to Lucide.User,
+            "albums" to LucideIcons.Disc,
+            "genres" to Lucide.Layers
+        )
+
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showReorderDialog = false },
+            title = {
+                Text(
+                    text = "Reorder Sections",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Use the buttons to arrange sections in your preferred order:",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp,
+                        fontFamily = DmSansFontFamily,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    homeSectionsOrder.forEachIndexed { index, sectionKey ->
+                        val title = sectionTitles[sectionKey] ?: sectionKey
+                        val icon = sectionIcons[sectionKey] ?: Lucide.List
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "${index + 1}. $title",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = DmSansFontFamily,
+                                modifier = Modifier.weight(1f)
+                            )
+                            // Move Up
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (index > 0) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                                    .clickable(enabled = index > 0) {
+                                        viewModel.moveHomeSection(index, index - 1)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("▲", color = if (index > 0) Color.White else Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            // Move Down
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (index < homeSectionsOrder.size - 1) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                                    .clickable(enabled = index < homeSectionsOrder.size - 1) {
+                                        viewModel.moveHomeSection(index, index + 1)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("▼", color = if (index < homeSectionsOrder.size - 1) Color.White else Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showReorderDialog = false }) {
+                    Text("Done", color = accentColor, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        viewModel.resetHomeSectionsOrder()
+                    }
+                ) {
+                    Text("Reset Default", color = Color.White.copy(alpha = 0.6f))
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 }
 
 // 3. Language & Services Settings
