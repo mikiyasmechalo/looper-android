@@ -173,6 +173,8 @@ class PlaylistsViewModel @Inject constructor(
 class GenresViewModel @Inject constructor(
     libraryCacheManager: LibraryCacheManager
 ) : ViewModel() {
+    val isDbLoaded = libraryCacheManager.isDbLoaded
+
     private val _sortOption = MutableStateFlow(GenreSortOption.SONG_COUNT)
     val sortOption: StateFlow<GenreSortOption> = _sortOption.asStateFlow()
 
@@ -202,6 +204,7 @@ class GenresViewModel @Inject constructor(
 class FoldersViewModel @Inject constructor(
     libraryCacheManager: LibraryCacheManager
 ) : ViewModel() {
+    val isDbLoaded = libraryCacheManager.isDbLoaded
     val folderNodes = libraryCacheManager.folderNodes
 }
 

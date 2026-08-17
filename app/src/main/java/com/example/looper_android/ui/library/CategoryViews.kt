@@ -771,6 +771,7 @@ fun FoldersScreen(
     onFolderClick: (String) -> Unit
 ) {
     val folderNodes by viewModel.folderNodes.collectAsState()
+    val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
 
@@ -779,7 +780,9 @@ fun FoldersScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         CategoryTopBar(title = "Folders", onBackClick = onBackClick)
 
-        if (folderNodes.isEmpty()) {
+        if (!isDbLoaded && folderNodes.isEmpty()) {
+            com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING FOLDERS")
+        } else if (folderNodes.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No folders found", color = Color.Gray, fontFamily = DmSansFontFamily)
             }
@@ -843,6 +846,7 @@ fun GenresScreen(
     onGenreClick: (String) -> Unit
 ) {
     val genres by viewModel.genres.collectAsState()
+    val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val isAscending by viewModel.isAscending.collectAsState()
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
@@ -877,7 +881,9 @@ fun GenresScreen(
             }
         )
 
-        if (genres.isEmpty()) {
+        if (!isDbLoaded && genres.isEmpty()) {
+            com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING GENRES")
+        } else if (genres.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No genres found", color = Color.Gray, fontFamily = DmSansFontFamily)
             }

@@ -169,9 +169,11 @@ class HomeViewModel @Inject constructor(
                 }
             }
 
-            val genresList = genresMap.entries
+            val topGenres = genresMap.entries
                 .sortedByDescending { genreScoreMap[it.key] ?: 0 }
                 .map { GenreItem(name = it.key, songs = it.value) }
+
+            allSongsList = songs
 
             HomeUiState(
                 quickPicks = quickPicksDisplay,
@@ -180,7 +182,7 @@ class HomeViewModel @Inject constructor(
                 topSongsPool = topSongsPool,
                 artists = topArtists,
                 albums = topAlbums,
-                genres = genresList,
+                genres = topGenres,
                 isLoading = false
             )
         }
@@ -189,6 +191,8 @@ class HomeViewModel @Inject constructor(
             _uiState.value = state
         }.launchIn(viewModelScope)
     }
+
+    private var allSongsList: List<SongEntity> = emptyList()
 
     private fun generateNewQuickPicks(songs: List<SongEntity>, today: String): Pair<List<SongEntity>, List<SongEntity>> {
         val recentlyPlayed = songs.filter { it.lastPlayed != null }.sortedByDescending { it.lastPlayed }
@@ -241,6 +245,37 @@ class HomeViewModel @Inject constructor(
         val pool = _uiState.value.topSongsPool
         if (pool.isNotEmpty() && startIndex in pool.indices) {
             queueManager.loadAndPlayQueue("Top Songs", pool, startIndex, false)
+        }
+    }
+
+    fun playArtistsShuffle() {
+        val topArtists = _uiState.value.artists.take(15).map { it.name }.toSet()
+        val songs = if (topArtists.isNotEmpty()) {
+            allSongsList.filter { (it.albumArtist ?: it.artist) in topArtists }
+        } else allSongsList
+        if (songs.isNotEmpty()) {
+            val startIndex = (0 until songs.size).random()
+            queueManager.loadAndPlayQueue("Top Artists", songs, startIndex, true)
+        }
+    }
+
+    fun playAlbumsShuffle() {
+        val topAlbums = _uiState.value.albums.take(15).map { it.name }.toSet()
+        val songs = if (topAlbums.isNotEmpty()) {
+            allSongsList.filter { it.album in topAlbums }
+        } else allSongsList
+        if (songs.isNotEmpty()) {
+            val startIndex = (0 until songs.size).random()
+            queueManager.loadAndPlayQueue("Top Albums", songs, startIndex, true)
+        }
+    }
+
+    fun playGenresShuffle() {
+        val allGenreSongs = _uiState.value.genres.flatMap { it.songs }.distinctBy { it.id }
+        val songs = if (allGenreSongs.isNotEmpty()) allGenreSongs else allSongsList
+        if (songs.isNotEmpty()) {
+            val startIndex = (0 until songs.size).random()
+            queueManager.loadAndPlayQueue("Top Genres", songs, startIndex, true)
         }
     }
 }

@@ -214,9 +214,10 @@ fun HomeTab(
                         "artists" -> {
                             if (showHomeArtists && uiState.artists.isNotEmpty()) {
                                 item(key = "home_section_artists") {
-                                    SectionHeader(
+                                    SectionHeaderWithShuffle(
                                         title = "Top Artists",
                                         actionText = "View all",
+                                        onShuffleClick = { viewModel.playArtistsShuffle() },
                                         onActionClick = onNavigateToArtists
                                     )
                                     HorizontalArtistsList(
@@ -229,9 +230,10 @@ fun HomeTab(
                         "albums" -> {
                             if (showHomeAlbums && uiState.albums.isNotEmpty()) {
                                 item(key = "home_section_albums") {
-                                    SectionHeader(
+                                    SectionHeaderWithShuffle(
                                         title = "Top Albums",
                                         actionText = "View all",
+                                        onShuffleClick = { viewModel.playAlbumsShuffle() },
                                         onActionClick = onNavigateToAlbums
                                     )
                                     HorizontalAlbumsList(
@@ -244,9 +246,10 @@ fun HomeTab(
                         "genres" -> {
                             if (showHomeGenres && uiState.genres.isNotEmpty()) {
                                 item(key = "home_section_genres") {
-                                    SectionHeader(
+                                    SectionHeaderWithShuffle(
                                         title = "Top Genres",
                                         actionText = "View all",
+                                        onShuffleClick = { viewModel.playGenresShuffle() },
                                         onActionClick = onNavigateToGenres
                                     )
                                     HorizontalGenresList(
