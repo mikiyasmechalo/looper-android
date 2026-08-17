@@ -788,11 +788,16 @@ fun PlayerScreen(
             accentColor = state.accentColor,
             isCurrentlyPlaying = true,
             showSleepTimer = true,
+            showEqualizer = true,
             onArtistClick = { artist ->
                 onArtistClick(artist)
             },
             onAlbumClick = { album ->
                 onAlbumClick(album)
+            },
+            onNavigateToEqualizer = {
+                showOptionsSheet = false
+                onNavigateToEqualizer()
             }
         )
     }

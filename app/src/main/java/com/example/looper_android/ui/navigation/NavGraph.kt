@@ -109,7 +109,17 @@ fun AppNavGraph(
                     animatedVisibilityScope = this@composable
                 )
             }
-            composable("equalizer") { }
+            composable(
+                route = "equalizer",
+                enterTransition = { fadeIn(animationSpec = tween(350)) },
+                exitTransition = { fadeOut(animationSpec = tween(350)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(350)) },
+                popExitTransition = { fadeOut(animationSpec = tween(350)) }
+            ) {
+                com.example.looper_android.ui.equalizer.EqualizerScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable("settings") { }
         }
     }

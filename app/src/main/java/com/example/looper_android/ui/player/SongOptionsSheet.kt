@@ -123,10 +123,12 @@ fun SongOptionsSheet(
     isFromQueue: Boolean = false,
     queueIndex: Int? = null,
     showSleepTimer: Boolean = false,
+    showEqualizer: Boolean = false,
     showGoToArtist: Boolean = true,
     showGoToAlbum: Boolean = true,
     onArtistClick: ((String) -> Unit)? = null,
     onAlbumClick: ((String) -> Unit)? = null,
+    onNavigateToEqualizer: (() -> Unit)? = null,
 ) {
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val allSongsViewModel: AllSongsViewModel = hiltViewModel()
@@ -431,12 +433,14 @@ fun SongOptionsSheet(
                         })
                     }
 
-                    // 12. Equalizer
-                    add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
-                        hapticLight()
-                        // TODO: Implement Equalizer
-                        onDismiss()
-                    })
+                    // 12. Equalizer (ONLY in Now Playing screen options)
+                    if (showEqualizer && onNavigateToEqualizer != null) {
+                        add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
+                            hapticLight()
+                            onDismiss()
+                            onNavigateToEqualizer.invoke()
+                        })
+                    }
 
                     // 13. Song Details
                     add(OptionTileData(null, Lucide.Info, "Song Details") {
@@ -625,16 +629,25 @@ fun SongOptionsSheet(
                     onDismiss()
                     onAlbumClick?.invoke(album)
                 },
-                onTechnicalInfoClick = {
-                    activeSheet = ActiveSheet.TECH_INFO
-                }
+                initialShowTechnical = false
             )
         }
         ActiveSheet.TECH_INFO -> {
-            TechnicalInfoBottomSheet(
+            SongDetailsBottomSheet(
                 song = song,
-                onDismiss = { activeSheet = ActiveSheet.DETAILS },
-                accentColor = accentColor
+                onDismiss = onDismiss,
+                accentColor = accentColor,
+                showGoToArtist = showGoToArtist,
+                showGoToAlbum = showGoToAlbum,
+                onArtistClick = { artist ->
+                    onDismiss()
+                    onArtistClick?.invoke(artist)
+                },
+                onAlbumClick = { album ->
+                    onDismiss()
+                    onAlbumClick?.invoke(album)
+                },
+                initialShowTechnical = true
             )
         }
         ActiveSheet.PLAYLISTS -> {

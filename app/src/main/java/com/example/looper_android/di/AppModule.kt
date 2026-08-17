@@ -27,11 +27,30 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideCustomEqualizerAudioProcessor(): com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor {
+        return com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor()
+    }
+
+    @Provides
+    @Singleton
     fun provideExoPlayer(
         @ApplicationContext context: Context,
-        audioAttributes: AudioAttributes
+        audioAttributes: AudioAttributes,
+        equalizerAudioProcessor: com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor
     ): Player {
-        return ExoPlayer.Builder(context)
+        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setAudioProcessors(arrayOf(equalizerAudioProcessor))
+                    .build()
+            }
+        }
+        return ExoPlayer.Builder(context, renderersFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()

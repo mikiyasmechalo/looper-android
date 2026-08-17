@@ -11,6 +11,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.looper_android.data.repository.SettingsRepository
 import com.example.looper_android.domain.QueueManager
+import com.example.looper_android.playback.equalizer.AudioOutputDeviceType
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,15 @@ class PlaybackService : MediaSessionService() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
+
+    @Inject
+    lateinit var audioDeviceDetector: com.example.looper_android.playback.equalizer.AudioDeviceDetector
+
+    @Inject
+    lateinit var equalizerRepository: com.example.looper_android.data.repository.EqualizerRepository
+
+    @Inject
+    lateinit var equalizerAudioProcessor: com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor
 
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main)
@@ -96,6 +106,26 @@ class PlaybackService : MediaSessionService() {
             addAction(Intent.ACTION_HEADSET_PLUG)
         }
         registerReceiver(headsetStateReceiver, filter)
+
+        // Observe active audio output device and auto-apply equalizer profile
+        serviceScope.launch {
+            audioDeviceDetector.currentOutputDevice.collect { device ->
+                if (device.type == AudioOutputDeviceType.BLUETOOTH && device.deviceKey.startsWith("BT_")) {
+                    equalizerRepository.registerBluetoothDevice(device.deviceKey, device.displayName)
+                }
+                val autoSwitch = equalizerRepository.isAutoSwitchEnabled.first()
+                if (autoSwitch) {
+                    val profile = equalizerRepository.getProfileSync(device.deviceKey, device.displayName)
+                    equalizerAudioProcessor.updateParameters(
+                        enabled = profile.isEnabled,
+                        bandGains = profile.bandLevels,
+                        preampDb = profile.preampGainDb,
+                        bassBoostPercent = profile.bassBoost,
+                        virtualizerPercent = profile.virtualizer
+                    )
+                }
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
