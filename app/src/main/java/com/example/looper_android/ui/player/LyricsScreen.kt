@@ -1,5 +1,6 @@
 package com.example.looper_android.ui.player
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -10,6 +11,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,7 +25,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -130,6 +135,10 @@ fun LyricsScreen(
         resetHideTimer()
     }
 
+    val enableSlideGesture by settingsViewModel.enableSlideGesture.collectAsState()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -157,41 +166,43 @@ fun LyricsScreen(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
-                            .blur(radius = 24.dp)
+                            .blur(radius = 80.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = lyricsScreenDarkness))
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = lyricsScreenDarkness))
-                )
-            } else if (dynamicLyrics) {
-                // Gradient from music screen
+            } else {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .drawWithCache {
                             onDrawBehind {
+                                drawRect(baseColor)
                                 drawRect(
-                                    brush = Brush.radialGradient(
-                                        0.0f to animatedAccentColor.copy(alpha = 0.55f),
-                                        0.35f to animatedAccentColor.copy(alpha = 0.40f),
-                                        0.60f to animatedAccentColor.copy(alpha = 0.22f),
-                                        0.80f to animatedAccentColor.copy(alpha = 0.06f),
-                                        1.0f to Color.Black,
-                                        center = Offset(size.width, 0f),
-                                        radius = size.height * 0.88f
+                                    Brush.radialGradient(
+                                        0.0f to animatedAccentColor.copy(alpha = 0.45f),
+                                        0.50f to animatedAccentColor.copy(alpha = 0.20f),
+                                        0.80f to animatedAccentColor.copy(alpha = 0.05f),
+                                        1.0f to Color.Transparent,
+                                        center = Offset(size.width / 2f, size.height * 0.25f),
+                                        radius = size.height * 0.85f
                                     )
                                 )
+                                drawRect(
+                                    Brush.radialGradient(
+                                        0.0f to animatedAccentColor.copy(alpha = 0.20f),
+                                        0.60f to animatedAccentColor.copy(alpha = 0.08f),
+                                        1.0f to Color.Transparent,
+                                        center = Offset(size.width, size.height * 0.8f),
+                                        radius = size.height * 0.70f
+                                    )
+                                )
+                                drawRect(Color.Black.copy(alpha = lyricsScreenDarkness))
                             }
                         }
-                )
-            } else {
-                // Grayish color or pure black
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(baseColor)
                 )
             }
         }
@@ -203,102 +214,135 @@ fun LyricsScreen(
                     top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 )
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures(
-                            onDragStart = {
-                                rawVerticalOffset = 0f
-                                isDismissing = false
-                            },
-                            onVerticalDrag = { change, dragAmount ->
-                                if (dragAmount > 0 || rawVerticalOffset > 0) {
-                                    change.consume()
-                                    rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
-                                }
-                            },
-                            onDragEnd = {
-                                if (rawVerticalOffset > 50.dp.toPx() && !isDismissing) {
-                                    isDismissing = true
-                                    haptics.mediumImpact()
-                                    onBack()
-                                }
-                                rawVerticalOffset = 0f
-                            },
-                            onDragCancel = {
-                                rawVerticalOffset = 0f
-                                isDismissing = false
-                            }
-                        )
-                    },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(state.currentSong?.artPath)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+            if (!isLandscape) {
+                Row(
                     modifier = Modifier
-                        .size(60.dp)
-                        .sharedBoundsOrElement("album_art", sharedTransitionScope, animatedVisibilityScope)
-                        .clip(RoundedCornerShape(12.dp))
-                )
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = state.currentSong?.title ?: "Unknown Title",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = DmSansFontFamily,
-                        maxLines = 1
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                        .then(
+                            if (enableSlideGesture) {
+                                Modifier.pointerInput(Unit) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = {
+                                            rawVerticalOffset = 0f
+                                            isDismissing = false
+                                        },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            if (dragAmount > 0 || rawVerticalOffset > 0) {
+                                                change.consume()
+                                                rawVerticalOffset = (rawVerticalOffset + dragAmount).coerceAtLeast(0f)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            if (rawVerticalOffset > 50.dp.toPx() && !isDismissing) {
+                                                isDismissing = true
+                                                haptics.mediumImpact()
+                                                onBack()
+                                            }
+                                            rawVerticalOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            rawVerticalOffset = 0f
+                                            isDismissing = false
+                                        }
+                                    )
+                                }
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(state.currentSong?.artPath)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(54.dp)
+                            .sharedBoundsOrElement("album_art", sharedTransitionScope, animatedVisibilityScope)
+                            .clip(RoundedCornerShape(12.dp))
                     )
-                    val artistName = state.currentSong?.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                    val albumName = state.currentSong?.album?.trim()?.ifBlank { null }
-                    val subtitleText = if (!albumName.isNullOrEmpty() && albumName != "Unknown Album") {
-                        "$artistName • $albumName"
-                    } else {
-                        artistName
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = state.currentSong?.title ?: "Unknown Title",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = DmSansFontFamily,
+                            maxLines = 1
+                        )
+                        val artistName = state.currentSong?.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                        val albumName = state.currentSong?.album?.trim()?.ifBlank { null }
+                        val subtitleText = if (!albumName.isNullOrEmpty() && albumName != "Unknown Album") {
+                            "$artistName • $albumName"
+                        } else {
+                            artistName
+                        }
+                        Text(
+                            text = subtitleText,
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 13.sp,
+                            fontFamily = DmSansFontFamily,
+                            maxLines = 1
+                        )
                     }
-                    Text(
-                        text = subtitleText,
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 14.sp,
-                        fontFamily = DmSansFontFamily,
-                        maxLines = 1
-                    )
+
+                    PremiumSection(
+                        width = 44.dp,
+                        height = 44.dp,
+                        cornerRadius = 28.dp,
+                        backgroundColor = Color.Transparent,
+                        onClick = {
+                            haptics.lightImpact()
+                            onBack()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Lucide.ChevronDown,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
-                PremiumSection(
-                    width = 48.dp,
-                    height = 48.dp,
-                    cornerRadius = 32.dp,
-                    backgroundColor = Color.Transparent,
-                    onClick = {
-                        haptics.lightImpact()
-                        onBack()
-                    }
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.15f),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Icon(
-                        imageVector = Lucide.ChevronDown,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    PremiumSection(
+                        width = 36.dp,
+                        height = 36.dp,
+                        cornerRadius = 18.dp,
+                        backgroundColor = Color.Black.copy(alpha = 0.40f),
+                        onClick = {
+                            haptics.lightImpact()
+                            onBack()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Lucide.ChevronDown,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
-
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.15f),
-                thickness = 0.5.dp,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
 
             Box(modifier = Modifier.weight(1f)) {
                 if (lyricsState.isLoading) {
@@ -340,10 +384,13 @@ fun LyricsScreen(
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(tween(300)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
+            val controlHeight = if (isLandscape) 130.dp else 190.dp
+            val btnHeight = if (isLandscape) 50.dp else 68.dp
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp + navBottomPadding)
+                    .height(controlHeight + navBottomPadding)
                     .background(
                         Brush.verticalGradient(
                             0.0f to Color.Transparent,
@@ -352,10 +399,17 @@ fun LyricsScreen(
                             1.0f to Color.Black
                         )
                     )
-                    .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = navBottomPadding + 16.dp),
+                    .padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = if (isLandscape) 6.dp else 10.dp,
+                        bottom = navBottomPadding + if (isLandscape) 8.dp else 14.dp
+                    ),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                Column {
+                Column(
+                    modifier = if (isLandscape) Modifier.widthIn(max = 440.dp) else Modifier.fillMaxWidth()
+                ) {
                     Box(
                         modifier = Modifier.sharedBoundsOrElement(
                             "player_seek_bar",
@@ -375,12 +429,12 @@ fun LyricsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 14.dp))
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 14.dp),
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         PremiumSection(
@@ -391,12 +445,12 @@ fun LyricsScreen(
                                     sharedTransitionScope,
                                     animatedVisibilityScope
                                 ),
-                            height = 80.dp,
+                            height = btnHeight,
                             enableBlur = !disableBlur,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
-                                topStart = 40.dp,
-                                bottomStart = 40.dp,
+                                topStart = if (isLandscape) 25.dp else 34.dp,
+                                bottomStart = if (isLandscape) 25.dp else 34.dp,
                                 topEnd = 12.dp,
                                 bottomEnd = 12.dp
                             ),
@@ -424,7 +478,7 @@ fun LyricsScreen(
                                     sharedTransitionScope,
                                     animatedVisibilityScope
                                 ),
-                            height = 80.dp,
+                            height = btnHeight,
                             cornerRadius = 12.dp,
                             enableBlur = !disableBlur,
                             hazeState = lyricsHazeState,
@@ -452,14 +506,14 @@ fun LyricsScreen(
                                     sharedTransitionScope,
                                     animatedVisibilityScope
                                 ),
-                            height = 80.dp,
+                            height = btnHeight,
                             enableBlur = !disableBlur,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
                                 topStart = 12.dp,
                                 bottomStart = 12.dp,
-                                topEnd = 40.dp,
-                                bottomEnd = 40.dp
+                                topEnd = if (isLandscape) 25.dp else 34.dp,
+                                bottomEnd = if (isLandscape) 25.dp else 34.dp
                             ),
                             onClick = {
                                 haptics.lightImpact()

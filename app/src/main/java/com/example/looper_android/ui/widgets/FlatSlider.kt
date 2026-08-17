@@ -46,6 +46,7 @@ import kotlinx.coroutines.isActive
 fun FlatSlider(
     positionMs: Long,
     durationMs: Long,
+    songId: Long = 0L,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
     onSeekStart: (() -> Unit)? = null,
@@ -63,7 +64,9 @@ fun FlatSlider(
 
     var smoothPositionMs by remember { mutableLongStateOf(positionMs) }
 
-    LaunchedEffect(durationMs) {
+    // Reset slider state whenever the song changes (keyed on songId) or the duration changes.
+    // Using songId ensures a clean reset even when two consecutive songs share the same duration.
+    LaunchedEffect(songId, durationMs) {
         dragProgress = null
         smoothPositionMs = 0L
     }
@@ -72,7 +75,7 @@ fun FlatSlider(
         if (!isDragging) {
             smoothPositionMs = if (positionMs > totalDurationMs) 0L else positionMs
         }
-        if (isPlaying && !isDragging) {
+        if (isPlaying && !isDragging && durationMs > 0L) {
             var lastRealtime = SystemClock.elapsedRealtime()
             while (isActive && isPlaying && !isDragging) {
                 withFrameNanos {
@@ -93,7 +96,14 @@ fun FlatSlider(
         smoothPositionMs
     }
 
-    val actualProgress = (displayPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    val rawProgress = (displayPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+    // Force 0% when duration is not yet known — durationMs=0 means TIME_UNSET from ExoPlayer.
+    // The frame loop guard above only applies at coroutine start, so this canvas-level guard
+    // is the final line of defence against a briefly-wrong totalDurationMs=1 producing 100%.
+    val actualProgress = when {
+        durationMs <= 0L && !isDragging -> 0f
+        else -> rawProgress
+    }
 
     Column(modifier = modifier) {
         Box(

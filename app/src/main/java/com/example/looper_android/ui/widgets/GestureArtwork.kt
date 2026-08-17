@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -76,6 +77,15 @@ fun GestureArtwork(
         pageCount = { safeQueue.size }
     )
 
+    val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
+    var wasUserDragged by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isDragged) {
+        if (isDragged) {
+            wasUserDragged = true
+        }
+    }
+
     var feedbackType by remember { mutableStateOf<String?>(null) }
     val feedbackAnimProgress = remember { Animatable(0f) }
 
@@ -94,6 +104,7 @@ fun GestureArtwork(
     // Programmatic skip animation (e.g. Next / Previous button tap or song finishes)
     LaunchedEffect(safeCurrentIndex) {
         if (safeCurrentIndex in 0 until pagerState.pageCount && pagerState.currentPage != safeCurrentIndex) {
+            wasUserDragged = false
             val distance = (pagerState.currentPage - safeCurrentIndex).absoluteValue
             if (distance == 1) {
                 pagerState.animateScrollToPage(
@@ -106,12 +117,15 @@ fun GestureArtwork(
         }
     }
 
-    // User gesture swipe detection: when pager settles on a new page, trigger skip
+    // User gesture swipe detection: only when user physically dragged the pager and it settled on a new page
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }
-            .collect { settledPage ->
-                if (settledPage != safeCurrentIndex && settledPage in safeQueue.indices) {
-                    onSkipToIndex(settledPage)
+        snapshotFlow { Pair(pagerState.settledPage, pagerState.isScrollInProgress) }
+            .collect { (settledPage, isScrollInProgress) ->
+                if (!isScrollInProgress && wasUserDragged) {
+                    wasUserDragged = false
+                    if (settledPage != safeCurrentIndex && settledPage in safeQueue.indices) {
+                        onSkipToIndex(settledPage)
+                    }
                 }
             }
     }

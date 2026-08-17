@@ -1,5 +1,7 @@
 package com.example.looper_android.ui.screens.tabs
 
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -406,8 +408,13 @@ private fun QuickPicksSection(
     onSongClick: (SongEntity) -> Unit,
     onSongLongClick: (SongEntity) -> Unit
 ) {
-    val pageCount = (quickPicks.size + 5) / 6
-    val pagerState = rememberPagerState(pageCount = { pageCount })
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val columns = if (isLandscape) 6 else 3
+    val rows = if (isLandscape) 1 else 2
+    val itemsPerPage = columns * rows
+    val pageCount = (quickPicks.size + itemsPerPage - 1) / itemsPerPage
+    val pagerState = rememberPagerState(pageCount = { pageCount.coerceAtLeast(1) })
 
     Column(modifier = Modifier.padding(bottom = 12.dp)) {
         // Quick Picks Header Row
@@ -439,7 +446,7 @@ private fun QuickPicksSection(
                 modifier = Modifier
                     .clip(RoundedCornerShape(32.dp))
                     .background(Color.White.copy(alpha = 0.08f))
-                .clickable { onPlayShuffle() }
+                    .clickable { onPlayShuffle() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -464,13 +471,13 @@ private fun QuickPicksSection(
             }
         }
 
-        // Paged 3x2 Grid
+        // Paged Grid (6x1 in Landscape, 3x2 in Portrait)
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxWidth()
         ) { pageIndex ->
-            val startIndex = pageIndex * 6
-            val pageItems = quickPicks.drop(startIndex).take(6)
+            val startIndex = pageIndex * itemsPerPage
+            val pageItems = quickPicks.drop(startIndex).take(itemsPerPage)
 
             Column(
                 modifier = Modifier
@@ -478,13 +485,13 @@ private fun QuickPicksSection(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                for (rowIndex in 0 until 2) {
+                for (rowIndex in 0 until rows) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        for (colIndex in 0 until 3) {
-                            val itemIndex = rowIndex * 3 + colIndex
+                        for (colIndex in 0 until columns) {
+                            val itemIndex = rowIndex * columns + colIndex
                             if (itemIndex < pageItems.size) {
                                 val song = pageItems[itemIndex]
                                 val isCurrent = currentSong?.path == song.path

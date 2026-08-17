@@ -149,11 +149,15 @@ class PlaybackViewModel @Inject constructor(
                     dateAdded = System.currentTimeMillis()
                 )
 
+                val resolvedDuration = player.duration.coerceAtLeast(0)
                 _currentPosition.value = 0L
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
                     position = 0L,
-                    duration = player.duration.coerceAtLeast(0)
+                    // Only overwrite duration when ExoPlayer has actually resolved it.
+                    // If it is still TIME_UNSET (coerced to 0), keep the old value so the
+                    // slider stays at 0% instead of briefly snapping to 100% (0/0 edge case).
+                    duration = if (resolvedDuration > 0L) resolvedDuration else _playbackState.value.duration
                 )
 
 
@@ -207,7 +211,6 @@ class PlaybackViewModel @Inject constructor(
                 }
 
                 songObserveJob?.cancel()
-                val currentDuration = player.duration.coerceAtLeast(0)
                 songObserveJob = viewModelScope.launch(Dispatchers.IO) {
                     val initialDbSong = libraryDao.getSongById(songId).firstOrNull()
                     val targetSong = initialDbSong ?: instantSong
@@ -215,13 +218,10 @@ class PlaybackViewModel @Inject constructor(
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,
                         isFavorite = targetSong.isFavorite,
-                        position = 0L,
-                        duration = currentDuration,
                         audioQualityText = "High Quality • Audio",
                         accentColor = androidx.compose.ui.graphics.Color(0xFF808080),
                         isSongReady = true
                     )
-                    _currentPosition.value = 0L
 
                     if (!targetSong.artPath.isNullOrEmpty()) {
                         val request = coil.request.ImageRequest.Builder(context)
@@ -450,8 +450,16 @@ class PlaybackViewModel @Inject constructor(
         val state = player.playbackState
         val buffering = state == Player.STATE_BUFFERING
         val playing = player.playWhenReady && state != Player.STATE_ENDED && state != Player.STATE_IDLE
-        val pos = player.currentPosition.coerceAtLeast(0L)
-        val dur = player.duration.coerceAtLeast(0L)
+
+        // Don't read a stale position from ExoPlayer while a track transition is in flight.
+        // skipToNext/skipToPrevious set pendingTransition = true; onMediaItemTransition clears it.
+        val pos = if (pendingTransition) _currentPosition.value else player.currentPosition.coerceAtLeast(0L)
+        // Never write duration=0 to state. ExoPlayer reports TIME_UNSET (coerced to 0) while the
+        // new track's timeline is resolving (e.g. during BUFFERING after onMediaItemTransition).
+        // pendingTransition is already cleared by then, so we can't use that flag here — instead
+        // we simply keep the last known good duration until ExoPlayer resolves a real value.
+        val rawDur = player.duration.coerceAtLeast(0L)
+        val dur = if (rawDur > 0L) rawDur else _playbackState.value.duration
         
         _currentPosition.value = pos
         _playbackState.value = _playbackState.value.copy(
@@ -488,6 +496,7 @@ class PlaybackViewModel @Inject constructor(
 
     fun skipToNext() {
         if (player.hasNextMediaItem()) {
+            pendingTransition = true
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToNextMediaItem()
@@ -495,6 +504,7 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun skipToPrevious() {
+        pendingTransition = true
         _currentPosition.value = 0L
         _playbackState.value = _playbackState.value.copy(position = 0L)
         if (player.hasPreviousMediaItem()) {
@@ -513,6 +523,12 @@ class PlaybackViewModel @Inject constructor(
 
     fun skipToQueueItem(index: Int) {
         if (index in 0 until player.mediaItemCount) {
+            if (player.currentMediaItemIndex == index && player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
+                if (!player.playWhenReady) {
+                    player.play()
+                }
+                return
+            }
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToDefaultPosition(index)

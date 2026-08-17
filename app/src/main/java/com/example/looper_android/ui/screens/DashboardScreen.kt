@@ -1,5 +1,6 @@
 package com.example.looper_android.ui.screens
 
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -40,6 +42,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import dev.chrisbanes.haze.haze
@@ -533,12 +536,15 @@ fun DashboardScreen(
         }
         }
 
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
         // Gradient fading bottom to black behind navbar (like Flutter)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(240.dp)
+                .height(if (isLandscape) 180.dp else 240.dp)
                 .background(
                     Brush.verticalGradient(
                         0.0f to Color.Transparent,
@@ -551,11 +557,20 @@ fun DashboardScreen(
 
         // PERSISTENT MINI PLAYER & NAVBAR (Always on top across all library items)
         Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp, top = 2.dp)
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(0.50f)
+                    .widthIn(max = 480.dp)
+                    .navigationBarsPadding()
+                    .padding(start = 12.dp, bottom = 12.dp, top = 2.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp, top = 2.dp)
+            }
         ) {
             val isBlurEnabled = dynamicTheming && !disableBlur
 
