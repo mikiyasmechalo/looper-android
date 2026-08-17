@@ -34,7 +34,8 @@ data class GenreData(
 
 @Singleton
 class LibraryCacheManager @Inject constructor(
-    private val libraryDao: LibraryDao
+    private val libraryDao: LibraryDao,
+    private val settingsRepository: SettingsRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -94,17 +95,33 @@ class LibraryCacheManager @Inject constructor(
             _albums.value = albumList
         }.launchIn(scope)
 
-        combine(_songs, _rawArtists) { songList, artistList ->
+        combine(_songs, _rawArtists, settingsRepository.useAlbumArtist) { songList, artistList, useAlbumArtist ->
             val counts = mutableMapOf<String, Int>()
+            val artistMap = mutableMapOf<String, ArtistEntity>()
+            for (a in artistList) {
+                artistMap[a.name.lowercase()] = a
+            }
+
             for (s in songList) {
-                val artistName = s.albumArtist?.trim()?.ifBlank { null } ?: s.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                val artistName = if (useAlbumArtist) {
+                    s.albumArtist?.trim()?.ifBlank { null } ?: s.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                } else {
+                    s.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                }
                 counts[artistName] = (counts[artistName] ?: 0) + 1
             }
             _artistSongCounts.value = counts
             
-            // Only keep artists with at least 1 song
-            val filteredArtists = artistList.filter { (counts[it.name] ?: 0) > 0 }
-            _artists.value = filteredArtists
+            val computedArtists = counts.keys.mapIndexed { index, name ->
+                val existing = artistMap[name.lowercase()]
+                ArtistEntity(
+                    id = existing?.id ?: (index + 1).toLong(),
+                    name = name,
+                    artPath = existing?.artPath,
+                    artistImageUrl = existing?.artistImageUrl
+                )
+            }.sortedBy { it.name.lowercase() }
+            _artists.value = computedArtists
         }.launchIn(scope)
 
         // Process Genres

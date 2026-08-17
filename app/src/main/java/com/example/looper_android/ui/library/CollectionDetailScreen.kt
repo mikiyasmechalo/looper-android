@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.looper_android.ui.components.ArtistCollage
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -150,17 +152,25 @@ fun CollectionDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(140.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
-                            ) {
-                                OptimizedImage(
-                                    url = displayArt,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                            if (type.equals("artist", ignoreCase = true)) {
+                                ArtistCollage(
+                                    artistImageUrl = displayArt,
+                                    modifier = Modifier.size(140.dp),
+                                    shape = CircleShape
                                 )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(140.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                ) {
+                                    OptimizedImage(
+                                        url = displayArt,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                             }
                         }
 

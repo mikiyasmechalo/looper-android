@@ -40,6 +40,7 @@ class SettingsRepository @Inject constructor(
         val ENABLE_INTERNET = booleanPreferencesKey("enable_internet")
         val DOWNLOAD_ARTWORK = booleanPreferencesKey("download_artwork")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
+        val USE_ALBUM_ARTIST = booleanPreferencesKey("use_album_artist")
 
         // Audio & Playback + Headphone settings
         val PAUSE_ON_DISCONNECT = booleanPreferencesKey("pause_on_disconnect")
@@ -88,6 +89,7 @@ class SettingsRepository @Inject constructor(
         dataStore.data.map { prefs -> prefs[Keys.ENABLE_INTERNET] ?: false } // to be turned true before relase.
     val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
     val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
+    val useAlbumArtist: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.USE_ALBUM_ARTIST] ?: true }
 
     val pauseOnDisconnect: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] ?: true }
     val resumeOnlyIfPausedByDisconnect: Flow<Boolean> =
@@ -97,7 +99,7 @@ class SettingsRepository @Inject constructor(
     val resumeOnWiredConnect: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.RESUME_ON_WIRED_CONNECT] ?: false }
     val fadePlayPauseStop: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.FADE_PLAY_PAUSE_STOP] ?: true }
-    val fadeLengthMs: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.FADE_LENGTH_MS] ?: 300f }
+    val fadeLengthMs: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.FADE_LENGTH_MS] ?: 150f }
     val persistQueue: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PERSIST_QUEUE] ?: true }
     val audioFocus: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.AUDIO_FOCUS] ?: true }
     val audioFocusRequestOnPlay: Flow<Boolean> =
@@ -259,5 +261,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPermanentAudioFocusChange(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] = value }
+    }
+
+    suspend fun setUseAlbumArtist(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.USE_ALBUM_ARTIST] = value }
     }
 }

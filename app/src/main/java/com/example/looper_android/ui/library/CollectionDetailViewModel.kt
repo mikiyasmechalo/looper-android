@@ -18,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    libraryCacheManager: LibraryCacheManager
+    libraryCacheManager: LibraryCacheManager,
+    settingsRepository: com.example.looper_android.data.repository.SettingsRepository
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE)
 
@@ -65,10 +66,11 @@ class CollectionDetailViewModel @Inject constructor(
     val collectionSongs: StateFlow<List<SongEntity>> = combine(
         libraryCacheManager.songs,
         libraryCacheManager.playlists,
+        settingsRepository.useAlbumArtist,
         combine(_title, _type, _sortOption, _isAscending) { title, type, sort, asc ->
             CollectionConfig(title, type, sort, asc)
         }
-    ) { allSongs, playlists, config ->
+    ) { allSongs, playlists, useAlbumArtist, config ->
         val title = config.title
         val type = config.type
         val sort = config.sort
@@ -81,8 +83,12 @@ class CollectionDetailViewModel @Inject constructor(
                 effectiveAlbum.equals(title, ignoreCase = true)
             }
             "artist" -> allSongs.filter {
-                val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                effectiveArtist.equals(title, ignoreCase = true) || (it.artist?.equals(title, ignoreCase = true) == true)
+                val effectiveArtist = if (useAlbumArtist) {
+                    it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                } else {
+                    it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                }
+                effectiveArtist.equals(title, ignoreCase = true)
             }
             "genre" -> allSongs.filter {
                 val effectiveGenre = it.genre?.trim()?.ifBlank { null } ?: "Unknown"

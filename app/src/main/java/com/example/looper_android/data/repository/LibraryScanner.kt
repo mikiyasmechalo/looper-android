@@ -85,18 +85,34 @@ class LibraryScanner @Inject constructor(
     ) = withContext(Dispatchers.IO) {
         val mediaStoreGenreMap = fetchMediaStoreGenreMap()
 
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.YEAR,
-            MediaStore.Audio.Media.DATE_ADDED
-        )
+        val projection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.DATA,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.YEAR,
+                MediaStore.Audio.Media.DATE_ADDED,
+                MediaStore.Audio.Media.ALBUM_ARTIST
+            )
+        } else {
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.DATA,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.YEAR,
+                MediaStore.Audio.Media.DATE_ADDED
+            )
+        }
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
@@ -129,6 +145,11 @@ class LibraryScanner @Inject constructor(
             val trackColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val albumArtistColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST)
+            } else {
+                -1
+            }
 
             val totalSongs = cursor.count
             var scannedCount = 0
@@ -146,6 +167,9 @@ class LibraryScanner @Inject constructor(
                 val mediaStoreYear = cursor.getInt(yearColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn) * 1000L
                 val albumId = cursor.getLong(albumIdColumn)
+                val mediaStoreAlbumArtist = if (albumArtistColumn >= 0) {
+                    cursor.getString(albumArtistColumn)?.trim()?.ifBlank { null }
+                } else null
 
                 val discoveredGenre = mediaStoreGenreMap[mediaId] ?: existing?.genre
 
@@ -158,14 +182,15 @@ class LibraryScanner @Inject constructor(
                 val songArtist = if (mediaStoreArtist.isNotBlank() && !mediaStoreArtist.equals("<unknown>", ignoreCase = true)) mediaStoreArtist else "Unknown Artist"
                 val songAlbum = if (mediaStoreAlbum.isNotBlank() && !mediaStoreAlbum.equals("<unknown>", ignoreCase = true)) mediaStoreAlbum else "Unknown Album"
 
-                val effectiveArtist = existing?.albumArtist?.trim()?.ifBlank { null } ?: songArtist
+                val effectiveAlbumArtist = existing?.albumArtist?.trim()?.ifBlank { null } ?: mediaStoreAlbumArtist
+                val effectiveArtist = effectiveAlbumArtist ?: songArtist
 
                 val song = SongEntity(
                     id = existing?.id ?: 0,
                     path = path,
                     title = songTitle,
                     artist = songArtist,
-                    albumArtist = effectiveArtist,
+                    albumArtist = effectiveAlbumArtist,
                     album = songAlbum,
                     genre = discoveredGenre,
                     duration = if (mediaStoreDuration > 0) mediaStoreDuration else 0,
@@ -239,16 +264,17 @@ class LibraryScanner @Inject constructor(
 
         for (song in songs) {
             try {
-                if (forceDiskRead || song.genre == null || song.lyrics == null || song.year == null || song.albumArtist == null) {
+                if (forceDiskRead || song.albumArtist == null || song.genre == null || song.lyrics == null || song.year == null) {
                     val embedded = tagReader.read(song.path)
-                    val updatedAlbumArtist = embedded.albumArtist?.trim()?.ifBlank { null } ?: song.albumArtist ?: song.artist
+                    val rawAlbumArtist = embedded.albumArtist?.trim()?.ifBlank { null }
+                    val updatedAlbumArtist = rawAlbumArtist ?: song.albumArtist ?: song.artist
                     val updated = song.copy(
-                        title = embedded.title ?: song.title,
-                        artist = embedded.artist ?: song.artist,
-                        album = embedded.album ?: song.album,
-                        albumArtist = updatedAlbumArtist,
-                        genre = embedded.genre ?: song.genre,
-                        lyrics = embedded.lyrics ?: song.lyrics,
+                        title = embedded.title?.trim()?.ifBlank { null } ?: song.title,
+                        artist = embedded.artist?.trim()?.ifBlank { null } ?: song.artist,
+                        album = embedded.album?.trim()?.ifBlank { null } ?: song.album,
+                        albumArtist = rawAlbumArtist ?: song.albumArtist,
+                        genre = embedded.genre?.trim()?.ifBlank { null } ?: song.genre,
+                        lyrics = embedded.lyrics?.trim()?.ifBlank { null } ?: song.lyrics,
                         year = embedded.year ?: song.year
                     )
                     if (updated != song) {
@@ -267,9 +293,22 @@ class LibraryScanner @Inject constructor(
             } catch (_: Exception) { }
         }
 
-        // Batch update Room DB in 1 single transaction so UI emits ONLY ONCE
         if (updatedBatch.isNotEmpty()) {
-            libraryDao.updateSongs(updatedBatch)
+            db.withTransaction {
+                libraryDao.updateSongs(updatedBatch)
+            }
+        }
+    }
+
+    suspend fun resetLibrary() = withContext(Dispatchers.IO) {
+        val savedArtistsWithImages = libraryDao.getArtistsWithImages()
+        db.withTransaction {
+            libraryDao.clearSongs()
+            libraryDao.clearAlbums()
+            libraryDao.clearArtists()
+            if (savedArtistsWithImages.isNotEmpty()) {
+                libraryDao.insertArtists(savedArtistsWithImages)
+            }
         }
     }
 }

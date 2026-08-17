@@ -143,6 +143,8 @@ fun SettingsCategoryScreen(
                 item { LanguageAndServicesSection(accentColor = accentColor) }
             } else if (categoryId == "audio_playback") {
                 item { AudioPlaybackSettingsSection(accentColor = accentColor) }
+            } else if (categoryId == "library") {
+                item { LibrarySettingsSection(accentColor = accentColor) }
             } else {
                 item {
                     PremiumSection(
@@ -154,7 +156,6 @@ fun SettingsCategoryScreen(
                         Column {
                             when (categoryId) {
                                 "dashboard" -> DashboardSettingsSection(accentColor = accentColor)
-                                "library" -> LibrarySettingsSection(accentColor = accentColor)
                                 "support_us" -> SupportUsSettingsSection(accentColor = accentColor)
                                 else -> ThemeSettingsSection(accentColor = accentColor)
                             }
@@ -736,12 +737,128 @@ private fun AudioPlaybackSettingsSection(
 
 // 5. Library Settings
 @Composable
-private fun LibrarySettingsSection(accentColor: Color) {
-    SettingsActionTile(title = "Add Folder", subtitle = "Select folder to index music files", icon = Lucide.Plus, onClick = {}, accentColor = accentColor)
-    AboutDivider()
-    SettingsActionTile(title = "Rescan Library", subtitle = "Update library files indexing", icon = Lucide.RefreshCw, onClick = {}, accentColor = accentColor)
-    AboutDivider()
-    SettingsActionTile(title = "Reset & Rescan", subtitle = "Remove all songs from your indexed library", icon = LucideIcons.Trash2, onClick = {}, accentColor = accentColor, destructive = true)
+private fun LibrarySettingsSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val useAlbumArtist by viewModel.useAlbumArtist.collectAsState()
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    Column {
+        // --- 1. ORGANIZATION & TAGS ---
+        SettingsSubHeader(title = "Organization & Tags", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            SettingsSwitchTile(
+                title = "Use Album Artist for Artists",
+                subtitle = "Group and identify artists on collections using the Album Artist tag field",
+                icon = Lucide.User,
+                checked = useAlbumArtist,
+                onCheckedChange = { viewModel.setUseAlbumArtist(it) },
+                accentColor = accentColor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 2. OFFLINE DATA ---
+        SettingsSubHeader(title = "Offline Data", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            SettingsActionTile(
+                title = "Sync Lyrics (Offline)",
+                subtitle = "Download and cache missing synchronized lyrics for offline playback",
+                icon = Lucide.Droplet,
+                onClick = {
+                    viewModel.syncLyricsOffline()
+                    android.widget.Toast.makeText(context, "Downloading lyrics for offline...", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                accentColor = accentColor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 3. MAINTENANCE ---
+        SettingsSubHeader(title = "Maintenance", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsActionTile(
+                    title = "Rescan Library",
+                    subtitle = "Scan device storage and update indexed music files",
+                    icon = Lucide.RefreshCw,
+                    onClick = {
+                        viewModel.rescanLibrary()
+                        android.widget.Toast.makeText(context, "Scanning library...", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsActionTile(
+                    title = "Reset & Rescan",
+                    subtitle = "Clear database and rebuild index (preserves downloaded artist images)",
+                    icon = LucideIcons.Trash2,
+                    onClick = { showResetDialog = true },
+                    accentColor = accentColor,
+                    destructive = true
+                )
+            }
+        }
+    }
+
+    if (showResetDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = {
+                Text(
+                    text = "Reset Library?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            },
+            text = {
+                Text(
+                    text = "This will clear all indexed music data and rebuild your library. Your downloaded artist artwork will be safely preserved.",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontFamily = DmSansFontFamily
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showResetDialog = false
+                        viewModel.resetLibrary()
+                        viewModel.rescanLibrary()
+                        android.widget.Toast.makeText(context, "Library reset and scanning...", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Reset", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showResetDialog = false }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
 
 // 6. About & Maintainers (EXACT 1-TO-1 FLUTTER PORT)

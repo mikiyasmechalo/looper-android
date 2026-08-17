@@ -97,6 +97,12 @@ interface LibraryDao {
     @Query("SELECT * FROM artists WHERE artistImageUrl IS NULL OR artistImageUrl = ''")
     suspend fun getArtistsWithMissingImage(): List<ArtistEntity>
 
+    @Query("SELECT * FROM artists WHERE artistImageUrl IS NOT NULL AND artistImageUrl != ''")
+    suspend fun getArtistsWithImages(): List<ArtistEntity>
+
+    @Query("SELECT * FROM songs WHERE lyrics IS NULL OR lyrics = ''")
+    suspend fun getSongsWithMissingLyrics(): List<SongEntity>
+
     // --- Playlists ---
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE ASC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>

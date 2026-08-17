@@ -3,6 +3,8 @@ package com.example.looper_android.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.looper_android.data.repository.ArtworkService
+import com.example.looper_android.data.repository.LibraryScanner
+import com.example.looper_android.data.repository.LyricsFetcher
 import com.example.looper_android.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,7 +16,9 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
-    private val artworkService: ArtworkService
+    private val artworkService: ArtworkService,
+    private val lyricsFetcher: LyricsFetcher,
+    private val libraryScanner: LibraryScanner
 ) : ViewModel() {
 
     val dynamicTheming: StateFlow<Boolean> = repository.dynamicTheming
@@ -125,6 +129,9 @@ class SettingsViewModel @Inject constructor(
     val permanentAudioFocusChange: StateFlow<Boolean> = repository.permanentAudioFocusChange
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val useAlbumArtist: StateFlow<Boolean> = repository.useAlbumArtist
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun setDynamicTheming(value: Boolean) = viewModelScope.launch { repository.setDynamicTheming(value) }
     fun setDisableBlur(value: Boolean) = viewModelScope.launch { repository.setDisableBlur(value) }
     fun setDynamicAccentColor(value: Boolean) = viewModelScope.launch { repository.setDynamicAccentColor(value) }
@@ -182,4 +189,18 @@ class SettingsViewModel @Inject constructor(
     fun setResumeOnStart(value: Boolean) = viewModelScope.launch { repository.setResumeOnStart(value) }
     fun setPermanentAudioFocusChange(value: Boolean) =
         viewModelScope.launch { repository.setPermanentAudioFocusChange(value) }
+
+    fun setUseAlbumArtist(value: Boolean) = viewModelScope.launch { repository.setUseAlbumArtist(value) }
+
+    fun syncLyricsOffline() = viewModelScope.launch {
+        lyricsFetcher.prefetchAllMissingLyrics()
+    }
+
+    fun rescanLibrary() = viewModelScope.launch {
+        libraryScanner.scanMediaStore(forceDiskRead = true)
+    }
+
+    fun resetLibrary() = viewModelScope.launch {
+        libraryScanner.resetLibrary()
+    }
 }

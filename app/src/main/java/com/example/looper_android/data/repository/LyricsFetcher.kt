@@ -232,4 +232,16 @@ class LyricsFetcher @Inject constructor(
         }
         return null
     }
+
+    suspend fun prefetchAllMissingLyrics() = withContext(Dispatchers.IO) {
+        val songsToFetch = libraryDao.getSongsWithMissingLyrics()
+        Log.d("LyricsFetcher", "Prefetching offline lyrics for ${songsToFetch.size} songs")
+        for (song in songsToFetch) {
+            fetchLyrics(song)
+            val internetEnabled = settingsRepository.enableInternet.first()
+            if (internetEnabled) {
+                kotlinx.coroutines.delay(250) // polite API delay
+            }
+        }
+    }
 }

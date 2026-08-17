@@ -124,11 +124,20 @@ class AudioTagReader @Inject constructor(
             safeTag { tag?.getFirst("SYLT") }
         ).firstNotNullOfOrNull { it?.trim()?.takeIf { s -> s.isNotBlank() } }
 
+        // Album Artist: standard field + raw frame fallbacks (TPE2, aART, etc.)
+        val albumArtist = listOf(
+            safeTag { tag?.getFirst(FieldKey.ALBUM_ARTIST) },
+            safeTag { tag?.getFirst("TPE2") },
+            safeTag { tag?.getFirst("ALBUMARTIST") },
+            safeTag { tag?.getFirst("ALBUM ARTIST") },
+            safeTag { tag?.getFirst("aART") }
+        ).firstNotNullOfOrNull { it?.trim()?.takeIf { s -> s.isNotBlank() } }
+
         return EmbeddedTags(
             title = safeTag { tag?.getFirst(FieldKey.TITLE) },
             artist = safeTag { tag?.getFirst(FieldKey.ARTIST) },
             album = safeTag { tag?.getFirst(FieldKey.ALBUM) },
-            albumArtist = safeTag { tag?.getFirst(FieldKey.ALBUM_ARTIST) },
+            albumArtist = albumArtist,
             durationMs = (header.trackLength * 1000).toInt(),
             trackNumber = trackNumber,
             year = year,
@@ -174,9 +183,9 @@ class AudioTagReader @Inject constructor(
         var lyrics = existing?.lyrics
 
         val needsFallback = year == null || genre.isNullOrBlank() || lyrics.isNullOrBlank()
-                || title == null || artist == null || album == null || durationMs <= 0
+                || title == null || artist == null || album == null || albumArtist.isNullOrBlank() || durationMs <= 0
 
-        if (!needsFallback) return existing!!
+        if (!needsFallback && existing != null) return existing
 
         try {
             val mmr = MediaMetadataRetriever()

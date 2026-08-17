@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.looper_android.ui.components.ArtistCollage
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowUpDown
 import com.composables.icons.lucide.Calendar
@@ -476,7 +477,7 @@ fun ArtistsScreen(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(artists, key = { it.id }) { artist ->
+                items(artists, key = { it.name }) { artist ->
                     if (artist.artistImageUrl.isNullOrEmpty()) {
                         LaunchedEffect(artist.name) {
                             viewModel.fetchArtistImage(artist.name)
@@ -492,24 +493,11 @@ fun ArtistsScreen(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.05f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val avatarUrl = artist.artistImageUrl ?: artist.artPath
-                            if (!avatarUrl.isNullOrEmpty()) {
-                                OptimizedImage(
-                                    url = avatarUrl,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(Lucide.User, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(24.dp))
-                            }
-                        }
+                        ArtistCollage(
+                            artistImageUrl = artist.artistImageUrl ?: artist.artPath,
+                            modifier = Modifier.size(52.dp),
+                            shape = CircleShape
+                        )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -544,7 +532,7 @@ fun ArtistsScreen(
                 verticalArrangement = Arrangement.spacedBy(cardPadding),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(artists, key = { it.id }) { artist ->
+                items(artists, key = { it.name }) { artist ->
                     if (artist.artistImageUrl.isNullOrEmpty()) {
                         LaunchedEffect(artist.name) {
                             viewModel.fetchArtistImage(artist.name)
@@ -557,26 +545,14 @@ fun ArtistsScreen(
                             .clickable { onArtistClick(artist.name) },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Prominent circular avatar taking full column width
-                        Box(
+                        // Prominent circular avatar taking full column width with multi-artist collage support
+                        ArtistCollage(
+                            artistImageUrl = artist.artistImageUrl ?: artist.artPath,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.05f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val avatarUrl = artist.artistImageUrl ?: artist.artPath
-                            if (!avatarUrl.isNullOrEmpty()) {
-                                OptimizedImage(
-                                    url = avatarUrl,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(Lucide.User, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(40.dp))
-                            }
-                        }
+                                .aspectRatio(1f),
+                            shape = CircleShape
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = artist.name,
