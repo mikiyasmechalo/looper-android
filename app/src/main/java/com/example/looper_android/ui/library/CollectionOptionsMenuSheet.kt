@@ -32,7 +32,9 @@ import com.composables.icons.lucide.CirclePlay
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.ListPlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Star
+import com.composables.icons.lucide.Trash2
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.ui.theme.DmSansFontFamily
 
@@ -41,11 +43,16 @@ import com.example.looper_android.ui.theme.DmSansFontFamily
 fun CollectionOptionsMenuSheet(
     collectionTitle: String,
     songs: List<SongEntity>,
+    isAlbum: Boolean = false,
+    isArtist: Boolean = false,
     onDismiss: () -> Unit,
     onPlayNextClick: () -> Unit,
     onAddToQueueClick: () -> Unit,
     onAddToPlaylistClick: () -> Unit,
     onFavoriteAllClick: () -> Unit,
+    onEditAlbumTagsClick: (() -> Unit)? = null,
+    onDeleteAlbumClick: (() -> Unit)? = null,
+    onDeleteArtistClick: (() -> Unit)? = null,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -129,6 +136,41 @@ fun CollectionOptionsMenuSheet(
                 }
             )
 
+            if (isAlbum && onEditAlbumTagsClick != null) {
+                CollectionOptionTile(
+                    icon = Lucide.Pencil,
+                    title = "Edit Album Tags",
+                    onClick = {
+                        onDismiss()
+                        onEditAlbumTagsClick()
+                    }
+                )
+            }
+
+            if (isAlbum && onDeleteAlbumClick != null) {
+                CollectionOptionTile(
+                    icon = Lucide.Trash2,
+                    title = "Delete Album",
+                    tint = Color(0xFFFF5252),
+                    onClick = {
+                        onDismiss()
+                        onDeleteAlbumClick()
+                    }
+                )
+            }
+
+            if (isArtist && onDeleteArtistClick != null) {
+                CollectionOptionTile(
+                    icon = Lucide.Trash2,
+                    title = "Delete Artist",
+                    tint = Color(0xFFFF5252),
+                    onClick = {
+                        onDismiss()
+                        onDeleteArtistClick()
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
@@ -138,6 +180,7 @@ fun CollectionOptionsMenuSheet(
 private fun CollectionOptionTile(
     icon: ImageVector,
     title: String,
+    tint: Color = Color.White.copy(alpha = 0.9f),
     onClick: () -> Unit
 ) {
     Row(
@@ -152,12 +195,12 @@ private fun CollectionOptionTile(
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = Color.White.copy(alpha = 0.9f),
+            tint = tint,
             modifier = Modifier.size(22.dp)
         )
         Text(
             text = title,
-            color = Color.White,
+            color = if (tint != Color.White.copy(alpha = 0.9f)) tint else Color.White,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = DmSansFontFamily

@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ArrowDownZA
 import com.composables.icons.lucide.ArrowUpAZ
 import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Grid3x3
+import com.composables.icons.lucide.LayoutGrid
+import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
@@ -53,6 +56,8 @@ fun <T> CategorySortBottomSheet(
     isAscending: Boolean,
     onOptionSelected: (T) -> Unit,
     onToggleAscending: () -> Unit,
+    viewMode: ViewMode? = null,
+    onViewModeChange: ((ViewMode) -> Unit)? = null,
     onDismiss: () -> Unit,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
@@ -81,6 +86,83 @@ fun <T> CategorySortBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            // Optional Layout View Mode Selector
+            if (viewMode != null && onViewModeChange != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Layout View",
+                        color = Color.White,
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val viewModes = listOf(
+                        Triple(ViewMode.GRID_2, "Grid (2)", Lucide.LayoutGrid),
+                        Triple(ViewMode.GRID_3, "Grid (3)", Lucide.Grid3x3),
+                        Triple(ViewMode.LIST, "List", Lucide.List)
+                    )
+
+                    viewModes.forEach { (mode, label, icon) ->
+                        val isSelected = viewMode == mode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) accentColor else Color.Transparent)
+                                .clickable {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    onViewModeChange(mode)
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.Black else Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.70f),
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontFamily = DmSansFontFamily
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.10f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 14.dp)
+                )
+            }
+
             // Header Row: "Sort Order" + Ascending/Descending Toggle Button
             Row(
                 modifier = Modifier
@@ -120,11 +202,7 @@ fun <T> CategorySortBottomSheet(
                 }
             }
 
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.10f),
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Sort Options List Container
             PremiumSection(
@@ -176,7 +254,7 @@ fun <T> CategorySortBottomSheet(
                                     Icon(
                                         imageVector = Lucide.Check,
                                         contentDescription = "Selected",
-                                        tint = Color.White,
+                                        tint = Color.Black,
                                         modifier = Modifier.size(12.dp)
                                     )
                                 }

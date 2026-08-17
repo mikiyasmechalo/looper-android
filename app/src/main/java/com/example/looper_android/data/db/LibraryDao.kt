@@ -84,6 +84,12 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAlbums(albums: List<AlbumEntity>)
 
+    @Query("DELETE FROM albums WHERE name = :albumName")
+    suspend fun deleteAlbumByName(albumName: String)
+
+    @Query("UPDATE albums SET name = :newAlbumName, artist = :newArtist, artPath = :newArtPath WHERE name = :oldAlbumName")
+    suspend fun updateAlbumDetails(oldAlbumName: String, newAlbumName: String, newArtist: String?, newArtPath: String?)
+
     @Query("DELETE FROM albums")
     suspend fun clearAlbums()
 
@@ -96,6 +102,9 @@ interface LibraryDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArtists(artists: List<ArtistEntity>)
+
+    @Query("DELETE FROM artists WHERE name = :artistName")
+    suspend fun deleteArtistByName(artistName: String)
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()

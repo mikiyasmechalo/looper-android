@@ -79,6 +79,11 @@ class AlbumsViewModel @Inject constructor(
         prefs.edit().putString("albums_view_mode", nextMode.name).apply()
     }
 
+    fun setViewMode(mode: ViewMode) {
+        _viewMode.value = mode
+        prefs.edit().putString("albums_view_mode", mode.name).apply()
+    }
+
     fun setSortOption(option: AlbumSortOption) { _sortOption.value = option }
     fun toggleAscending() { _isAscending.value = !_isAscending.value }
 }
@@ -149,6 +154,11 @@ class ArtistsViewModel @Inject constructor(
         }
         _viewMode.value = nextMode
         prefs.edit().putString("artists_view_mode", nextMode.name).apply()
+    }
+
+    fun setViewMode(mode: ViewMode) {
+        _viewMode.value = mode
+        prefs.edit().putString("artists_view_mode", mode.name).apply()
     }
 
     fun setSortOption(option: ArtistSortOption) { _sortOption.value = option }

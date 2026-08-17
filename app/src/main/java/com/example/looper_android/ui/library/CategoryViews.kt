@@ -173,25 +173,6 @@ fun AlbumsScreen(
                 ) {
                     Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                // View Mode Toggle (Grid 2 -> Grid 3 -> List)
-                PremiumSection(
-                    width = 44.dp,
-                    height = 44.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    shape = CircleShape,
-                    onClick = { viewModel.cycleViewMode() }
-                ) {
-                    Icon(
-                        imageVector = when (viewMode) {
-                            ViewMode.GRID_2 -> Lucide.LayoutGrid
-                            ViewMode.GRID_3 -> Lucide.Grid3x3
-                            ViewMode.LIST -> Lucide.List
-                        },
-                        contentDescription = "Toggle View",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
 
                 // Shuffle Button
                 PremiumSection(
@@ -218,7 +199,7 @@ fun AlbumsScreen(
                     Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
 
-                // Sort Button (Lucide.ArrowUpDown)
+                // Sort & Layout Button (Lucide.ArrowUpDown)
                 PremiumSection(
                     width = 44.dp,
                     height = 44.dp,
@@ -226,7 +207,7 @@ fun AlbumsScreen(
                     shape = CircleShape,
                     onClick = { showSortSheet = true }
                 ) {
-                    Icon(Lucide.ArrowUpDown, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.ArrowUpDown, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         )
@@ -362,6 +343,8 @@ fun AlbumsScreen(
             isAscending = isAscending,
             onOptionSelected = { viewModel.setSortOption(it) },
             onToggleAscending = { viewModel.toggleAscending() },
+            viewMode = viewMode,
+            onViewModeChange = { viewModel.setViewMode(it) },
             onDismiss = { showSortSheet = false },
             accentColor = playbackState.accentColor
         )
@@ -404,25 +387,6 @@ fun ArtistsScreen(
                 ) {
                     Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                // View Mode Toggle Button (Grid 2 -> Grid 3 -> List)
-                PremiumSection(
-                    width = 44.dp,
-                    height = 44.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    shape = CircleShape,
-                    onClick = { viewModel.cycleViewMode() }
-                ) {
-                    Icon(
-                        imageVector = when (viewMode) {
-                            ViewMode.GRID_2 -> Lucide.LayoutGrid
-                            ViewMode.GRID_3 -> Lucide.Grid3x3
-                            ViewMode.LIST -> Lucide.List
-                        },
-                        contentDescription = "Toggle View",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
 
                 // Shuffle Button
                 PremiumSection(
@@ -452,7 +416,7 @@ fun ArtistsScreen(
                     Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = Color.White, modifier = Modifier.size(16.dp))
                 }
 
-                // Sort Button (Lucide.ArrowUpDown)
+                // Sort & Layout Button (Lucide.ArrowUpDown)
                 PremiumSection(
                     width = 44.dp,
                     height = 44.dp,
@@ -460,7 +424,7 @@ fun ArtistsScreen(
                     shape = CircleShape,
                     onClick = { showSortSheet = true }
                 ) {
-                    Icon(Lucide.ArrowUpDown, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.ArrowUpDown, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         )
@@ -587,6 +551,8 @@ fun ArtistsScreen(
             isAscending = isAscending,
             onOptionSelected = { viewModel.setSortOption(it) },
             onToggleAscending = { viewModel.toggleAscending() },
+            viewMode = viewMode,
+            onViewModeChange = { viewModel.setViewMode(it) },
             onDismiss = { showSortSheet = false },
             accentColor = playbackState.accentColor
         )

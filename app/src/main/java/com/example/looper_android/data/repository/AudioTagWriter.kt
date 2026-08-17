@@ -50,8 +50,47 @@ class AudioTagWriter @Inject constructor(
         val year: Int? = null,
         val genre: String? = null,
         val lyrics: String? = null,
-        val trackNumber: Int? = null
-    )
+        val trackNumber: Int? = null,
+        val artworkBytes: ByteArray? = null,
+        val artworkMimeType: String? = null,
+        val removeArtwork: Boolean = false
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            other as TagEdit
+            if (title != other.title) return false
+            if (artist != other.artist) return false
+            if (album != other.album) return false
+            if (albumArtist != other.albumArtist) return false
+            if (year != other.year) return false
+            if (genre != other.genre) return false
+            if (lyrics != other.lyrics) return false
+            if (trackNumber != other.trackNumber) return false
+            if (removeArtwork != other.removeArtwork) return false
+            if (artworkMimeType != other.artworkMimeType) return false
+            if (artworkBytes != null) {
+                if (other.artworkBytes == null) return false
+                if (!artworkBytes.contentEquals(other.artworkBytes)) return false
+            } else if (other.artworkBytes != null) return false
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = title?.hashCode() ?: 0
+            result = 31 * result + (artist?.hashCode() ?: 0)
+            result = 31 * result + (album?.hashCode() ?: 0)
+            result = 31 * result + (albumArtist?.hashCode() ?: 0)
+            result = 31 * result + (year ?: 0)
+            result = 31 * result + (genre?.hashCode() ?: 0)
+            result = 31 * result + (lyrics?.hashCode() ?: 0)
+            result = 31 * result + (trackNumber ?: 0)
+            result = 31 * result + removeArtwork.hashCode()
+            result = 31 * result + (artworkMimeType?.hashCode() ?: 0)
+            result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+            return result
+        }
+    }
 
     /**
      * Writes tag edits physically to file.
@@ -209,6 +248,22 @@ class AudioTagWriter @Inject constructor(
         edit.genre?.let { tag.setOrDeleteField(FieldKey.GENRE, it) }
         edit.lyrics?.let { tag.setOrDeleteField(FieldKey.LYRICS, it) }
         edit.trackNumber?.let { tag.setOrDeleteField(FieldKey.TRACK, if (it > 0) it.toString() else null) }
+
+        if (edit.removeArtwork) {
+            try {
+                tag.deleteArtworkField()
+            } catch (_: Exception) {}
+        } else if (edit.artworkBytes != null) {
+            try {
+                val artwork = org.jaudiotagger.tag.images.ArtworkFactory.getNew()
+                artwork.binaryData = edit.artworkBytes
+                artwork.mimeType = edit.artworkMimeType ?: "image/jpeg"
+                try { tag.deleteArtworkField() } catch (_: Exception) {}
+                tag.setField(artwork)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not set artwork field", e)
+            }
+        }
     }
 
     private fun Tag.setOrDeleteField(key: FieldKey, value: String?) {
