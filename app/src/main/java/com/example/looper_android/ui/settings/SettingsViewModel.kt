@@ -107,6 +107,9 @@ class SettingsViewModel @Inject constructor(
     val primaryLyricsProvider: StateFlow<String> = repository.primaryLyricsProvider
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "lrclib")
 
+    val autoFallbackLyricsProviders: StateFlow<Boolean> = repository.autoFallbackLyricsProviders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val disableSquiggle: StateFlow<Boolean> = repository.disableSquiggle
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -215,6 +218,7 @@ class SettingsViewModel @Inject constructor(
     fun setLyricsAlignment(value: String) = viewModelScope.launch { repository.setLyricsAlignment(value) }
     fun setLyricsScreenDarkness(value: Float) = viewModelScope.launch { repository.setLyricsScreenDarkness(value) }
     fun setPrimaryLyricsProvider(value: String) = viewModelScope.launch { repository.setPrimaryLyricsProvider(value) }
+    fun setAutoFallbackLyricsProviders(value: Boolean) = viewModelScope.launch { repository.setAutoFallbackLyricsProviders(value) }
     fun setDisableSquiggle(value: Boolean) = viewModelScope.launch { repository.setDisableSquiggle(value) }
     fun setDisableAnimatedDuration(value: Boolean) = viewModelScope.launch { repository.setDisableAnimatedDuration(value) }
     fun setShowQualityBadge(value: Boolean) = viewModelScope.launch { repository.setShowQualityBadge(value) }

@@ -32,10 +32,10 @@ fun AdvancedLyricLine(
     activeColor: Color = Color.White,
     onTap: () -> Unit
 ) {
-    val alpha by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0.4f,
-        animationSpec = tween(durationMillis = 300),
-        label = "alpha"
+    val animatedColor by animateColorAsState(
+        targetValue = if (isActive) activeColor else Color.White.copy(alpha = 0.40f),
+        animationSpec = tween(durationMillis = 280),
+        label = "lyricTextColor"
     )
 
     val fontSize = if (disableFontScaling) {
@@ -44,7 +44,6 @@ fun AdvancedLyricLine(
         if (isActive) 28f * fontScale else 22f * fontScale
     }
     val fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
-    val textColor = if (isActive) activeColor else Color.White
 
     val textAlignment = when (alignment.lowercase()) {
         "left" -> androidx.compose.ui.text.style.TextAlign.Left
@@ -74,31 +73,27 @@ fun AdvancedLyricLine(
             if (line.text == "...") {
                 Text(
                     text = "...",
-                    color = textColor,
+                    color = animatedColor,
                     fontSize = fontSize.sp,
                     fontWeight = fontWeight,
                     textAlign = textAlignment,
-                    modifier = Modifier.alpha(alpha),
                     lineHeight = (fontSize * 1.5f).sp
                 )
             } else {
                 Icon(
                     imageVector = Lucide.Music,
                     contentDescription = "Instrumental",
-                    tint = textColor,
-                    modifier = Modifier
-                        .size((fontSize * 1.2f).dp)
-                        .alpha(alpha)
+                    tint = animatedColor,
+                    modifier = Modifier.size((fontSize * 1.2f).dp)
                 )
             }
         } else {
             Text(
                 text = line.text,
-                color = textColor,
+                color = animatedColor,
                 fontSize = fontSize.sp,
                 fontWeight = fontWeight,
                 textAlign = textAlignment,
-                modifier = Modifier.alpha(alpha),
                 lineHeight = (fontSize * 1.5f).sp
             )
         }

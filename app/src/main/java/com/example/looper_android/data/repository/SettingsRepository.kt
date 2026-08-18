@@ -32,6 +32,7 @@ class SettingsRepository @Inject constructor(
         val LYRICS_ALIGNMENT = stringPreferencesKey("lyrics_alignment")
         val LYRICS_SCREEN_DARKNESS = floatPreferencesKey("lyrics_screen_darkness")
         val PRIMARY_LYRICS_PROVIDER = stringPreferencesKey("primary_lyrics_provider")
+        val AUTO_FALLBACK_LYRICS_PROVIDERS = booleanPreferencesKey("auto_fallback_lyrics_providers")
         val DISABLE_SQUIGGLE = booleanPreferencesKey("disable_squiggle")
         val DISABLE_ANIMATED_DURATION = booleanPreferencesKey("disable_animated_duration")
         val SHOW_QUALITY_BADGE = booleanPreferencesKey("show_quality_badge")
@@ -87,6 +88,8 @@ class SettingsRepository @Inject constructor(
     val lyricsScreenDarkness: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_SCREEN_DARKNESS] ?: 0.6f }
     val primaryLyricsProvider: Flow<String> =
         dataStore.data.map { prefs -> prefs[Keys.PRIMARY_LYRICS_PROVIDER] ?: "lrclib" }
+    val autoFallbackLyricsProviders: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[Keys.AUTO_FALLBACK_LYRICS_PROVIDERS] ?: true }
     val disableSquiggle: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_SQUIGGLE] ?: false }
     val disableAnimatedDuration: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] ?: false }
@@ -191,6 +194,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPrimaryLyricsProvider(value: String) {
         dataStore.edit { prefs -> prefs[Keys.PRIMARY_LYRICS_PROVIDER] = value }
+    }
+
+    suspend fun setAutoFallbackLyricsProviders(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUTO_FALLBACK_LYRICS_PROVIDERS] = value }
     }
 
     suspend fun setDisableSquiggle(value: Boolean) {

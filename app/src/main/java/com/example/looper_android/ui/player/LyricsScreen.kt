@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,8 +29,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +71,7 @@ import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.utils.rememberHapticFeedbackHelper
 import com.example.looper_android.ui.widgets.ExpressiveSlider
 import com.example.looper_android.ui.widgets.PremiumSection
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.haze
@@ -77,6 +80,11 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import com.example.looper_android.ui.widgets.sharedBoundsOrElement
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.composables.icons.lucide.EllipsisVertical
 
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.mutableFloatStateOf
@@ -92,6 +100,7 @@ fun LyricsScreen(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
+    val context = LocalContext.current
     val state by viewModel.playbackState.collectAsState()
     val lyricsState by lyricsViewModel.uiState.collectAsState()
     val haptics = rememberHapticFeedbackHelper()
@@ -104,6 +113,8 @@ fun LyricsScreen(
     val disableBlur by settingsViewModel.disableBlur.collectAsState()
     val dynamicLyrics by settingsViewModel.dynamicLyrics.collectAsState()
     val blurredArtworkForLyrics by settingsViewModel.blurredArtworkForLyrics.collectAsState()
+    val autoFallback by settingsViewModel.autoFallbackLyricsProviders.collectAsState()
+    val enableInternet by settingsViewModel.enableInternet.collectAsState()
     val effectiveDarkTheme = darkTheme && !dynamicTheming
     val dynamicColorActiveLyrics by settingsViewModel.dynamicColorActiveLyrics.collectAsState()
     val animatedAccentColor by animateColorAsState(
@@ -115,24 +126,60 @@ fun LyricsScreen(
     val lyricsHazeState = remember { HazeState() }
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
+    var showLyricsMenuSheet by remember { mutableStateOf(false) }
+
+    val customLrcPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null && state.currentSong != null) {
+            try {
+                val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader().readText()
+                }
+                if (!content.isNullOrBlank()) {
+                    lyricsViewModel.applyCustomLyrics(state.currentSong!!, content)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to read file", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    LaunchedEffect(lyricsState.userFeedbackMessage) {
+        lyricsState.userFeedbackMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            lyricsViewModel.clearUserFeedbackMessage()
+        }
+    }
 
     LaunchedEffect(state.currentSong) {
         lyricsViewModel.loadLyricsForSong(state.currentSong)
     }
 
     var showControls by remember { mutableStateOf(true) }
+    var hideTimerJob by remember { mutableStateOf<Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     fun resetHideTimer() {
         showControls = true
-        coroutineScope.launch {
-            delay(3500)
-            showControls = false
+        hideTimerJob?.cancel()
+        if (state.isPlaying) {
+            hideTimerJob = coroutineScope.launch {
+                delay(3500)
+                if (state.isPlaying) {
+                    showControls = false
+                }
+            }
         }
     }
 
-    LaunchedEffect(Unit) {
-        resetHideTimer()
+    LaunchedEffect(state.isPlaying) {
+        if (!state.isPlaying) {
+            hideTimerJob?.cancel()
+            showControls = true
+        } else {
+            resetHideTimer()
+        }
     }
 
     val enableSlideGesture by settingsViewModel.enableSlideGesture.collectAsState()
@@ -147,8 +194,12 @@ fun LyricsScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                showControls = !showControls
-                if (showControls) resetHideTimer()
+                if (state.isPlaying) {
+                    showControls = !showControls
+                    if (showControls) resetHideTimer() else hideTimerJob?.cancel()
+                } else {
+                    showControls = true
+                }
             }
     ) {
         val artPath = state.currentSong?.artPath
@@ -297,22 +348,46 @@ fun LyricsScreen(
                         )
                     }
 
-                    PremiumSection(
-                        width = 44.dp,
-                        height = 44.dp,
-                        cornerRadius = 28.dp,
-                        backgroundColor = Color.Transparent,
-                        onClick = {
-                            haptics.lightImpact()
-                            onBack()
-                        }
+                    // Header Buttons (Half-circle touching flat sides, matching HomeTab Search/Settings style)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Lucide.ChevronDown,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        PremiumSection(
+                            width = 44.dp,
+                            height = 44.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 8.dp, bottomEnd = 8.dp),
+                            onClick = {
+                                haptics.lightImpact()
+                                showLyricsMenuSheet = true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Lucide.EllipsisVertical,
+                                contentDescription = "Lyrics Options",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        PremiumSection(
+                            width = 44.dp,
+                            height = 44.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 24.dp, bottomEnd = 24.dp),
+                            onClick = {
+                                haptics.lightImpact()
+                                onBack()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Lucide.ChevronDown,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
@@ -326,34 +401,64 @@ fun LyricsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PremiumSection(
-                        width = 36.dp,
-                        height = 36.dp,
-                        cornerRadius = 18.dp,
-                        backgroundColor = Color.Black.copy(alpha = 0.40f),
-                        onClick = {
-                            haptics.lightImpact()
-                            onBack()
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Lucide.ChevronDown,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        PremiumSection(
+                            width = 38.dp,
+                            height = 38.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 6.dp, bottomEnd = 6.dp),
+                            onClick = {
+                                haptics.lightImpact()
+                                showLyricsMenuSheet = true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Lucide.EllipsisVertical,
+                                contentDescription = "Lyrics Options",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        PremiumSection(
+                            width = 38.dp,
+                            height = 38.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 20.dp, bottomEnd = 20.dp),
+                            onClick = {
+                                haptics.lightImpact()
+                                onBack()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Lucide.ChevronDown,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
 
             Box(modifier = Modifier.weight(1f)) {
                 if (lyricsState.isLoading) {
-                } else if (lyricsState.parsedLines.isNotEmpty()) {
+                } else if (lyricsState.isSynced && lyricsState.parsedLines.isNotEmpty()) {
                     AdvancedLyricRenderer(
                         lines = lyricsState.parsedLines,
                         currentPositionMs = state.position,
+                        timingOffsetMs = lyricsState.timingOffsetMs,
+                        onAdjustOffset = { delta ->
+                            state.currentSong?.let { lyricsViewModel.adjustTimingOffset(it, delta) }
+                        },
+                        showControls = showControls,
+                        isLandscape = isLandscape,
                         onSeek = { pos ->
                             viewModel.seekTo(pos)
                             resetHideTimer()
@@ -361,6 +466,14 @@ fun LyricsScreen(
                         disableFontScaling = disableLyricFontScaling,
                         alignment = lyricsAlignment,
                         activeColor = if (dynamicColorActiveLyrics) state.accentColor else Color.White,
+                        modifier = Modifier.fillMaxSize(),
+                        onUserScroll = { resetHideTimer() }
+                    )
+                } else if (!lyricsState.isSynced && lyricsState.plainLines.isNotEmpty()) {
+                    PlainLyricsRenderer(
+                        lines = lyricsState.plainLines,
+                        disableFontScaling = disableLyricFontScaling,
+                        alignment = lyricsAlignment,
                         modifier = Modifier.fillMaxSize(),
                         onUserScroll = { resetHideTimer() }
                     )
@@ -535,6 +648,87 @@ fun LyricsScreen(
                     }
                 }
             }
+        }
+
+        if (showLyricsMenuSheet && state.currentSong != null) {
+            LyricsOptionsMenuSheet(
+                song = state.currentSong!!,
+                lyricsSource = lyricsState.source,
+                autoFallback = autoFallback,
+                isInternetEnabled = enableInternet,
+                isFetchingProvider = lyricsState.isFetchingProvider,
+                accentColor = animatedAccentColor,
+                onDismiss = { showLyricsMenuSheet = false },
+                onSelectProvider = { provider ->
+                    lyricsViewModel.refetchWithProvider(state.currentSong!!, provider)
+                },
+                onToggleAutoFallback = { enabled ->
+                    settingsViewModel.setAutoFallbackLyricsProviders(enabled)
+                },
+                onEnableInternetClick = {
+                    settingsViewModel.setEnableInternet(true)
+                },
+                onExportLrcClick = {
+                    lyricsViewModel.exportLyricsToLrcFile(state.currentSong!!, context)
+                },
+                onEmbedLyricsClick = {
+                    lyricsViewModel.embedLyricsToAudioFile(state.currentSong!!)
+                },
+                onPickCustomLrcClick = {
+                    showLyricsMenuSheet = false
+                    customLrcPicker.launch(arrayOf("text/*", "application/octet-stream", "*/*"))
+                }
+            )
+        }
+
+        if (lyricsState.showInternetPrompt) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { lyricsViewModel.dismissInternetPrompt() },
+                title = {
+                    Text(
+                        text = "Internet Access Disabled",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontFamily = DmSansFontFamily
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Online lyrics require an internet connection, but 'Use Internet' is currently disabled in Settings. Would you like to enable it now?",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        fontFamily = DmSansFontFamily
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            settingsViewModel.setEnableInternet(true)
+                            lyricsViewModel.dismissInternetPrompt()
+                        }
+                    ) {
+                        Text(
+                            text = "Enable",
+                            color = animatedAccentColor,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { lyricsViewModel.dismissInternetPrompt() }
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+                },
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
         }
     }
 }

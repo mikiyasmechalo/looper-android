@@ -215,6 +215,7 @@ private fun ThemeSettingsSection(
     val lyricsAlignment by viewModel.lyricsAlignment.collectAsState()
     val lyricsScreenDarkness by viewModel.lyricsScreenDarkness.collectAsState()
     val primaryLyricsProvider by viewModel.primaryLyricsProvider.collectAsState()
+    val autoFallbackLyricsProviders by viewModel.autoFallbackLyricsProviders.collectAsState()
     val disableSquiggle by viewModel.disableSquiggle.collectAsState()
     val disableAnimatedDuration by viewModel.disableAnimatedDuration.collectAsState()
     val showQualityBadge by viewModel.showQualityBadge.collectAsState()
@@ -388,11 +389,28 @@ private fun ThemeSettingsSection(
                 AboutDivider()
                 SettingsDropdownTile(
                     title = "Online Lyrics Provider",
-                    subtitle = "Choose online service for fetching synchronized lyrics",
+                    subtitle = "Choose primary online service for fetching synchronized lyrics",
                     icon = Lucide.Globe,
-                    options = listOf("LRCLIB" to "lrclib", "Genius" to "genius", "Musixmatch" to "musixmatch", "Netease" to "netease"),
+                    options = listOf(
+                        "LRCLIB" to "LRCLIB",
+                        "Genius" to "Genius",
+                        "LyricFind" to "LyricFind",
+                        "Musixmatch" to "Musixmatch",
+                        "AZLyrics" to "AZLyrics",
+                        "LyricsMINT" to "LyricsMINT"
+                    ),
                     selectedOption = primaryLyricsProvider,
                     onOptionSelected = { viewModel.setPrimaryLyricsProvider(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Auto Fallback Providers",
+                    subtitle = "Cycle all available online providers if primary yields no lyrics",
+                    icon = Lucide.Sparkles,
+                    checked = autoFallbackLyricsProviders,
+                    onCheckedChange = { viewModel.setAutoFallbackLyricsProviders(it) },
                     accentColor = accentColor
                 )
             }

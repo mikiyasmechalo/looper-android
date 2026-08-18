@@ -59,6 +59,45 @@ class AudioTagReader @Inject constructor(
         fallbackWithMediaMetadataRetriever(uri.toString(), jAudioTags)
     }
 
+    suspend fun writeLyrics(pathOrUri: String, lyrics: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanLyrics = lyrics.lines().filter { !it.trim().startsWith("[source:") }.joinToString("\n").trim()
+        try {
+            if (pathOrUri.startsWith("content://")) {
+                val uri = Uri.parse(pathOrUri)
+                val ext = resolveAudioExtension(uri)
+                val tempFile = File(context.cacheDir, "tag_write_${System.currentTimeMillis()}.$ext")
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    val audioFile = AudioFileIO.read(tempFile)
+                    val tag = audioFile.tagOrCreateAndSetDefault
+                    tag.setField(FieldKey.LYRICS, cleanLyrics)
+                    audioFile.commit()
+
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                        tempFile.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    true
+                } finally {
+                    tempFile.delete()
+                }
+            } else {
+                val file = File(pathOrUri)
+                if (file.exists()) {
+                    val audioFile = AudioFileIO.read(file)
+                    val tag = audioFile.tagOrCreateAndSetDefault
+                    tag.setField(FieldKey.LYRICS, cleanLyrics)
+                    audioFile.commit()
+                    true
+                } else false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AudioTagReader", "Error writing lyrics tag to $pathOrUri", e)
+            false
+        }
+    }
+
     private fun resolveAudioExtension(uri: Uri): String {
         val validExts = setOf("mp3", "flac", "m4a", "aac", "ogg", "wav", "mp4", "wma", "aiff")
         try {

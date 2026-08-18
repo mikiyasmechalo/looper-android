@@ -2,24 +2,43 @@ package com.example.looper_android.data.repository
 
 import com.example.looper_android.data.models.LyricLine
 
+data class ParsedLyricsResult(
+    val isSynced: Boolean,
+    val timedLines: List<LyricLine> = emptyList(),
+    val plainLines: List<String> = emptyList()
+)
+
 object LyricsParser {
 
-    fun parse(lrcContent: String, durationMs: Long = 180000L): List<LyricLine> {
-        val lines = lrcContent.split("\n")
+    fun parseLyrics(lrcContent: String, durationMs: Long = 180000L): ParsedLyricsResult {
+        val cleanContent = lrcContent.removePrefix("\uFEFF")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+
+        val lines = cleanContent.split("\n")
         val rawLines = mutableListOf<LyricLine>()
 
-        // Flexible regex: matches [mm:ss], [mm:ss.x], [mm:ss.xx], [mm:ss.xxx], [mm:ss:xx], [mmm:ss.xx]
-        val timeRegex = Regex("""\[(\d{1,3}):(\d{2})(?:[:\.](\d{1,3}))?\](.*)""")
+        // Flexible regex matching [mm:ss], [m:ss], [mm:ss.xx], [mm:ss.xxx], [mm:ss:xx], [mm:ss,xx]
+        val tagRegex = Regex("""\[(\d{1,3})\s*:\s*(\d{1,2})(?:[\.:,](\d{1,3}))?\]""")
+        val offsetRegex = Regex("""\[offset\s*:\s*(-?\d+)\]""", RegexOption.IGNORE_CASE)
+        var globalOffsetMs = 0L
 
         for (line in lines) {
             val trimmedLine = line.trim()
             if (trimmedLine.isEmpty()) continue
-            if (trimmedLine.startsWith("[source:")) continue
+            if (trimmedLine.startsWith("[source:", ignoreCase = true)) continue
 
-            val matches = timeRegex.findAll(trimmedLine).toList()
-            if (matches.isNotEmpty()) {
-                val text = matches.last().groupValues[4].trim()
-                for (match in matches) {
+            val offsetMatch = offsetRegex.find(trimmedLine)
+            if (offsetMatch != null) {
+                globalOffsetMs = offsetMatch.groupValues[1].toLongOrNull() ?: 0L
+                continue
+            }
+
+            val tagMatches = tagRegex.findAll(trimmedLine).toList()
+            if (tagMatches.isNotEmpty()) {
+                // Extract text by removing all timestamp tags on this line (supports multiple tags per line)
+                val text = trimmedLine.replace(tagRegex, "").trim()
+                for (match in tagMatches) {
                     val minutes = match.groupValues[1].toLongOrNull() ?: 0L
                     val seconds = match.groupValues[2].toLongOrNull() ?: 0L
                     val fracStr = match.groupValues[3]
@@ -31,36 +50,29 @@ object LyricsParser {
                         else -> 0L
                     }
 
-                    val timeMs = minutes * 60 * 1000L + seconds * 1000L + milliseconds
+                    val timeMs = (minutes * 60 * 1000L + seconds * 1000L + milliseconds + globalOffsetMs).coerceAtLeast(0L)
                     rawLines.add(LyricLine(timeMs, timeMs, text))
                 }
             }
         }
 
-        // Fallback for plain text lyrics (no timestamps matched)
+        // If no timestamps were matched, treat as pure plain text lyrics (do NOT fake timestamps)
         if (rawLines.isEmpty()) {
             val plainLines = mutableListOf<String>()
             val metaRegex = Regex("""^\[[a-zA-Z]+:.*\]$""")
             for (line in lines) {
                 val trimmed = line.trim()
-                if (trimmed.isEmpty() || trimmed.startsWith("[source:")) continue
+                if (trimmed.isEmpty() || trimmed.startsWith("[source:", ignoreCase = true)) continue
                 if (metaRegex.matches(trimmed)) continue
                 if (trimmed.startsWith("[") && trimmed.endsWith("]") && !trimmed.contains(" ")) continue
                 plainLines.add(trimmed)
             }
 
-            if (plainLines.isNotEmpty()) {
-                val totalMs = if (durationMs > 0L) durationMs else 180000L
-                val interval = totalMs / plainLines.size
-                val plainResult = mutableListOf<LyricLine>()
-                for (i in plainLines.indices) {
-                    val startMs = interval * i
-                    val endMs = interval * (i + 1)
-                    plainResult.add(LyricLine(startMs, endMs, plainLines[i]))
-                }
-                return plainResult
-            }
-            return emptyList()
+            return ParsedLyricsResult(
+                isSynced = false,
+                timedLines = emptyList(),
+                plainLines = plainLines
+            )
         }
 
         rawLines.sortBy { it.startTimeMs }
@@ -97,6 +109,16 @@ object LyricsParser {
             }
         }
 
-        return result
+        return ParsedLyricsResult(
+            isSynced = true,
+            timedLines = result,
+            plainLines = result.map { it.text }
+        )
+    }
+
+    @Deprecated("Use parseLyrics instead to distinguish synced vs plain lyrics")
+    fun parse(lrcContent: String, durationMs: Long = 180000L): List<LyricLine> {
+        val parsed = parseLyrics(lrcContent, durationMs)
+        return parsed.timedLines
     }
 }
