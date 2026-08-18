@@ -8,6 +8,7 @@ import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.data.models.SortOption
 import com.example.looper_android.data.repository.AudioFileDeleter
 import com.example.looper_android.data.repository.DeleteResult
+import com.example.looper_android.data.repository.DeleteBatchResult
 import com.example.looper_android.data.repository.LibraryScanner
 import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.domain.QueueManager
@@ -31,6 +32,11 @@ data class PendingDeletePermission(
     val pendingSong: SongEntity
 )
 
+data class PendingBatchDeletePermission(
+    val intentSender: IntentSender,
+    val pendingSongIds: List<Long>
+)
+
 @HiltViewModel
 class AllSongsViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
@@ -42,6 +48,9 @@ class AllSongsViewModel @Inject constructor(
 
     private val _pendingDeletePermission = MutableStateFlow<PendingDeletePermission?>(null)
     val pendingDeletePermission: StateFlow<PendingDeletePermission?> = _pendingDeletePermission.asStateFlow()
+
+    private val _pendingBatchDeletePermission = MutableStateFlow<PendingBatchDeletePermission?>(null)
+    val pendingBatchDeletePermission: StateFlow<PendingBatchDeletePermission?> = _pendingBatchDeletePermission.asStateFlow()
 
     private val _songs = MutableStateFlow<List<SongEntity>>(emptyList())
     val songs: StateFlow<List<SongEntity>> = _songs.asStateFlow()
@@ -151,6 +160,51 @@ class AllSongsViewModel @Inject constructor(
 
     fun onDeletePermissionDenied() {
         _pendingDeletePermission.value = null
+    }
+
+    fun deleteSongs(songsToDelete: List<SongEntity>, onComplete: ((Boolean) -> Unit)? = null) {
+        if (songsToDelete.isEmpty()) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val result = audioFileDeleter.deleteBatch(songsToDelete.map { it.path })
+                when (result) {
+                    is DeleteBatchResult.Success -> {
+                        val deletedPaths = result.deletedPaths.toSet()
+                        val deletedSongs = if (deletedPaths.isEmpty()) songsToDelete else songsToDelete.filter { it.path in deletedPaths }
+                        deletedSongs.forEach { song ->
+                            libraryDao.deleteSongById(song.id)
+                            queueManager.removeSong(song.id)
+                        }
+                        onComplete?.invoke(true)
+                    }
+                    is DeleteBatchResult.RequiresPermission -> {
+                        _pendingBatchDeletePermission.value = PendingBatchDeletePermission(
+                            intentSender = result.intentSender,
+                            pendingSongIds = songsToDelete.map { it.id }
+                        )
+                        onComplete?.invoke(false)
+                    }
+                    is DeleteBatchResult.Failure -> {
+                        onComplete?.invoke(false)
+                    }
+                }
+            }
+        }
+    }
+
+    fun onBatchDeletePermissionGranted() {
+        val pending = _pendingBatchDeletePermission.value ?: return
+        _pendingBatchDeletePermission.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            pending.pendingSongIds.forEach { songId ->
+                libraryDao.deleteSongById(songId)
+                queueManager.removeSong(songId)
+            }
+        }
+    }
+
+    fun onBatchDeletePermissionDenied() {
+        _pendingBatchDeletePermission.value = null
     }
 
     fun rescanLibrary() {

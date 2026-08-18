@@ -131,6 +131,9 @@ class LibraryScanner @Inject constructor(
         val processedArtists = mutableSetOf<String>()
         val songsToEnrich = mutableListOf<SongEntity>()
 
+        val excludedFolders = try { settingsRepository.excludedFolders.first() } catch (_: Exception) { emptySet() }
+        val scannedValidPaths = mutableSetOf<String>()
+
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
@@ -156,15 +159,23 @@ class LibraryScanner @Inject constructor(
 
             val totalSongs = cursor.count
             var scannedCount = 0
-            val excludedFolders = try { settingsRepository.excludedFolders.first() } catch (_: Exception) { emptySet() }
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn) ?: continue
+                if (path.isBlank()) continue
 
                 if (excludedFolders.isNotEmpty() && excludedFolders.any { path.startsWith(it, ignoreCase = true) }) {
                     continue
                 }
+
+                // Verify file exists on disk and is a non-empty audio file
+                val file = java.io.File(path)
+                if (!file.exists() || !file.isFile || file.length() <= 0L) {
+                    continue
+                }
+
+                scannedValidPaths.add(path)
 
                 val existing = existingByPath[path]
 
@@ -251,10 +262,26 @@ class LibraryScanner @Inject constructor(
             }
         }
 
+        // Determine all songs in database that are stale / deleted from disk / excluded
+        val staleSongIds = mutableListOf<Long>()
+        for ((path, songData) in existingByPath) {
+            if (!path.startsWith("content://")) {
+                val file = java.io.File(path)
+                val isExcluded = excludedFolders.isNotEmpty() && excludedFolders.any { path.startsWith(it, ignoreCase = true) }
+                val wasNotScanned = !scannedValidPaths.contains(path)
+                if (!file.exists() || !file.isFile || file.length() <= 0L || isExcluded || wasNotScanned) {
+                    staleSongIds.add(songData.id)
+                }
+            }
+        }
+
         // OPTIMIZATION: Single bulk transaction for all DB writes
         db.withTransaction {
             // Purge any legacy content:// songs so only canonical physical paths remain
             libraryDao.deleteContentUriSongs()
+            if (staleSongIds.isNotEmpty()) {
+                libraryDao.deleteSongsByIds(staleSongIds.distinct())
+            }
             if (songsToInsert.isNotEmpty()) libraryDao.insertSongs(songsToInsert)
             if (songsToUpdate.isNotEmpty()) libraryDao.updateSongs(songsToUpdate)
             if (albumsToInsert.isNotEmpty()) libraryDao.insertAlbums(albumsToInsert)

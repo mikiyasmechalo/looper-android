@@ -65,6 +65,9 @@ interface LibraryDao {
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: Long)
 
+    @Query("DELETE FROM songs WHERE id IN (:ids)")
+    suspend fun deleteSongsByIds(ids: List<Long>): Int
+
     @Query("DELETE FROM songs WHERE path LIKE :pathPrefix || '%'")
     suspend fun deleteSongsByPathPrefix(pathPrefix: String)
 
@@ -103,13 +106,13 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArtists(artists: List<ArtistEntity>)
 
-    @Query("DELETE FROM artists WHERE name = :artistName")
+    @Query("DELETE FROM artists WHERE name = :artistName COLLATE NOCASE")
     suspend fun deleteArtistByName(artistName: String)
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()
 
-    @Query("UPDATE artists SET artistImageUrl = :imageUrl WHERE name = :name")
+    @Query("UPDATE artists SET artistImageUrl = :imageUrl WHERE name = :name COLLATE NOCASE")
     suspend fun updateArtistImageUrl(name: String, imageUrl: String)
 
     @Query("SELECT * FROM artists WHERE artistImageUrl IS NULL OR artistImageUrl = ''")

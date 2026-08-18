@@ -27,6 +27,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
+import android.content.IntentSender
+import com.example.looper_android.data.repository.DeleteBatchResult
+
 data class MassOperationProgress(
     val isRunning: Boolean = false,
     val title: String = "",
@@ -41,12 +44,23 @@ class CollectionDetailViewModel @Inject constructor(
     private val tagWriter: AudioTagWriter,
     private val audioFileDeleter: AudioFileDeleter,
     private val safPermissionRepo: SafPermissionRepository,
+    private val artworkService: com.example.looper_android.data.repository.ArtworkService,
     libraryCacheManager: LibraryCacheManager,
     settingsRepository: SettingsRepository
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE)
 
     val isDbLoaded = libraryCacheManager.isDbLoaded
+    val artists = libraryCacheManager.artists
+
+    fun fetchArtistImage(artistName: String) {
+        viewModelScope.launch {
+            artworkService.getArtistImageUrl(artistName)
+        }
+    }
+
+    private val _pendingBatchDeletePermission = MutableStateFlow<PendingBatchDeletePermission?>(null)
+    val pendingBatchDeletePermission: StateFlow<PendingBatchDeletePermission?> = _pendingBatchDeletePermission.asStateFlow()
 
     private val _title = MutableStateFlow("")
     private val _type = MutableStateFlow("")
@@ -203,22 +217,30 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _progressState.value = MassOperationProgress(isRunning = true, title = "Deleting Album Songs...", current = 0, total = songs.size)
 
-            var deletedCount = 0
-            songs.forEachIndexed { index, song ->
-                _progressState.value = MassOperationProgress(isRunning = true, title = "Deleting Album Songs (${index + 1}/${songs.size})", current = index + 1, total = songs.size)
-
-                val deleteResult = audioFileDeleter.delete(song.path)
-                if (deleteResult is DeleteResult.Success) {
-                    deletedCount++
+            val result = audioFileDeleter.deleteBatch(songs.map { it.path })
+            when (result) {
+                is DeleteBatchResult.Success -> {
+                    val deletedPaths = result.deletedPaths.toSet()
+                    val deletedSongs = if (deletedPaths.isEmpty()) songs else songs.filter { it.path in deletedPaths }
+                    deletedSongs.forEach { song ->
+                        libraryDao.deleteSongById(song.id)
+                    }
+                    libraryDao.deleteAlbumByName(albumName)
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(true) }
                 }
-                libraryDao.deleteSongById(song.id)
-            }
-
-            libraryDao.deleteAlbumByName(albumName)
-
-            _progressState.value = MassOperationProgress(isRunning = false)
-            withContext(Dispatchers.Main) {
-                onComplete(true)
+                is DeleteBatchResult.RequiresPermission -> {
+                    _pendingBatchDeletePermission.value = PendingBatchDeletePermission(
+                        intentSender = result.intentSender,
+                        pendingSongIds = songs.map { it.id }
+                    )
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(false) }
+                }
+                is DeleteBatchResult.Failure -> {
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(false) }
+                }
             }
         }
     }
@@ -231,24 +253,51 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _progressState.value = MassOperationProgress(isRunning = true, title = "Deleting Artist Songs...", current = 0, total = songs.size)
 
-            var deletedCount = 0
-            songs.forEachIndexed { index, song ->
-                _progressState.value = MassOperationProgress(isRunning = true, title = "Deleting Artist Songs (${index + 1}/${songs.size})", current = index + 1, total = songs.size)
-
-                val deleteResult = audioFileDeleter.delete(song.path)
-                if (deleteResult is DeleteResult.Success) {
-                    deletedCount++
+            val result = audioFileDeleter.deleteBatch(songs.map { it.path })
+            when (result) {
+                is DeleteBatchResult.Success -> {
+                    val deletedPaths = result.deletedPaths.toSet()
+                    val deletedSongs = if (deletedPaths.isEmpty()) songs else songs.filter { it.path in deletedPaths }
+                    deletedSongs.forEach { song ->
+                        libraryDao.deleteSongById(song.id)
+                    }
+                    libraryDao.deleteArtistByName(artistName)
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(true) }
                 }
-                libraryDao.deleteSongById(song.id)
-            }
-
-            libraryDao.deleteArtistByName(artistName)
-
-            _progressState.value = MassOperationProgress(isRunning = false)
-            withContext(Dispatchers.Main) {
-                onComplete(true)
+                is DeleteBatchResult.RequiresPermission -> {
+                    _pendingBatchDeletePermission.value = PendingBatchDeletePermission(
+                        intentSender = result.intentSender,
+                        pendingSongIds = songs.map { it.id }
+                    )
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(false) }
+                }
+                is DeleteBatchResult.Failure -> {
+                    _progressState.value = MassOperationProgress(isRunning = false)
+                    withContext(Dispatchers.Main) { onComplete(false) }
+                }
             }
         }
+    }
+
+    fun onBatchDeletePermissionGranted(collectionName: String, isAlbum: Boolean) {
+        val pending = _pendingBatchDeletePermission.value ?: return
+        _pendingBatchDeletePermission.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            pending.pendingSongIds.forEach { songId ->
+                libraryDao.deleteSongById(songId)
+            }
+            if (isAlbum) {
+                libraryDao.deleteAlbumByName(collectionName)
+            } else {
+                libraryDao.deleteArtistByName(collectionName)
+            }
+        }
+    }
+
+    fun onBatchDeletePermissionDenied() {
+        _pendingBatchDeletePermission.value = null
     }
 
     private data class CollectionConfig(

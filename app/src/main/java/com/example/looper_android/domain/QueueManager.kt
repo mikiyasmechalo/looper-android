@@ -105,15 +105,37 @@ class QueueManager @Inject constructor(
         if (songs.isEmpty()) return
         queueJob?.cancel()
 
-        val actualOriginalSongs = if (forceShuffleOriginal) {
-            val startSong = songs[startIndex]
-            val others = songs.filterIndexed { index, _ -> index != startIndex }.shuffled()
-            listOf(startSong) + others
+        // Filter out any songs whose physical file no longer exists and purge them from DB
+        val validSongs = songs.filter { song ->
+            if (song.path.startsWith("content://")) true
+            else {
+                val file = java.io.File(song.path)
+                val exists = file.exists() && file.isFile && file.length() > 0L
+                if (!exists) {
+                    scope.launch(Dispatchers.IO) {
+                        libraryDao.deleteSongById(song.id)
+                    }
+                }
+                exists
+            }
+        }
+        if (validSongs.isEmpty()) return
+
+        val safeStartIndex = if (startIndex < songs.size && validSongs.contains(songs[startIndex])) {
+            validSongs.indexOf(songs[startIndex])
         } else {
-            songs
+            startIndex.coerceIn(0, validSongs.lastIndex)
         }
 
-        val actualStartIndex = if (forceShuffleOriginal) 0 else startIndex
+        val actualOriginalSongs = if (forceShuffleOriginal) {
+            val startSong = validSongs[safeStartIndex]
+            val others = validSongs.filterIndexed { index, _ -> index != safeStartIndex }.shuffled()
+            listOf(startSong) + others
+        } else {
+            validSongs
+        }
+
+        val actualStartIndex = if (forceShuffleOriginal) 0 else safeStartIndex
         val startSong = actualOriginalSongs[actualStartIndex]
 
         originalSongs = actualOriginalSongs
@@ -352,14 +374,19 @@ class QueueManager @Inject constructor(
     }
 
     fun addNext(song: SongEntity) {
+        addNext(listOf(song))
+    }
+
+    fun addNext(songs: List<SongEntity>) {
+        if (songs.isEmpty()) return
         scope.launch(Dispatchers.Main) {
             if (workingSongs.isEmpty() || player.mediaItemCount == 0) {
-                loadAndPlayQueue("All Songs", listOf(song), 0, false)
+                loadAndPlayQueue("All Songs", songs, 0, false)
                 return@launch
             }
 
-            // Remove if already in working list
-            val filteredWorking = workingSongs.filter { it.id != song.id }
+            val songIds = songs.map { it.id }.toSet()
+            val filteredWorking = workingSongs.filter { it.id !in songIds }
             val currentMediaItem = player.currentMediaItem
             val currentSongId = currentMediaItem?.mediaId?.toLongOrNull()
             val currentIndex = if (currentSongId != null) {
@@ -370,25 +397,25 @@ class QueueManager @Inject constructor(
 
             val insertIndex = (currentIndex + 1).coerceAtMost(filteredWorking.size)
             val newWorking = filteredWorking.toMutableList().apply {
-                add(insertIndex, song)
+                addAll(insertIndex, songs)
             }
             workingSongs = newWorking
 
-            val newOriginal = originalSongs.filter { it.id != song.id }.toMutableList().apply {
-                add(song)
+            val newOriginal = originalSongs.filter { it.id !in songIds }.toMutableList().apply {
+                addAll(songs)
             }
             originalSongs = newOriginal
 
-            // Update ExoPlayer
-            val mediaItem = buildMediaItem(song)
-            for (i in 0 until player.mediaItemCount) {
-                if (player.getMediaItemAt(i).mediaId == song.id.toString()) {
+            // Remove duplicates from ExoPlayer
+            for (i in player.mediaItemCount - 1 downTo 0) {
+                val mId = player.getMediaItemAt(i).mediaId.toLongOrNull()
+                if (mId != null && mId in songIds) {
                     player.removeMediaItem(i)
-                    break
                 }
             }
             val exoInsertIndex = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
-            player.addMediaItem(exoInsertIndex, mediaItem)
+            val mediaItems = songs.map { buildMediaItem(it) }
+            player.addMediaItems(exoInsertIndex, mediaItems)
 
             val activeQName = _activeQueueName.value
             persistFullQueue(activeQName, newWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)
@@ -396,30 +423,36 @@ class QueueManager @Inject constructor(
     }
 
     fun addToQueue(song: SongEntity) {
+        addToQueue(listOf(song))
+    }
+
+    fun addToQueue(songs: List<SongEntity>) {
+        if (songs.isEmpty()) return
         scope.launch(Dispatchers.Main) {
             if (workingSongs.isEmpty() || player.mediaItemCount == 0) {
-                loadAndPlayQueue("All Songs", listOf(song), 0, false)
+                loadAndPlayQueue("All Songs", songs, 0, false)
                 return@launch
             }
 
-            val filteredWorking = workingSongs.filter { it.id != song.id }.toMutableList().apply {
-                add(song)
+            val songIds = songs.map { it.id }.toSet()
+            val filteredWorking = workingSongs.filter { it.id !in songIds }.toMutableList().apply {
+                addAll(songs)
             }
             workingSongs = filteredWorking
 
-            val newOriginal = originalSongs.filter { it.id != song.id }.toMutableList().apply {
-                add(song)
+            val newOriginal = originalSongs.filter { it.id !in songIds }.toMutableList().apply {
+                addAll(songs)
             }
             originalSongs = newOriginal
 
-            val mediaItem = buildMediaItem(song)
-            for (i in 0 until player.mediaItemCount) {
-                if (player.getMediaItemAt(i).mediaId == song.id.toString()) {
+            for (i in player.mediaItemCount - 1 downTo 0) {
+                val mId = player.getMediaItemAt(i).mediaId.toLongOrNull()
+                if (mId != null && mId in songIds) {
                     player.removeMediaItem(i)
-                    break
                 }
             }
-            player.addMediaItem(mediaItem)
+            val mediaItems = songs.map { buildMediaItem(it) }
+            player.addMediaItems(mediaItems)
 
             val activeQName = _activeQueueName.value
             persistFullQueue(activeQName, filteredWorking, _isShuffleEnabled.value, player.currentMediaItemIndex)

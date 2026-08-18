@@ -90,17 +90,28 @@ class LibraryCacheManager @Inject constructor(
             for (s in songList) {
                 val albumName = s.album ?: "Unknown Album"
                 counts[albumName] = (counts[albumName] ?: 0) + 1
+                counts[albumName.lowercase()] = (counts[albumName.lowercase()] ?: 0) + 1
             }
             _albumSongCounts.value = counts
-            _albums.value = albumList
+            _albums.value = albumList.filter { album ->
+                val count = counts[album.name.lowercase()] ?: 0
+                count > 0
+            }
         }.launchIn(scope)
 
         combine(_songs, _rawArtists, settingsRepository.useAlbumArtist) { songList, artistList, useAlbumArtist ->
-            val counts = mutableMapOf<String, Int>()
             val artistMap = mutableMapOf<String, ArtistEntity>()
             for (a in artistList) {
-                artistMap[a.name.lowercase()] = a
+                val lower = a.name.lowercase()
+                val existing = artistMap[lower]
+                if (existing == null || (!a.artistImageUrl.isNullOrBlank() && existing.artistImageUrl.isNullOrBlank())) {
+                    artistMap[lower] = a
+                }
             }
+
+            // Case-insensitive artist grouping
+            val artistNameVariants = mutableMapOf<String, MutableList<String>>()
+            val artistSongCountMap = mutableMapOf<String, Int>()
 
             for (s in songList) {
                 val artistName = if (useAlbumArtist) {
@@ -108,19 +119,40 @@ class LibraryCacheManager @Inject constructor(
                 } else {
                     s.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
                 }
-                counts[artistName] = (counts[artistName] ?: 0) + 1
+                val lowerKey = artistName.lowercase()
+                artistNameVariants.getOrPut(lowerKey) { mutableListOf() }.add(artistName)
+                artistSongCountMap[lowerKey] = (artistSongCountMap[lowerKey] ?: 0) + 1
             }
-            _artistSongCounts.value = counts
-            
-            val computedArtists = counts.keys.mapIndexed { index, name ->
-                val existing = artistMap[name.lowercase()]
+
+            val computedArtists = artistNameVariants.entries.mapIndexed { index, (lowerKey, names) ->
+                val existing = artistMap[lowerKey]
+                // Pick canonical name:
+                // 1. If existing artist in DB has an image, use its name
+                // 2. Otherwise pick the most frequently used casing (or one with upper/mixed case)
+                val bestName = if (existing != null && !existing.artistImageUrl.isNullOrBlank()) {
+                    existing.name
+                } else {
+                    names.groupBy { it }.maxByOrNull { it.value.size }?.key
+                        ?: existing?.name
+                        ?: names.first()
+                }
+
                 ArtistEntity(
                     id = existing?.id ?: (index + 1).toLong(),
-                    name = name,
+                    name = bestName,
                     artPath = existing?.artPath,
                     artistImageUrl = existing?.artistImageUrl
                 )
             }.sortedBy { it.name.lowercase() }
+
+            val finalCounts = mutableMapOf<String, Int>()
+            for (artist in computedArtists) {
+                val count = artistSongCountMap[artist.name.lowercase()] ?: 0
+                finalCounts[artist.name] = count
+                finalCounts[artist.name.lowercase()] = count
+            }
+
+            _artistSongCounts.value = finalCounts
             _artists.value = computedArtists
         }.launchIn(scope)
 
@@ -174,21 +206,30 @@ class LibraryCacheManager @Inject constructor(
     }
 
     fun addSongToPlaylist(playlist: PlaylistEntity, songPath: String) {
+        addSongsToPlaylist(playlist, listOf(songPath))
+    }
+
+    fun addSongsToPlaylist(playlist: PlaylistEntity, songPaths: List<String>) {
+        if (songPaths.isEmpty()) return
         scope.launch(Dispatchers.IO) {
             val jsonArray = try {
                 org.json.JSONArray(playlist.songPaths.ifBlank { "[]" })
             } catch (_: Exception) {
                 org.json.JSONArray()
             }
-            var exists = false
+            val existingSet = mutableSetOf<String>()
             for (i in 0 until jsonArray.length()) {
-                if (jsonArray.optString(i) == songPath) {
-                    exists = true
-                    break
+                existingSet.add(jsonArray.optString(i))
+            }
+            var modified = false
+            for (path in songPaths) {
+                if (!existingSet.contains(path)) {
+                    jsonArray.put(path)
+                    existingSet.add(path)
+                    modified = true
                 }
             }
-            if (!exists) {
-                jsonArray.put(songPath)
+            if (modified) {
                 val updated = playlist.copy(
                     songPaths = jsonArray.toString(),
                     dateModified = System.currentTimeMillis()

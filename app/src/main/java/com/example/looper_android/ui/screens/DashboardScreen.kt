@@ -2,6 +2,7 @@ package com.example.looper_android.ui.screens
 
 import android.content.res.Configuration
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -11,10 +12,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -118,6 +124,7 @@ fun DashboardScreen(
     val isDbLoaded by allSongsViewModel.isDbLoaded.collectAsState()
     val songs by allSongsViewModel.songs.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
+    val isSelectionActive by playbackViewModel.isSelectionActive.collectAsState()
     
     var hasPermission by remember {
         androidx.compose.runtime.mutableStateOf(
@@ -198,9 +205,11 @@ fun DashboardScreen(
     )
 
     val hazeState = remember { dev.chrisbanes.haze.HazeState() }
+    val selectionBottomBarState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
 
     androidx.compose.runtime.CompositionLocalProvider(
-        com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor
+        com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor,
+        com.example.looper_android.ui.components.LocalSelectionBottomBar provides selectionBottomBarState
     ) {
         Box(
             modifier = Modifier
@@ -263,6 +272,7 @@ fun DashboardScreen(
             composable("tabs") {
                 HorizontalPager(
                     state = pagerState,
+                    userScrollEnabled = !isSelectionActive,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = stableTopDp)
@@ -295,6 +305,7 @@ fun DashboardScreen(
                         )
                         1 -> AllSongsScreen(
                             viewModel = allSongsViewModel,
+                            playbackViewModel = playbackViewModel,
                             listState = allSongsListState,
                             onNavigateToSearch = { childNavController.navigate("search/songs") },
                             onNavigateToSettings = { childNavController.navigate("settings") },
@@ -328,6 +339,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 AlbumsScreen(
+                    playbackViewModel = playbackViewModel,
                     onNavigateToSearch = { childNavController.navigate("search/albums") },
                     onBackClick = { childNavController.popBackStack() },
                     onAlbumClick = { album ->
@@ -345,6 +357,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 ArtistsScreen(
+                    playbackViewModel = playbackViewModel,
                     onNavigateToSearch = { childNavController.navigate("search/artists") },
                     onBackClick = { childNavController.popBackStack() },
                     onArtistClick = { artist ->
@@ -362,6 +375,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 PlaylistsScreen(
+                    playbackViewModel = playbackViewModel,
                     onBackClick = { childNavController.popBackStack() },
                     onPlaylistClick = { playlist ->
                         val encoded = Uri.encode(playlist)
@@ -378,6 +392,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 FoldersScreen(
+                    playbackViewModel = playbackViewModel,
                     onBackClick = { childNavController.popBackStack() },
                     onFolderClick = { folder ->
                         val encoded = Uri.encode(folder)
@@ -407,6 +422,7 @@ fun DashboardScreen(
                 popExitTransition = { categoryPopExitTransition }
             ) {
                 GenresScreen(
+                    playbackViewModel = playbackViewModel,
                     onNavigateToSearch = { childNavController.navigate("search/genres") },
                     onBackClick = { childNavController.popBackStack() },
                     onGenreClick = { genre ->
@@ -423,7 +439,10 @@ fun DashboardScreen(
                 popEnterTransition = { categoryPopEnterTransition },
                 popExitTransition = { categoryPopExitTransition }
             ) {
-                FavoritesScreen(onBackClick = { childNavController.popBackStack() })
+                FavoritesScreen(
+                    playbackViewModel = playbackViewModel,
+                    onBackClick = { childNavController.popBackStack() }
+                )
             }
 
             composable(
@@ -433,7 +452,10 @@ fun DashboardScreen(
                 popEnterTransition = { categoryPopEnterTransition },
                 popExitTransition = { categoryPopExitTransition }
             ) {
-                HistoryScreen(onBackClick = { childNavController.popBackStack() })
+                HistoryScreen(
+                    playbackViewModel = playbackViewModel,
+                    onBackClick = { childNavController.popBackStack() }
+                )
             }
 
             // Collection Detail route
@@ -455,6 +477,7 @@ fun DashboardScreen(
                 CollectionDetailScreen(
                     title = title,
                     type = type,
+                    playbackViewModel = playbackViewModel,
                     onBackClick = { childNavController.popBackStack() },
                     onNavigateToArtist = { artist ->
                         val encoded = Uri.encode(artist)
@@ -574,16 +597,36 @@ fun DashboardScreen(
         ) {
             val isBlurEnabled = dynamicTheming && !disableBlur
 
-            com.example.looper_android.ui.widgets.PremiumMusicBar(
-                viewModel = playbackViewModel,
-                onNavigateToPlayer = { navController.navigate("player") },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope,
-                enableBlur = isBlurEnabled,
-                hazeState = hazeState,
-                darkTheme = effectiveDarkTheme
-            )
+            AnimatedContent(
+                targetState = isSelectionActive,
+                transitionSpec = {
+                    if (targetState) {
+                        (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
+                            .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
+                    } else {
+                        (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
+                            .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
+                    }
+                },
+                label = "BottomBarSelectionTransition"
+            ) { selectionActive ->
+                if (!selectionActive) {
+                    com.example.looper_android.ui.widgets.PremiumMusicBar(
+                        viewModel = playbackViewModel,
+                        onNavigateToPlayer = { navController.navigate("player") },
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        enableBlur = isBlurEnabled,
+                        hazeState = hazeState,
+                        darkTheme = effectiveDarkTheme
+                    )
+                } else {
+                    selectionBottomBarState.value?.invoke()
+                }
+            }
             
+            Spacer(modifier = Modifier.height(6.dp))
+
             PremiumNavbar(
                 currentIndex = selectedTabIndex,
                 onTap = { index ->

@@ -29,9 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,7 +40,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -209,372 +206,383 @@ fun SongOptionsSheet(
     when (activeSheet) {
         ActiveSheet.OPTIONS -> {
             ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = sheetBg,
-        contentColor = Color.White,
-        scrimColor = Color.Black.copy(alpha = 0.54f),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.24f))
-            )
-        },
-        properties = ModalBottomSheetProperties(
-            shouldDismissOnBackPress = true,
-//            isFocusable = true
-        )
-    ) {
-        val content: @Composable () -> Unit = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = sheetBg,
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                    )
-            ) {
-                // ── Header ───────────────────────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                onDismissRequest = onDismiss,
+                sheetState = sheetState,
+                containerColor = sheetBg,
+                contentColor = Color.White,
+                scrimColor = Color.Black.copy(alpha = 0.54f),
+                dragHandle = {
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.10f))
+                            .padding(top = 12.dp, bottom = 4.dp)
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.24f))
+                    )
+                },
+                properties = ModalBottomSheetProperties(
+                    shouldDismissOnBackPress = true,
+//            isFocusable = true
+                )
+            ) {
+                val content: @Composable () -> Unit = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = sheetBg,
+                                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                            )
                     ) {
-                        com.example.looper_android.ui.components.OptimizedImage(
-                            url = song.artPath,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
+                        // ── Header ───────────────────────────────────────────────
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 24.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.10f))
+                            ) {
+                                com.example.looper_android.ui.components.OptimizedImage(
+                                    url = song.artPath,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(16.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            color = Color.White,
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    color = Color.White,
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = song.artist ?: "Unknown Artist",
+                                    color = if (onArtistClick != null && !song.artist.isNullOrBlank()) accentColor else Color.White.copy(
+                                        alpha = 0.54f
+                                    ),
+                                    fontFamily = DmSansFontFamily,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = if (onArtistClick != null && !song.artist.isNullOrBlank()) {
+                                        Modifier.clickable {
+                                            hapticLight()
+                                            onDismiss()
+                                            onArtistClick(song.artist!!)
+                                        }
+                                    } else Modifier
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.10f),
+                            thickness = 1.dp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = song.artist ?: "Unknown Artist",
-                            color = if (onArtistClick != null && !song.artist.isNullOrBlank()) accentColor else Color.White.copy(alpha = 0.54f),
-                            fontFamily = DmSansFontFamily,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = if (onArtistClick != null && !song.artist.isNullOrBlank()) {
-                                Modifier.clickable {
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // ── Options ──────────────────────────────────────────────
+                        data class OptionTileData(
+                            val svgAsset: String?,
+                            val vectorIcon: ImageVector?,
+                            val label: String,
+                            val onClick: () -> Unit
+                        )
+
+                        val currentSongId = playbackState.currentSong?.id
+                        val currentPlayingIdx = if (currentSongId != null) {
+                            playbackState.queue.indexOfFirst { it.id == currentSongId }
+                        } else -1
+                        val songQueueIdx = queueIndex ?: playbackState.queue.indexOfFirst { it.id == song.id }
+                        val isEffectivelyPlaying =
+                            isCurrentlyPlaying || (currentSongId != null && currentSongId == song.id)
+                        val isImmediatelyNext =
+                            isFromQueue && currentPlayingIdx >= 0 && (songQueueIdx == currentPlayingIdx + 1)
+
+                        val options = buildList {
+                            // 1. Play Next (hide if currently playing or immediately next in queue)
+                            if (!isEffectivelyPlaying && !isImmediatelyNext) {
+                                add(OptionTileData(null, Lucide.CirclePlay, "Play Next") {
+                                    hapticLight()
+                                    playbackViewModel.addNext(song)
+                                    onDismiss()
+                                })
+                            }
+
+                            // 2. Add to Queue (hide when on queue pages or when currently playing)
+                            if (!isEffectivelyPlaying && !isFromQueue) {
+                                add(OptionTileData(null, Lucide.ListPlus, "Add to Queue") {
+                                    hapticLight()
+                                    playbackViewModel.addToQueue(song)
+                                    onDismiss()
+                                })
+                            }
+
+                            // 3. Stop after this song (on EVERY song in the queue, or active song outside queue)
+                            if (isFromQueue && songQueueIdx >= 0 && currentPlayingIdx >= 0 && songQueueIdx >= currentPlayingIdx) {
+                                val songsUntilThis = (songQueueIdx - currentPlayingIdx + 1)
+                                val isThisTargeted =
+                                    playbackState.isSleepTimerActive && playbackState.sleepTimerSongsRemaining == songsUntilThis
+                                add(
+                                    OptionTileData(
+                                        null,
+                                        Lucide.Timer,
+                                        if (isThisTargeted) "Cancel Stop After This Song" else "Stop after this song"
+                                    ) {
+                                        hapticLight()
+                                        if (isThisTargeted) {
+                                            playbackViewModel.stopSleepTimer()
+                                        } else {
+                                            playbackViewModel.startSleepTimer(songCount = songsUntilThis)
+                                        }
+                                        onDismiss()
+                                    })
+                            } else if (isEffectivelyPlaying) {
+                                val isStopAfterActive = playbackState.isStopAfterThisSongActive
+                                add(
+                                    OptionTileData(
+                                        null,
+                                        Lucide.Timer,
+                                        if (isStopAfterActive) "Cancel Stop After This Song" else "Stop after this song"
+                                    ) {
+                                        hapticLight()
+                                        playbackViewModel.toggleStopAfterThisSong()
+                                        onDismiss()
+                                    })
+                            }
+
+                            // 4. Remove from Queue (ONLY on queue pages)
+                            if (isFromQueue && !isEffectivelyPlaying) {
+                                add(OptionTileData(null, Lucide.Trash2, "Remove from Queue") {
+                                    hapticLight()
+                                    playbackViewModel.removeFromQueue(song)
+                                    onDismiss()
+                                })
+                            }
+
+                            // 5. Go to Artist
+                            if (showGoToArtist && onArtistClick != null && !song.artist.isNullOrBlank()) {
+                                add(OptionTileData(null, Lucide.User, "Go to Artist") {
                                     hapticLight()
                                     onDismiss()
                                     onArtistClick(song.artist!!)
-                                }
-                            } else Modifier
-                        )
-                    }
-                }
-
-                HorizontalDivider(
-                    color = Color.White.copy(alpha = 0.10f),
-                    thickness = 1.dp
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ── Options ──────────────────────────────────────────────
-                data class OptionTileData(
-                    val svgAsset: String?,
-                    val vectorIcon: ImageVector?,
-                    val label: String,
-                    val onClick: () -> Unit
-                )
-
-                val currentSongId = playbackState.currentSong?.id
-                val currentPlayingIdx = if (currentSongId != null) {
-                    playbackState.queue.indexOfFirst { it.id == currentSongId }
-                } else -1
-                val songQueueIdx = queueIndex ?: playbackState.queue.indexOfFirst { it.id == song.id }
-                val isEffectivelyPlaying = isCurrentlyPlaying || (currentSongId != null && currentSongId == song.id)
-                val isImmediatelyNext = isFromQueue && currentPlayingIdx >= 0 && (songQueueIdx == currentPlayingIdx + 1)
-
-                val options = buildList {
-                    // 1. Play Next (hide if currently playing or immediately next in queue)
-                    if (!isEffectivelyPlaying && !isImmediatelyNext) {
-                        add(OptionTileData(null, Lucide.CirclePlay, "Play Next") {
-                            hapticLight()
-                            playbackViewModel.addNext(song)
-                            onDismiss()
-                        })
-                    }
-
-                    // 2. Add to Queue (hide when on queue pages or when currently playing)
-                    if (!isEffectivelyPlaying && !isFromQueue) {
-                        add(OptionTileData(null, Lucide.ListPlus, "Add to Queue") {
-                            hapticLight()
-                            playbackViewModel.addToQueue(song)
-                            onDismiss()
-                        })
-                    }
-
-                    // 3. Stop after this song (on EVERY song in the queue, or active song outside queue)
-                    if (isFromQueue && songQueueIdx >= 0 && currentPlayingIdx >= 0 && songQueueIdx >= currentPlayingIdx) {
-                        val songsUntilThis = (songQueueIdx - currentPlayingIdx + 1)
-                        val isThisTargeted = playbackState.isSleepTimerActive && playbackState.sleepTimerSongsRemaining == songsUntilThis
-                        add(OptionTileData(
-                            null,
-                            Lucide.Timer,
-                            if (isThisTargeted) "Cancel Stop After This Song" else "Stop after this song"
-                        ) {
-                            hapticLight()
-                            if (isThisTargeted) {
-                                playbackViewModel.stopSleepTimer()
-                            } else {
-                                playbackViewModel.startSleepTimer(songCount = songsUntilThis)
+                                })
                             }
-                            onDismiss()
-                        })
-                    } else if (isEffectivelyPlaying) {
-                        val isStopAfterActive = playbackState.isStopAfterThisSongActive
-                        add(OptionTileData(
-                            null,
-                            Lucide.Timer,
-                            if (isStopAfterActive) "Cancel Stop After This Song" else "Stop after this song"
-                        ) {
-                            hapticLight()
-                            playbackViewModel.toggleStopAfterThisSong()
-                            onDismiss()
-                        })
-                    }
 
-                    // 4. Remove from Queue (ONLY on queue pages)
-                    if (isFromQueue && !isEffectivelyPlaying) {
-                        add(OptionTileData(null, Lucide.Trash2, "Remove from Queue") {
-                            hapticLight()
-                            playbackViewModel.removeFromQueue(song)
-                            onDismiss()
-                        })
-                    }
+                            // 6. Go to Album
+                            if (showGoToAlbum && onAlbumClick != null && !song.album.isNullOrBlank()) {
+                                add(OptionTileData(null, Lucide.Disc, "Go to Album") {
+                                    hapticLight()
+                                    onDismiss()
+                                    onAlbumClick(song.album!!)
+                                })
+                            }
 
-                    // 5. Go to Artist
-                    if (showGoToArtist && onArtistClick != null && !song.artist.isNullOrBlank()) {
-                        add(OptionTileData(null, Lucide.User, "Go to Artist") {
-                            hapticLight()
-                            onDismiss()
-                            onArtistClick(song.artist!!)
-                        })
-                    }
+                            // 7. Add to Playlists
+                            add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
+                                hapticLight()
+                                activeSheet = ActiveSheet.PLAYLISTS
+                            })
 
-                    // 6. Go to Album
-                    if (showGoToAlbum && onAlbumClick != null && !song.album.isNullOrBlank()) {
-                        add(OptionTileData(null, Lucide.Disc, "Go to Album") {
-                            hapticLight()
-                            onDismiss()
-                            onAlbumClick(song.album!!)
-                        })
-                    }
+                            // 8. Add to Favorites
+                            add(
+                                OptionTileData(
+                                    null,
+                                    Lucide.Star,
+                                    if (isFavoriteState) "Remove from Favorites" else "Add to Favorites"
+                                ) {
+                                    hapticLight()
+                                    playbackViewModel.toggleFavorite(song.copy(isFavorite = isFavoriteState))
+                                    isFavoriteState = !isFavoriteState
+                                    onDismiss()
+                                })
 
-                    // 7. Add to Playlists
-                    add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {
-                        hapticLight()
-                        activeSheet = ActiveSheet.PLAYLISTS
-                    })
+                            // 9. Remove from Playlist
+                            if (playlist != null) {
+                                add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
+                                    hapticMedium()
+                                    playlistsViewModel.removeSongFromPlaylist(playlist, song.path)
+                                    onDismiss()
+                                })
+                            }
 
-                    // 8. Add to Favorites
-                    add(OptionTileData(
-                        null,
-                        Lucide.Star,
-                        if (isFavoriteState) "Remove from Favorites" else "Add to Favorites"
-                    ) {
-                        hapticLight()
-                        playbackViewModel.toggleFavorite(song.copy(isFavorite = isFavoriteState))
-                        isFavoriteState = !isFavoriteState
-                        onDismiss()
-                    })
+                            // 10. Edit Song Info
+                            add(OptionTileData(null, Lucide.SquarePen, "Edit Song Info") {
+                                hapticLight()
+                                activeSheet = ActiveSheet.EDIT
+                            })
 
-                    // 9. Remove from Playlist
-                    if (playlist != null) {
-                        add(OptionTileData(null, Lucide.Trash2, "Remove from Playlist") {
-                            hapticMedium()
-                            playlistsViewModel.removeSongFromPlaylist(playlist, song.path)
-                            onDismiss()
-                        })
-                    }
+                            // 11. Sleep Timer (ONLY in Now Playing and Queue sheets)
+                            if (showSleepTimer) {
+                                val sleepTimerText =
+                                    if (playbackState.isSleepTimerActive && playbackState.sleepTimerLabel.isNotBlank()) {
+                                        "Sleep Timer (${playbackState.sleepTimerLabel})"
+                                    } else {
+                                        "Sleep Timer"
+                                    }
+                                add(OptionTileData(null, Lucide.Timer, sleepTimerText) {
+                                    hapticLight()
+                                    activeSheet = ActiveSheet.SLEEP_TIMER
+                                })
+                            }
 
-                    // 10. Edit Song Info
-                    add(OptionTileData(null, Lucide.SquarePen, "Edit Song Info") {
-                        hapticLight()
-                        activeSheet = ActiveSheet.EDIT
-                    })
+                            // 12. Equalizer (ONLY in Now Playing screen options)
+                            if (showEqualizer && onNavigateToEqualizer != null) {
+                                add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
+                                    hapticLight()
+                                    onDismiss()
+                                    onNavigateToEqualizer.invoke()
+                                })
+                            }
 
-                    // 11. Sleep Timer (ONLY in Now Playing and Queue sheets)
-                    if (showSleepTimer) {
-                        val sleepTimerText = if (playbackState.isSleepTimerActive && playbackState.sleepTimerLabel.isNotBlank()) {
-                            "Sleep Timer (${playbackState.sleepTimerLabel})"
-                        } else {
-                            "Sleep Timer"
-                        }
-                        add(OptionTileData(null, Lucide.Timer, sleepTimerText) {
-                            hapticLight()
-                            activeSheet = ActiveSheet.SLEEP_TIMER
-                        })
-                    }
-
-                    // 12. Equalizer (ONLY in Now Playing screen options)
-                    if (showEqualizer && onNavigateToEqualizer != null) {
-                        add(OptionTileData(null, Lucide.SlidersHorizontal, "Equalizer") {
-                            hapticLight()
-                            onDismiss()
-                            onNavigateToEqualizer.invoke()
-                        })
-                    }
-
-                    // 13. Song Details
-                    add(OptionTileData(null, Lucide.Info, "Song Details") {
-                        hapticLight()
-                        activeSheet = ActiveSheet.DETAILS
-                    })
-                    add(OptionTileData(null, Lucide.Share2, "Share") {
-                        hapticLight()
-                        onDismiss()
-                        try {
-                            val uri = if (song.path.startsWith("content://")) {
-                                Uri.parse(song.path)
-                            } else {
-                                val file = File(song.path)
+                            // 13. Song Details
+                            add(OptionTileData(null, Lucide.Info, "Song Details") {
+                                hapticLight()
+                                activeSheet = ActiveSheet.DETAILS
+                            })
+                            add(OptionTileData(null, Lucide.Share2, "Share") {
+                                hapticLight()
+                                onDismiss()
                                 try {
-                                    androidx.core.content.FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        file
-                                    )
-                                } catch (_: Exception) {
-                                    Uri.fromFile(file)
+                                    val uri = if (song.path.startsWith("content://")) {
+                                        Uri.parse(song.path)
+                                    } else {
+                                        val file = File(song.path)
+                                        try {
+                                            androidx.core.content.FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                file
+                                            )
+                                        } catch (_: Exception) {
+                                            Uri.fromFile(file)
+                                        }
+                                    }
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "audio/*"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_SUBJECT, song.title)
+                                        putExtra(Intent.EXTRA_TEXT, "${song.title} - ${song.artist ?: "Unknown"}")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "Share Audio"))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
-                            }
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "audio/*"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_SUBJECT, song.title)
-                                putExtra(Intent.EXTRA_TEXT, "${song.title} - ${song.artist ?: "Unknown"}")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Audio"))
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                            })
+                            add(OptionTileData(null, Lucide.Trash2, "Delete Song") {
+                                hapticHeavy()
+                                activeSheet = ActiveSheet.DELETE
+                            })
                         }
-                    })
-                    add(OptionTileData(null, Lucide.Trash2, "Delete Song") {
-                        hapticHeavy()
-                        activeSheet = ActiveSheet.DELETE
-                    })
-                }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    item {
-                        PremiumSection(
+                        LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                            onClick = null
+                                .weight(1f, fill = false),
+                            contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                options.forEachIndexed { index, option ->
-                                    val (svgAsset, vectorIcon, label, onClick) = option
-                                    val isDelete = label == "Delete Song"
-                                    val isRemoveFromPlaylist = label == "Remove from Playlist"
-                                    val isFav = (label == "Remove from Favorites" || label.contains("Favorite")) && isFavoriteState
-                                    val iconColor = when {
-                                        isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
-                                        else -> accentColor
-                                    }
+                            item {
+                                PremiumSection(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                                    onClick = null
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        options.forEachIndexed { index, option ->
+                                            val (svgAsset, vectorIcon, label, onClick) = option
+                                            val isDelete = label == "Delete Song"
+                                            val isRemoveFromPlaylist = label == "Remove from Playlist"
+                                            val isFav =
+                                                (label == "Remove from Favorites" || label.contains("Favorite")) && isFavoriteState
+                                            val iconColor = when {
+                                                isDelete || isRemoveFromPlaylist || isFav -> Color(0xFFFF4D4D)
+                                                else -> accentColor
+                                            }
 
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable(
-                                                interactionSource = remember { MutableInteractionSource() },
-                                                indication = ripple(bounded = true, radius = 300.dp),
-                                                onClick = onClick
-                                            )
-                                            .padding(horizontal = 20.dp, vertical = 15.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val vectorIcon: ImageVector? = option.vectorIcon
-                                        if (vectorIcon != null) {
-                                            Icon(
-                                                imageVector = vectorIcon,
-                                                contentDescription = label,
-                                                tint = iconColor,
-                                                modifier = Modifier.size(22.dp)
-                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable(
+                                                        interactionSource = remember { MutableInteractionSource() },
+                                                        indication = ripple(bounded = true, radius = 300.dp),
+                                                        onClick = onClick
+                                                    )
+                                                    .padding(horizontal = 20.dp, vertical = 15.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                val vectorIcon: ImageVector? = option.vectorIcon
+                                                if (vectorIcon != null) {
+                                                    Icon(
+                                                        imageVector = vectorIcon,
+                                                        contentDescription = label,
+                                                        tint = iconColor,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.width(16.dp))
+
+                                                Text(
+                                                    text = label,
+                                                    color = Color.White,
+                                                    fontFamily = DmSansFontFamily,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+
+                                            if (index < options.lastIndex) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                                    thickness = 0.8.dp,
+                                                    color = Color.White.copy(alpha = 0.04f)
+                                                )
+                                            }
                                         }
-
-                                        Spacer(modifier = Modifier.width(16.dp))
-
-                                        Text(
-                                            text = label,
-                                            color = Color.White,
-                                            fontFamily = DmSansFontFamily,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 16.sp,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-
-                                    if (index < options.lastIndex) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(horizontal = 20.dp),
-                                            thickness = 0.8.dp,
-                                            color = Color.White.copy(alpha = 0.04f)
-                                        )
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                // Blur wrapper (matches Flutter BackdropFilter)
+                if (useBlur && !isPureBlack && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                renderEffect = android.graphics.RenderEffect
+                                    .createBlurEffect(16f, 16f, android.graphics.Shader.TileMode.CLAMP)
+                                    .asComposeRenderEffect()
+                            }
+                    ) {
+                        content()
+                    }
+                } else {
+                    content()
+                }
             }
         }
 
-        // Blur wrapper (matches Flutter BackdropFilter)
-        if (useBlur && !isPureBlack && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        renderEffect = android.graphics.RenderEffect
-                            .createBlurEffect(16f, 16f, android.graphics.Shader.TileMode.CLAMP)
-                            .asComposeRenderEffect()
-                    }
-            ) {
-                content()
-            }
-        } else {
-            content()
-        }
-    }
-}
         ActiveSheet.EDIT -> {
             EditSongSheet(
                 song = song,
@@ -598,6 +606,7 @@ fun SongOptionsSheet(
                 }
             )
         }
+
         ActiveSheet.DELETE -> {
             DeleteSongDialog(
                 songTitle = song.title,
@@ -614,6 +623,7 @@ fun SongOptionsSheet(
                 }
             )
         }
+
         ActiveSheet.DETAILS -> {
             SongDetailsBottomSheet(
                 song = song,
@@ -632,6 +642,7 @@ fun SongOptionsSheet(
                 initialShowTechnical = false
             )
         }
+
         ActiveSheet.TECH_INFO -> {
             SongDetailsBottomSheet(
                 song = song,
@@ -650,20 +661,19 @@ fun SongOptionsSheet(
                 initialShowTechnical = true
             )
         }
+
         ActiveSheet.PLAYLISTS -> {
-            PlaylistSelectorDialog(
-                playlists = playlists,
-                accentColor = accentColor,
-                onDismiss = { activeSheet = ActiveSheet.OPTIONS },
-                onCreateNewPlaylist = { name ->
-                    playlistsViewModel.createPlaylist(name)
-                },
+            com.example.looper_android.ui.components.AddToPlaylistBottomSheet(
+                onDismiss = onDismiss,
                 onPlaylistSelected = { targetPlaylist ->
                     playlistsViewModel.addSongToPlaylist(targetPlaylist, song.path)
                     onDismiss()
-                }
+                },
+                accentColor = accentColor,
+                playlistsViewModel = playlistsViewModel
             )
         }
+
         ActiveSheet.SLEEP_TIMER -> {
             SleepTimerBottomSheet(
                 onDismiss = onDismiss,
@@ -671,6 +681,7 @@ fun SongOptionsSheet(
                 accentColor = accentColor
             )
         }
+
         null -> {}
     }
 }
@@ -1207,156 +1218,6 @@ fun DeleteSongDialog(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Playlist Selector Dialog
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-fun PlaylistSelectorDialog(
-    playlists: List<com.example.looper_android.data.db.PlaylistEntity>,
-    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
-    onDismiss: () -> Unit,
-    onCreateNewPlaylist: (String) -> Unit,
-    onPlaylistSelected: (com.example.looper_android.data.db.PlaylistEntity) -> Unit
-) {
-    var isCreatingNew by remember { mutableStateOf(false) }
-    var newPlaylistName by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(24.dp),
-        title = {
-            Text(
-                text = if (isCreatingNew) "New Playlist" else "Add to Playlists",
-                color = Color.White,
-                fontFamily = DmSansFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            if (isCreatingNew) {
-                OutlinedTextField(
-                    value = newPlaylistName,
-                    onValueChange = { newPlaylistName = it },
-                    placeholder = { Text("Playlist name", color = Color.White.copy(alpha = 0.4f), fontFamily = DmSansFontFamily) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = accentColor,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isCreatingNew = true }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(accentColor.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = accentColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = "Create New Playlist",
-                            color = accentColor,
-                            fontFamily = DmSansFontFamily,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    if (playlists.isNotEmpty()) {
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
-
-                    playlists.forEach { playlist ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPlaylistSelected(playlist) }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Lucide.ListMusic,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = playlist.name,
-                                color = Color.White,
-                                fontFamily = DmSansFontFamily,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (isCreatingNew) {
-                Button(
-                    onClick = {
-                        val trimmed = newPlaylistName.trim()
-                        if (trimmed.isNotEmpty()) {
-                            onCreateNewPlaylist(trimmed)
-                            isCreatingNew = false
-                        }
-                    },
-                    enabled = newPlaylistName.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Create", color = Color.White, fontFamily = DmSansFontFamily)
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = {
-                    if (isCreatingNew) {
-                        isCreatingNew = false
-                    } else {
-                        onDismiss()
-                    }
-                }
-            ) {
-                Text(
-                    text = "Cancel",
-                    color = Color.White.copy(alpha = 0.54f),
-                    fontFamily = DmSansFontFamily
-                )
-            }
-        }
-    )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Helper Composables
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1470,4 +1331,3 @@ private fun EditField(
         )
     )
 }
-

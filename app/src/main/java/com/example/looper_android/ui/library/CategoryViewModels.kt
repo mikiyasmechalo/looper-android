@@ -175,6 +175,7 @@ class PlaylistsViewModel @Inject constructor(
     fun createPlaylist(name: String) = libraryCacheManager.createPlaylist(name)
     fun deletePlaylist(id: Long) = libraryCacheManager.deletePlaylist(id)
     fun addSongToPlaylist(playlist: PlaylistEntity, songPath: String) = libraryCacheManager.addSongToPlaylist(playlist, songPath)
+    fun addSongsToPlaylist(playlist: PlaylistEntity, songPaths: List<String>) = libraryCacheManager.addSongsToPlaylist(playlist, songPaths)
     fun removeSongFromPlaylist(playlist: PlaylistEntity, songPath: String) = libraryCacheManager.removeSongFromPlaylist(playlist, songPath)
 }
 

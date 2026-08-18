@@ -111,7 +111,7 @@ class HomeViewModel @Inject constructor(
                 val effectiveArtist = song.albumArtist?.trim()?.ifBlank { null }
                     ?: song.artist?.trim()?.ifBlank { null }
                     ?: "Unknown Artist"
-                songsByArtist.getOrPut(effectiveArtist) { mutableListOf() }.add(song)
+                songsByArtist.getOrPut(effectiveArtist.lowercase()) { mutableListOf() }.add(song)
             }
 
             // Top Artists: Played artists ALWAYS rank above unplayed artists!
@@ -125,9 +125,11 @@ class HomeViewModel @Inject constructor(
                 }
             }
 
-            val topArtists = artists.sortedByDescending { artist ->
-                artistScoreMap[artist.name] ?: 0
-            }
+            val topArtists = artists
+                .distinctBy { it.name.lowercase() }
+                .sortedByDescending { artist ->
+                    artistScoreMap[artist.name.lowercase()] ?: 0
+                }
 
             // 4. Top Albums: Played albums ALWAYS rank above unplayed albums!
             val songsByAlbum = songs.groupBy { it.album }

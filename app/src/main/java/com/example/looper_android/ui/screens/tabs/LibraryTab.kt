@@ -84,10 +84,10 @@ fun LibraryTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             PremiumSection(
-                width = 44.dp,
-                height = 44.dp,
+                width = 48.dp,
+                height = 48.dp,
                 backgroundColor = Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 10.dp, bottomEnd = 10.dp),
+                shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
                 onClick = onNavigateToSearch
             ) {
                 Icon(Lucide.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(20.dp))
@@ -102,10 +102,10 @@ fun LibraryTab(
             )
 
             PremiumSection(
-                width = 44.dp,
-                height = 44.dp,
+                width = 48.dp,
+                height = 48.dp,
                 backgroundColor = Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 24.dp, bottomEnd = 24.dp),
+                shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 32.dp, bottomEnd = 32.dp),
                 onClick = onNavigateToSettings
             ) {
                 Icon(Lucide.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))

@@ -28,6 +28,15 @@ sealed interface DeleteResult {
     data class Failure(val error: Throwable) : DeleteResult
 }
 
+sealed interface DeleteBatchResult {
+    data class Success(val deletedPaths: List<String>) : DeleteBatchResult
+    data class RequiresPermission(
+        val intentSender: IntentSender,
+        val pendingPaths: List<String>
+    ) : DeleteBatchResult
+    data class Failure(val error: Throwable) : DeleteBatchResult
+}
+
 @Singleton
 class AudioFileDeleter @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -189,5 +198,82 @@ class AudioFileDeleter @Inject constructor(
         try {
             MediaScannerConnection.scanFile(context, arrayOf(path), null, null)
         } catch (_: Exception) {}
+    }
+
+    suspend fun deleteBatch(paths: List<String>): DeleteBatchResult = withContext(Dispatchers.IO) {
+        if (paths.isEmpty()) return@withContext DeleteBatchResult.Success(emptyList())
+
+        val deletedDirectly = mutableListOf<String>()
+        val remainingPaths = mutableListOf<String>()
+        val mediaStoreUris = mutableListOf<Uri>()
+
+        for (path in paths) {
+            if (path.isBlank()) continue
+
+            // Check if path is covered by granted SAF tree
+            val treeUri = safPermissionRepo.isPathOrUriCovered(path)
+            var deletedViaSaf = false
+            if (treeUri != null) {
+                val docUri = safPermissionRepo.buildDocumentUriFromPath(treeUri, path)
+                if (docUri != null) {
+                    try {
+                        val docFile = DocumentFile.fromSingleUri(context, docUri)
+                        if (docFile != null && docFile.exists() && docFile.delete()) {
+                            deletedDirectly.add(path)
+                            refreshMediaStore(path)
+                            deletedViaSaf = true
+                        } else if (DocumentsContract.deleteDocument(context.contentResolver, docUri)) {
+                            deletedDirectly.add(path)
+                            refreshMediaStore(path)
+                            deletedViaSaf = true
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "SAF batch delete failed for $path: ${e.message}")
+                    }
+                }
+            }
+
+            if (!deletedViaSaf) {
+                val file = File(path)
+                if (file.exists() && file.delete()) {
+                    deletedDirectly.add(path)
+                    refreshMediaStore(path)
+                } else {
+                    val contentUri = getUriFromPath(path)
+                    if (contentUri != null) {
+                        mediaStoreUris.add(contentUri)
+                        remainingPaths.add(path)
+                    } else {
+                        remainingPaths.add(path)
+                    }
+                }
+            }
+        }
+
+        if (remainingPaths.isEmpty()) {
+            return@withContext DeleteBatchResult.Success(deletedDirectly)
+        }
+
+        // On Android 11+, MediaStore.createDeleteRequest requests bulk deletion permission from OS in a single prompt
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mediaStoreUris.isNotEmpty()) {
+            try {
+                val pi: PendingIntent = MediaStore.createDeleteRequest(context.contentResolver, mediaStoreUris)
+                return@withContext DeleteBatchResult.RequiresPermission(
+                    intentSender = pi.intentSender,
+                    pendingPaths = remainingPaths
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed creating MediaStore batch delete request", e)
+            }
+        }
+
+        // Fallback for Android 10
+        for (uri in mediaStoreUris) {
+            try {
+                context.contentResolver.delete(uri, null, null)
+            } catch (_: Exception) {}
+        }
+
+        DeleteBatchResult.Success(deletedDirectly)
     }
 }

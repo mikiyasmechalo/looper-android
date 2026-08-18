@@ -68,6 +68,13 @@ class PlaybackViewModel @Inject constructor(
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
+    private val _isSelectionActive = MutableStateFlow(false)
+    val isSelectionActive: StateFlow<Boolean> = _isSelectionActive.asStateFlow()
+
+    fun setSelectionActive(active: Boolean) {
+        _isSelectionActive.value = active
+    }
+
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
@@ -582,12 +589,38 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavorites(songs: List<SongEntity>, targetState: Boolean? = null) {
+        if (songs.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            songs.forEach { song ->
+                val newState = targetState ?: !song.isFavorite
+                val updated = song.copy(isFavorite = newState)
+                queueManager.updateSongInQueue(updated)
+                libraryDao.updateSong(updated)
+                if (_playbackState.value.currentSong?.id == updated.id) {
+                    _playbackState.value = _playbackState.value.copy(
+                        currentSong = updated,
+                        isFavorite = updated.isFavorite
+                    )
+                }
+            }
+        }
+    }
+
     fun addNext(song: SongEntity) {
         queueManager.addNext(song)
     }
 
+    fun addNext(songs: List<SongEntity>) {
+        queueManager.addNext(songs)
+    }
+
     fun addToQueue(song: SongEntity) {
         queueManager.addToQueue(song)
+    }
+
+    fun addToQueue(songs: List<SongEntity>) {
+        queueManager.addToQueue(songs)
     }
 
     fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false, queueName: String = "All Songs") {
