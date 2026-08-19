@@ -87,6 +87,9 @@ import com.example.looper_android.ui.player.PlaybackViewModel
 import com.example.looper_android.ui.player.SongOptionsSheet
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
+import com.example.looper_android.ui.widgets.FastScroller
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import com.composables.icons.lucide.Check
@@ -380,163 +383,92 @@ fun AlbumsScreen(
                     Text("No albums found", color = Color.Gray, fontFamily = DmSansFontFamily)
                 }
             } else if (viewMode == ViewMode.LIST) {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomPadding),
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(albums, key = { it.id }) { album ->
-                        val count = albumSongCounts[album.name] ?: 0
-                        val isSelected = selectedAlbums.contains(album.name)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) playbackState.accentColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.03f))
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
-                                            selectedAlbums = next
-                                            if (next.isEmpty()) isSelectionMode = false
-                                        } else {
-                                            onAlbumClick(album.name)
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            isSelectionMode = true
-                                            selectedAlbums = setOf(album.name)
-                                        }
-                                    }
-                                )
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
-                            ) {
-                                OptimizedImage(
-                                    url = album.artPath,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(playbackState.accentColor.copy(alpha = 0.7f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = album.name,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${album.artist ?: "Unknown Artist"} • $count ${if (count == 1) "song" else "songs"}",
-                                    color = Color.White.copy(alpha = 0.38f),
-                                    fontSize = 12.sp,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            // Direct Play Button left of Chevron (Disabled when selection mode is active)
-                            if (!isSelectionMode) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(playbackState.accentColor.copy(alpha = 0.18f))
-                                        .clickable {
-                                            val albumSongs = allSongs
-                                                .filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }
-                                                .sortedBy { it.trackNumber ?: 0 }
-                                            if (albumSongs.isNotEmpty()) {
-                                                playbackViewModel.setPlaylist(albumSongs, initialIndex = 0, disableShuffleMode = true, queueName = album.name)
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Lucide.Play, contentDescription = "Play Album", tint = playbackState.accentColor, modifier = Modifier.size(16.dp))
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            } else {
-                val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
-                val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
-                val cornerRadius = if (viewMode == ViewMode.GRID_3) 16.dp else 24.dp
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(columnsCount),
-                    contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
-                    horizontalArrangement = Arrangement.spacedBy(cardPadding),
-                    verticalArrangement = Arrangement.spacedBy(cardPadding),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(albums, key = { it.id }) { album ->
-                        val isSelected = selectedAlbums.contains(album.name)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
-                                            selectedAlbums = next
-                                            if (next.isEmpty()) isSelectionMode = false
-                                        } else {
-                                            onAlbumClick(album.name)
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            isSelectionMode = true
-                                            selectedAlbums = setOf(album.name)
-                                        }
-                                    }
-                                )
-                        ) {
-                            Box(
+                val listState = rememberLazyListState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomPadding),
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(albums, key = { it.id }) { album ->
+                            val count = albumSongCounts[album.name] ?: 0
+                            val isSelected = selectedAlbums.contains(album.name)
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(cornerRadius))
-                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) playbackState.accentColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.03f))
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
+                                                selectedAlbums = next
+                                                if (next.isEmpty()) isSelectionMode = false
+                                            } else {
+                                                onAlbumClick(album.name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) {
+                                                isSelectionMode = true
+                                                selectedAlbums = setOf(album.name)
+                                            }
+                                        }
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OptimizedImage(
-                                    url = album.artPath,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                                // Bottom-Right Play Button (Disabled when selection mode is active)
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                ) {
+                                    OptimizedImage(
+                                        url = album.artPath,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(playbackState.accentColor.copy(alpha = 0.7f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = album.name,
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${album.artist ?: "Unknown Artist"} • $count ${if (count == 1) "song" else "songs"}",
+                                        color = Color.White.copy(alpha = 0.38f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                // Direct Play Button left of Chevron (Disabled when selection mode is active)
                                 if (!isSelectionMode) {
                                     Box(
                                         modifier = Modifier
-                                            .padding(8.dp)
-                                            .size(34.dp)
-                                            .align(Alignment.BottomEnd)
+                                            .size(36.dp)
                                             .clip(CircleShape)
-                                            .background(playbackState.accentColor)
+                                            .background(playbackState.accentColor.copy(alpha = 0.18f))
                                             .clickable {
                                                 val albumSongs = allSongs
                                                     .filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }
@@ -547,50 +479,139 @@ fun AlbumsScreen(
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Lucide.Play, contentDescription = "Play Album", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        Icon(Lucide.Play, contentDescription = "Play Album", tint = playbackState.accentColor, modifier = Modifier.size(16.dp))
                                     }
+                                    Spacer(modifier = Modifier.width(8.dp))
                                 }
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(playbackState.accentColor.copy(alpha = 0.5f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    FastScroller(
+                        listState = listState,
+                        thumbColor = playbackState.accentColor,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
+                }
+            } else {
+                val gridState = rememberLazyGridState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
+                    val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
+                    val cornerRadius = if (viewMode == ViewMode.GRID_3) 16.dp else 24.dp
+
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(columnsCount),
+                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
+                        horizontalArrangement = Arrangement.spacedBy(cardPadding),
+                        verticalArrangement = Arrangement.spacedBy(cardPadding),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(albums, key = { it.id }) { album ->
+                            val isSelected = selectedAlbums.contains(album.name)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
+                                                selectedAlbums = next
+                                                if (next.isEmpty()) isSelectionMode = false
+                                            } else {
+                                                onAlbumClick(album.name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) {
+                                                isSelectionMode = true
+                                                selectedAlbums = setOf(album.name)
+                                            }
+                                        }
+                                    )
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                        .clip(RoundedCornerShape(cornerRadius))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                ) {
+                                    OptimizedImage(
+                                        url = album.artPath,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    // Bottom-Right Play Button (Disabled when selection mode is active)
+                                    if (!isSelectionMode) {
                                         Box(
                                             modifier = Modifier
+                                                .padding(8.dp)
                                                 .size(36.dp)
+                                                .align(Alignment.BottomEnd)
                                                 .clip(CircleShape)
-                                                .background(playbackState.accentColor),
+                                                .background(playbackState.accentColor)
+                                                .clickable {
+                                                    val albumSongs = allSongs
+                                                        .filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }
+                                                        .sortedBy { it.trackNumber ?: 0 }
+                                                    if (albumSongs.isNotEmpty()) {
+                                                        playbackViewModel.setPlaylist(albumSongs, initialIndex = 0, disableShuffleMode = true, queueName = album.name)
+                                                    }
+                                                },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                            Icon(Lucide.Play, contentDescription = "Play Album", tint = Color.Black, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(playbackState.accentColor.copy(alpha = 0.5f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(CircleShape)
+                                                    .background(playbackState.accentColor),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                            }
                                         }
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = album.name,
+                                    color = Color.White,
+                                    fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = DmSansFontFamily,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                                Text(
+                                    text = album.artist ?: "Unknown Artist",
+                                    color = Color.White.copy(alpha = 0.38f),
+                                    fontSize = 12.sp,
+                                    fontFamily = DmSansFontFamily,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = album.name,
-                                color = Color.White,
-                                fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = DmSansFontFamily,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                            Text(
-                                text = album.artist ?: "Unknown Artist",
-                                color = Color.White.copy(alpha = 0.38f),
-                                fontSize = 12.sp,
-                                fontFamily = DmSansFontFamily,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
                         }
                     }
+                    FastScroller(
+                        gridState = gridState,
+                        thumbColor = playbackState.accentColor,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
                 }
             }
         }
@@ -909,169 +930,91 @@ fun ArtistsScreen(
                     Text("No artists found", color = Color.Gray, fontFamily = DmSansFontFamily)
                 }
             } else if (viewMode == ViewMode.LIST) {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomPadding),
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(artists, key = { it.name }) { artist ->
-                        if (artist.artistImageUrl.isNullOrEmpty()) {
-                            LaunchedEffect(artist.name) {
-                                viewModel.fetchArtistImage(artist.name)
-                            }
-                        }
-                        val count = songCounts[artist.name] ?: 0
-                        val isSelected = selectedArtists.contains(artist.name)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) playbackState.accentColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.03f))
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
-                                            selectedArtists = next
-                                            if (next.isEmpty()) isSelectionMode = false
-                                        } else {
-                                            onArtistClick(artist.name)
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            isSelectionMode = true
-                                            selectedArtists = setOf(artist.name)
-                                        }
-                                    }
-                                )
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.size(52.dp)) {
-                                ArtistCollage(
-                                    artistImageUrl = artist.artistImageUrl ?: artist.artPath,
-                                    modifier = Modifier.fillMaxSize(),
-                                    shape = CircleShape
-                                )
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                            .background(playbackState.accentColor.copy(alpha = 0.7f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
-                                    }
+                val listState = rememberLazyListState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomPadding),
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(artists, key = { it.name }) { artist ->
+                            if (artist.artistImageUrl.isNullOrEmpty()) {
+                                LaunchedEffect(artist.name) {
+                                    viewModel.fetchArtistImage(artist.name)
                                 }
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = artist.name,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "$count ${if (count == 1) "song" else "songs"}",
-                                    color = Color.White.copy(alpha = 0.38f),
-                                    fontSize = 12.sp,
-                                    fontFamily = DmSansFontFamily
-                                )
-                            }
-                            // Direct Play Button left of Chevron (Disabled when selection mode is active)
-                            if (!isSelectionMode) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(playbackState.accentColor.copy(alpha = 0.18f))
-                                        .clickable {
-                                            val artistSongs = allSongs
-                                                .filter {
-                                                    val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                                                    effectiveArtist.equals(artist.name, ignoreCase = true) || (it.artist?.equals(artist.name, ignoreCase = true) == true)
-                                                }
-                                                .sortedBy { it.album ?: "" }
-                                            if (artistSongs.isNotEmpty()) {
-                                                playbackViewModel.setPlaylist(artistSongs, initialIndex = 0, disableShuffleMode = true, queueName = artist.name)
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Lucide.Play, contentDescription = "Play Artist", tint = playbackState.accentColor, modifier = Modifier.size(16.dp))
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            } else {
-                val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
-                val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(columnsCount),
-                    contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
-                    horizontalArrangement = Arrangement.spacedBy(cardPadding),
-                    verticalArrangement = Arrangement.spacedBy(cardPadding),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(artists, key = { it.name }) { artist ->
-                        if (artist.artistImageUrl.isNullOrEmpty()) {
-                            LaunchedEffect(artist.name) {
-                                viewModel.fetchArtistImage(artist.name)
-                            }
-                        }
-                        val count = songCounts[artist.name] ?: 0
-                        val isSelected = selectedArtists.contains(artist.name)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
-                                            selectedArtists = next
-                                            if (next.isEmpty()) isSelectionMode = false
-                                        } else {
-                                            onArtistClick(artist.name)
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            isSelectionMode = true
-                                            selectedArtists = setOf(artist.name)
-                                        }
-                                    }
-                                ),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
+                            val count = songCounts[artist.name] ?: 0
+                            val isSelected = selectedArtists.contains(artist.name)
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) playbackState.accentColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.03f))
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
+                                                selectedArtists = next
+                                                if (next.isEmpty()) isSelectionMode = false
+                                            } else {
+                                                onArtistClick(artist.name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) {
+                                                isSelectionMode = true
+                                                selectedArtists = setOf(artist.name)
+                                            }
+                                        }
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                ArtistCollage(
-                                    artistImageUrl = artist.artistImageUrl ?: artist.artPath,
-                                    modifier = Modifier.fillMaxSize(),
-                                    shape = CircleShape
-                                )
-                                // Bottom-Right Play Button (Disabled when selection mode is active)
+                                Box(modifier = Modifier.size(52.dp)) {
+                                    ArtistCollage(
+                                        artistImageUrl = artist.artistImageUrl ?: artist.artPath,
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = CircleShape
+                                    )
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                                .background(playbackState.accentColor.copy(alpha = 0.7f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = artist.name,
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "$count ${if (count == 1) "song" else "songs"}",
+                                        color = Color.White.copy(alpha = 0.38f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DmSansFontFamily
+                                    )
+                                }
+                                // Direct Play Button left of Chevron (Disabled when selection mode is active)
                                 if (!isSelectionMode) {
                                     Box(
                                         modifier = Modifier
-                                            .padding(6.dp)
-                                            .size(34.dp)
-                                            .align(Alignment.BottomEnd)
+                                            .size(36.dp)
                                             .clip(CircleShape)
-                                            .background(playbackState.accentColor)
+                                            .background(playbackState.accentColor.copy(alpha = 0.18f))
                                             .clickable {
                                                 val artistSongs = allSongs
                                                     .filter {
@@ -1085,48 +1028,144 @@ fun ArtistsScreen(
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Lucide.Play, contentDescription = "Play Artist", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        Icon(Lucide.Play, contentDescription = "Play Artist", tint = playbackState.accentColor, modifier = Modifier.size(16.dp))
                                     }
+                                    Spacer(modifier = Modifier.width(8.dp))
                                 }
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                            .background(playbackState.accentColor.copy(alpha = 0.5f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    FastScroller(
+                        listState = listState,
+                        thumbColor = playbackState.accentColor,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
+                }
+            } else {
+                val gridState = rememberLazyGridState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
+                    val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
+
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(columnsCount),
+                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
+                        horizontalArrangement = Arrangement.spacedBy(cardPadding),
+                        verticalArrangement = Arrangement.spacedBy(cardPadding),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(artists, key = { it.name }) { artist ->
+                            if (artist.artistImageUrl.isNullOrEmpty()) {
+                                LaunchedEffect(artist.name) {
+                                    viewModel.fetchArtistImage(artist.name)
+                                }
+                            }
+                            val count = songCounts[artist.name] ?: 0
+                            val isSelected = selectedArtists.contains(artist.name)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
+                                                selectedArtists = next
+                                                if (next.isEmpty()) isSelectionMode = false
+                                            } else {
+                                                onArtistClick(artist.name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) {
+                                                isSelectionMode = true
+                                                selectedArtists = setOf(artist.name)
+                                            }
+                                        }
+                                    ),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                ) {
+                                    ArtistCollage(
+                                        artistImageUrl = artist.artistImageUrl ?: artist.artPath,
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = CircleShape
+                                    )
+                                    // Bottom-Right Play Button (Disabled when selection mode is active)
+                                    if (!isSelectionMode) {
                                         Box(
                                             modifier = Modifier
-                                                .size(36.dp)
+                                                .padding(6.dp)
+                                                .size(34.dp)
+                                                .align(Alignment.BottomEnd)
                                                 .clip(CircleShape)
-                                                .background(playbackState.accentColor),
+                                                .background(playbackState.accentColor)
+                                                .clickable {
+                                                    val artistSongs = allSongs
+                                                        .filter {
+                                                            val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                                                            effectiveArtist.equals(artist.name, ignoreCase = true) || (it.artist?.equals(artist.name, ignoreCase = true) == true)
+                                                        }
+                                                        .sortedBy { it.album ?: "" }
+                                                    if (artistSongs.isNotEmpty()) {
+                                                        playbackViewModel.setPlaylist(artistSongs, initialIndex = 0, disableShuffleMode = true, queueName = artist.name)
+                                                    }
+                                                },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                            Icon(Lucide.Play, contentDescription = "Play Artist", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                                .background(playbackState.accentColor.copy(alpha = 0.5f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(CircleShape)
+                                                    .background(playbackState.accentColor),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                            }
                                         }
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = artist.name,
+                                    color = Color.White,
+                                    fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = DmSansFontFamily,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "$count ${if (count == 1) "song" else "songs"}",
+                                    color = Color.White.copy(alpha = 0.38f),
+                                    fontSize = 12.sp,
+                                    fontFamily = DmSansFontFamily
+                                )
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = artist.name,
-                                color = Color.White,
-                                fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = DmSansFontFamily,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                text = "$count ${if (count == 1) "song" else "songs"}",
-                                color = Color.White.copy(alpha = 0.38f),
-                                fontSize = 12.sp,
-                                fontFamily = DmSansFontFamily
-                            )
                         }
                     }
+                    FastScroller(
+                        gridState = gridState,
+                        thumbColor = playbackState.accentColor,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
                 }
             }
         }

@@ -51,6 +51,8 @@ class SettingsRepository @Inject constructor(
         val SHOW_HOME_ALBUMS = booleanPreferencesKey("show_home_albums")
         val SHOW_HOME_GENRES = booleanPreferencesKey("show_home_genres")
         val HOME_SECTIONS_ORDER = stringPreferencesKey("home_sections_order")
+        val SHOW_CARD_PLAY_BUTTON = booleanPreferencesKey("show_card_play_button")
+        val SHOW_CARD_OPTIONS_BUTTON = booleanPreferencesKey("show_card_options_button")
 
         // Audio & Playback + Headphone settings
         val PAUSE_ON_DISCONNECT = booleanPreferencesKey("pause_on_disconnect")
@@ -71,12 +73,20 @@ class SettingsRepository @Inject constructor(
         val CROSSFADE_DURATION = floatPreferencesKey("crossfade_duration")
     }
 
+    private val syncPrefs = context.getSharedPreferences("settings_sync_cache", android.content.Context.MODE_PRIVATE)
+
+    fun getInitialAccentColor(): Int {
+        return syncPrefs.getInt("cached_custom_accent_color", 0xFF55DF69.toInt())
+    }
+
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
     val disableBlur: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_BLUR] ?: false }
     val dynamicAccentColor: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_ACCENT_COLOR] ?: true }
     val darkTheme: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DARK_THEME] ?: false }
     val customAccentColor: Flow<Int> =
-        dataStore.data.map { prefs -> prefs[Keys.CUSTOM_ACCENT_COLOR] ?: 0xFF41C25E.toInt() }
+        dataStore.data.map { prefs ->
+            prefs[Keys.CUSTOM_ACCENT_COLOR] ?: getInitialAccentColor()
+        }
     val dynamicLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_LYRICS] ?: true }
     val blurredArtworkForLyrics: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.BLURRED_ARTWORK_FOR_LYRICS] ?: true }
@@ -118,6 +128,9 @@ class SettingsRepository @Inject constructor(
             raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         }
     }
+
+    val showCardPlayButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_PLAY_BUTTON] ?: true }
+    val showCardOptionsButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_OPTIONS_BUTTON] ?: true }
 
     val pauseOnDisconnect: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] ?: true }
     val resumeOnlyIfPausedByDisconnect: Flow<Boolean> =
@@ -165,6 +178,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setCustomAccentColor(value: Int) {
+        syncPrefs.edit().putInt("cached_custom_accent_color", value).apply()
         dataStore.edit { prefs -> prefs[Keys.CUSTOM_ACCENT_COLOR] = value }
     }
 
@@ -365,5 +379,13 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setExcludedFolders(folders: Set<String>) {
         dataStore.edit { prefs -> prefs[Keys.EXCLUDED_FOLDERS] = folders }
+    }
+
+    suspend fun setShowCardPlayButton(show: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_CARD_PLAY_BUTTON] = show }
+    }
+
+    suspend fun setShowCardOptionsButton(show: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_CARD_OPTIONS_BUTTON] = show }
     }
 }

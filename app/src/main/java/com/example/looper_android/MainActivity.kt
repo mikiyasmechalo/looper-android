@@ -40,8 +40,13 @@ class MainActivity : ComponentActivity() {
             val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
             val darkTheme by settingsViewModel.darkTheme.collectAsState()
             val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
+            val customAccentColorInt by settingsViewModel.customAccentColor.collectAsState()
 
-            LooperandroidTheme(darkTheme = darkTheme, dynamicTheming = dynamicTheming) {
+            LooperandroidTheme(
+                darkTheme = darkTheme,
+                dynamicTheming = dynamicTheming,
+                customAccentColor = androidx.compose.ui.graphics.Color(customAccentColorInt)
+            ) {
                 AppNavGraph()
             }
         }

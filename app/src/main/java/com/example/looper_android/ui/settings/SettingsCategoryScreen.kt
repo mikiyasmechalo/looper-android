@@ -50,6 +50,7 @@ import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Coffee
+import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.Info
@@ -1344,6 +1345,8 @@ private fun LibrarySettingsSection(
     val excludedFolders by viewModel.excludedFolders.collectAsState()
     val grantedSafUris by viewModel.grantedSafUris.collectAsState()
     val useAlbumArtist by viewModel.useAlbumArtist.collectAsState()
+    val showCardPlayButton by viewModel.showCardPlayButton.collectAsState()
+    val showCardOptionsButton by viewModel.showCardOptionsButton.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -1508,7 +1511,38 @@ private fun LibrarySettingsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- 4. OFFLINE DATA ---
+        // --- 4. ALBUM & ARTIST CARDS ---
+        SettingsSubHeader(title = "Album & Artist Cards", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Show Quick Play Button",
+                    subtitle = "Display quick play action button on album and artist cards",
+                    icon = Lucide.Play,
+                    checked = showCardPlayButton,
+                    onCheckedChange = { viewModel.setShowCardPlayButton(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Options Menu Button",
+                    subtitle = "Display 3-dot options button on album and artist cards",
+                    icon = Lucide.EllipsisVertical,
+                    checked = showCardOptionsButton,
+                    onCheckedChange = { viewModel.setShowCardOptionsButton(it) },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 5. OFFLINE DATA ---
         SettingsSubHeader(title = "Offline Data", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,

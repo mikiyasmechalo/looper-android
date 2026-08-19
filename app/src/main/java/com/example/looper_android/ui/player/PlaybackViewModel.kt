@@ -65,7 +65,11 @@ class PlaybackViewModel @Inject constructor(
     private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
 ) : ViewModel() {
 
-    private val _playbackState = MutableStateFlow(PlaybackState())
+    private val _playbackState = MutableStateFlow(
+        PlaybackState(
+            accentColor = Color(settingsRepository.getInitialAccentColor())
+        )
+    )
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
     private val _isSelectionActive = MutableStateFlow(false)
@@ -226,7 +230,7 @@ class PlaybackViewModel @Inject constructor(
                         currentSong = targetSong,
                         isFavorite = targetSong.isFavorite,
                         audioQualityText = "High Quality • Audio",
-                        accentColor = androidx.compose.ui.graphics.Color(0xFF808080),
+                        accentColor = _playbackState.value.accentColor,
                         isSongReady = true
                     )
 
@@ -348,7 +352,7 @@ class PlaybackViewModel @Inject constructor(
     }
 
     private fun extractAccentColor(song: com.example.looper_android.data.db.SongEntity): Color {
-        val fallbackColor = Color(0xFF808080)
+        val fallbackColor = Color(settingsRepository.getInitialAccentColor())
 
         var bitmap: android.graphics.Bitmap? = null
         val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }

@@ -113,7 +113,13 @@ interface LibraryDao {
     suspend fun clearArtists()
 
     @Query("UPDATE artists SET artistImageUrl = :imageUrl WHERE name = :name COLLATE NOCASE")
-    suspend fun updateArtistImageUrl(name: String, imageUrl: String)
+    suspend fun updateArtistImageUrl(name: String, imageUrl: String?)
+
+    @Query("UPDATE artists SET name = :newName WHERE name = :oldName COLLATE NOCASE")
+    suspend fun updateArtistName(oldName: String, newName: String)
+
+    @Query("UPDATE songs SET artist = :newName WHERE artist = :oldName COLLATE NOCASE")
+    suspend fun updateSongArtistByArtistName(oldName: String, newName: String)
 
     @Query("SELECT * FROM artists WHERE artistImageUrl IS NULL OR artistImageUrl = ''")
     suspend fun getArtistsWithMissingImage(): List<ArtistEntity>

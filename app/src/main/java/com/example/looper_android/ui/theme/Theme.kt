@@ -31,6 +31,7 @@ private val DarkColorScheme = darkColorScheme(
 fun LooperandroidTheme(
     darkTheme: Boolean = true,
     dynamicTheming: Boolean = false,
+    customAccentColor: androidx.compose.ui.graphics.Color = BrandAccent,
     content: @Composable () -> Unit
 ) {
     val effectiveDarkTheme = darkTheme && !dynamicTheming
@@ -38,6 +39,9 @@ fun LooperandroidTheme(
     val backgroundColor = if (effectiveDarkTheme) androidx.compose.ui.graphics.Color.Black else PremiumDeepBlack
     
     val colorScheme = DarkColorScheme.copy(
+        primary = customAccentColor,
+        secondary = customAccentColor,
+        tertiary = customAccentColor,
         background = backgroundColor,
         surface = backgroundColor,
         surfaceVariant = containerColor
@@ -51,9 +55,11 @@ fun LooperandroidTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    androidx.compose.runtime.CompositionLocalProvider(LocalAccentColor provides customAccentColor) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

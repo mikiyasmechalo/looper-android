@@ -209,6 +209,60 @@ class CollectionDetailViewModel @Inject constructor(
         }
     }
 
+    fun massEditArtist(
+        oldArtistName: String,
+        songs: List<SongEntity>,
+        newArtistName: String,
+        pickedImageUri: Uri?,
+        removeImage: Boolean,
+        onComplete: (success: Boolean, newTitle: String) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _progressState.value = MassOperationProgress(isRunning = true, title = "Updating Artist...", current = 0, total = songs.size)
+
+            var newImagePath: String? = null
+            if (removeImage) {
+                libraryDao.updateArtistImageUrl(oldArtistName, null)
+            } else if (pickedImageUri != null) {
+                try {
+                    val stream = context.contentResolver.openInputStream(pickedImageUri)
+                    if (stream != null) {
+                        val file = File(context.filesDir, "artist_${System.currentTimeMillis()}.jpg")
+                        file.outputStream().use { out -> stream.copyTo(out) }
+                        newImagePath = file.absolutePath
+                        libraryDao.updateArtistImageUrl(oldArtistName, newImagePath)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            val nameChanged = newArtistName.isNotBlank() && !newArtistName.equals(oldArtistName, ignoreCase = true)
+            if (nameChanged) {
+                val updatedSongs = mutableListOf<SongEntity>()
+                songs.forEachIndexed { index, song ->
+                    _progressState.value = _progressState.value.copy(current = index + 1)
+                    val edit = com.example.looper_android.data.repository.AudioTagWriter.TagEdit(artist = newArtistName)
+                    tagWriter.write(song.path, edit)
+                    updatedSongs.add(song.copy(artist = newArtistName))
+                }
+                if (updatedSongs.isNotEmpty()) {
+                    libraryDao.updateSongs(updatedSongs)
+                }
+                libraryDao.updateArtistName(oldArtistName, newArtistName)
+                if (newImagePath != null) {
+                    libraryDao.updateArtistImageUrl(newArtistName, newImagePath)
+                }
+                _title.value = newArtistName
+            }
+
+            _progressState.value = MassOperationProgress(isRunning = false)
+            withContext(Dispatchers.Main) {
+                onComplete(true, if (nameChanged) newArtistName else oldArtistName)
+            }
+        }
+    }
+
     fun massDeleteAlbum(
         albumName: String,
         songs: List<SongEntity>,

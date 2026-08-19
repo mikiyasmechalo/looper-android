@@ -47,6 +47,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.basicMarquee
+import kotlinx.coroutines.launch
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.LayoutList
+import com.composables.icons.lucide.Layers
+import com.composables.icons.lucide.ListMusic
+import com.composables.icons.lucide.Tag
+import com.example.looper_android.data.repository.ArtworkExportHelper
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowUpDown
@@ -91,6 +110,22 @@ fun CollectionDetailScreen(
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     viewModel: CollectionDetailViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = remember(context) { context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE) }
+    val initialLayout = remember(type) { prefs.getString("collection_layout_${type.lowercase()}", "horizontal") ?: "horizontal" }
+    var headerLayout by remember(type) { mutableStateOf(initialLayout) }
+
+    fun cycleHeaderLayout() {
+        val next = when (headerLayout) {
+            "horizontal" -> "centered"
+            "centered" -> "full-width"
+            else -> "horizontal"
+        }
+        headerLayout = next
+        prefs.edit().putString("collection_layout_${type.lowercase()}", next).apply()
+    }
+
     val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val collectionSongs by viewModel.collectionSongs.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
@@ -109,6 +144,7 @@ fun CollectionDetailScreen(
     var showSortSheet by remember { mutableStateOf(false) }
     var showCollectionOptionsSheet by remember { mutableStateOf(false) }
     var showEditAlbumSheet by remember { mutableStateOf(false) }
+    var showEditArtistSheet by remember { mutableStateOf(false) }
     var showDeleteAlbumDialog by remember { mutableStateOf(false) }
     var showDeleteArtistDialog by remember { mutableStateOf(false) }
     var showSafRequiredDialog by remember { mutableStateOf(false) }
@@ -301,9 +337,50 @@ fun CollectionDetailScreen(
     } else {
         artPath ?: collectionSongs.firstOrNull { !it.artPath.isNullOrEmpty() }?.artPath
     }
+    val totalSeconds = collectionSongs.sumOf { ((it.duration ?: 0) / 1000).toLong() }
+    val totalDurationText = when {
+        totalSeconds <= 0 -> "0 min"
+        totalSeconds >= 3600 -> {
+            val hrs = totalSeconds / 3600
+            val mins = (totalSeconds % 3600) / 60
+            if (mins > 0) "$hrs hr $mins mins" else "$hrs hr"
+        }
+        else -> "${(totalSeconds / 60).coerceAtLeast(1)} mins"
+    }
+
+    val collectionSubtitle = when {
+        isAlbumType -> {
+            val albumArtist = collectionSongs.firstOrNull()?.let { it.albumArtist ?: it.artist } ?: "Unknown Artist"
+            "$albumArtist • ${collectionSongs.size} ${if (collectionSongs.size == 1) "track" else "tracks"} • $totalDurationText"
+        }
+        else -> "${collectionSongs.size} ${if (collectionSongs.size == 1) "track" else "tracks"} • $totalDurationText"
+    }
+
     val bottomPadding = if (currentSong != null) 200.dp else 140.dp
 
+    val isPureBlack = androidx.compose.material3.MaterialTheme.colorScheme.background == Color.Black ||
+            androidx.compose.material3.MaterialTheme.colorScheme.background == Color(0xFF000000)
+
     Box(modifier = Modifier.fillMaxSize()) {
+        // Subtle Ambient Top Accent Glow extending from screen top behind top bar (Hidden on Pure Black OLED theme)
+        if (!isPureBlack) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(340.dp)
+                    .align(Alignment.TopCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                playbackState.accentColor.copy(alpha = 0.16f),
+                                playbackState.accentColor.copy(alpha = 0.05f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+        }
+
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -327,12 +404,13 @@ fun CollectionDetailScreen(
                     hasStatusBarsPadding = true
                 )
             } else {
-                // Top Back Button Bar
+                // Top Bar with Back and Layout Switcher
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     PremiumSection(
@@ -349,6 +427,28 @@ fun CollectionDetailScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+
+                    if (isAlbumType || isArtistType) {
+                        val layoutIcon = when (headerLayout) {
+                            "horizontal" -> Lucide.LayoutList
+                            "centered" -> Lucide.Disc
+                            else -> Lucide.Layers
+                        }
+                        PremiumSection(
+                            width = 48.dp,
+                            height = 48.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 32.dp, bottomEnd = 32.dp),
+                            onClick = { cycleHeaderLayout() }
+                        ) {
+                            Icon(
+                                imageVector = layoutIcon,
+                                contentDescription = "Change Layout",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -362,134 +462,137 @@ fun CollectionDetailScreen(
                         contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Hero Header (Cover image centered, text & buttons left-aligned)
+                        // Hero Header
                         item {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalAlignment = Alignment.Start
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
                             ) {
-                                // Centered artwork image container
-                                Box(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (type.equals("artist", ignoreCase = true)) {
-                                        ArtistCollage(
-                                            artistImageUrl = displayArt,
-                                            modifier = Modifier.size(140.dp),
-                                            shape = CircleShape
+                                when {
+                                    type.equals("folder", ignoreCase = true) -> {
+                                        FolderHeroHeader(
+                                            title = effectiveTitle,
+                                            folderPath = collectionSongs.firstOrNull()?.let { java.io.File(it.path).parent } ?: effectiveTitle,
+                                            subtitle = collectionSubtitle,
+                                            accentColor = playbackState.accentColor,
+                                            onPlayAll = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                }
+                                            },
+                                            onShuffle = {
+                                                playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                            },
+                                            onSort = { showSortSheet = true },
+                                            onOptions = { showCollectionOptionsSheet = true }
                                         )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(140.dp)
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(Color.White.copy(alpha = 0.05f))
-                                        ) {
-                                            OptimizedImage(
-                                                url = displayArt,
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
-                                            )
-                                        }
                                     }
-                                }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-
-                                Text(
-                                    text = effectiveTitle,
-                                    color = Color.White,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Text(
-                                    text = "${collectionSongs.size} ${if (collectionSongs.size == 1) "track" else "tracks"}",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 16.sp,
-                                    fontFamily = DmSansFontFamily
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                // Action Bar
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Start,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Play All Button
-                                    PremiumSection(
-                                        height = 44.dp,
-                                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        onClick = {
-                                            if (collectionSongs.isNotEmpty()) {
-                                                playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                    type.equals("playlist", ignoreCase = true) -> {
+                                        PlaylistHeroHeader(
+                                            title = effectiveTitle,
+                                            subtitle = collectionSubtitle,
+                                            artPath = displayArt,
+                                            accentColor = playbackState.accentColor,
+                                            onPlayAll = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                }
+                                            },
+                                            onShuffle = {
+                                                playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                            },
+                                            onSort = { showSortSheet = true },
+                                            onOptions = { showCollectionOptionsSheet = true }
+                                        )
+                                    }
+                                    type.equals("genre", ignoreCase = true) -> {
+                                        GenreHeroHeader(
+                                            title = effectiveTitle,
+                                            subtitle = collectionSubtitle,
+                                            accentColor = playbackState.accentColor,
+                                            onPlayAll = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                }
+                                            },
+                                            onShuffle = {
+                                                playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                            },
+                                            onSort = { showSortSheet = true },
+                                            onOptions = { showCollectionOptionsSheet = true }
+                                        )
+                                    }
+                                    else -> {
+                                        AnimatedContent(
+                                            targetState = headerLayout,
+                                            transitionSpec = {
+                                                fadeIn(animationSpec = tween(220)) + scaleIn(initialScale = 0.96f, animationSpec = tween(220)) togetherWith
+                                                    fadeOut(animationSpec = tween(180))
+                                            },
+                                            label = "HeaderLayoutTransition"
+                                        ) { targetLayout ->
+                                            when (targetLayout) {
+                                                "centered" -> {
+                                                    CenteredHeroHeader(
+                                                        title = effectiveTitle,
+                                                        subtitle = collectionSubtitle,
+                                                        artPath = displayArt,
+                                                        isArtist = isArtistType,
+                                                        accentColor = playbackState.accentColor,
+                                                        onPlayAll = {
+                                                            if (collectionSongs.isNotEmpty()) {
+                                                                playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                            }
+                                                        },
+                                                        onShuffle = {
+                                                            playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                                        },
+                                                        onSort = { showSortSheet = true },
+                                                        onOptions = { showCollectionOptionsSheet = true }
+                                                    )
+                                                }
+                                                "full-width" -> {
+                                                    FullWidthHeroHeader(
+                                                        title = effectiveTitle,
+                                                        subtitle = collectionSubtitle,
+                                                        artPath = displayArt,
+                                                        isArtist = isArtistType,
+                                                        accentColor = playbackState.accentColor,
+                                                        onPlayAll = {
+                                                            if (collectionSongs.isNotEmpty()) {
+                                                                playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                            }
+                                                        },
+                                                        onShuffle = {
+                                                            playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                                        },
+                                                        onSort = { showSortSheet = true },
+                                                        onOptions = { showCollectionOptionsSheet = true }
+                                                    )
+                                                }
+                                                else -> {
+                                                    // "horizontal" (Default)
+                                                    HorizontalHeroHeader(
+                                                        title = effectiveTitle,
+                                                        subtitle = collectionSubtitle,
+                                                        artPath = displayArt,
+                                                        isArtist = isArtistType,
+                                                        accentColor = playbackState.accentColor,
+                                                        onPlayAll = {
+                                                            if (collectionSongs.isNotEmpty()) {
+                                                                playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                                                            }
+                                                        },
+                                                        onShuffle = {
+                                                            playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+                                                        },
+                                                        onSort = { showSortSheet = true },
+                                                        onOptions = { showCollectionOptionsSheet = true }
+                                                    )
+                                                }
                                             }
                                         }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 16.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Icon(Lucide.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                            Text(
-                                                text = "Play All",
-                                                color = Color.White,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontFamily = DmSansFontFamily
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Shuffle Button
-                                    PremiumSection(
-                                        width = 44.dp,
-                                        height = 44.dp,
-                                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        onClick = {
-                                            playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
-                                        }
-                                    ) {
-                                        Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Sort Button
-                                    PremiumSection(
-                                        width = 44.dp,
-                                        height = 44.dp,
-                                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        onClick = { showSortSheet = true }
-                                    ) {
-                                        Icon(Lucide.ArrowUpDown, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // 3-Dot Overflow Collection Options Menu Button
-                                    PremiumSection(
-                                        width = 44.dp,
-                                        height = 44.dp,
-                                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        onClick = { showCollectionOptionsSheet = true }
-                                    ) {
-                                        Icon(Lucide.EllipsisVertical, contentDescription = "Collection Options", tint = Color.White, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -649,28 +752,69 @@ fun CollectionDetailScreen(
     if (showCollectionOptionsSheet) {
         CollectionOptionsMenuSheet(
             collectionTitle = effectiveTitle,
+            collectionSubtitle = collectionSubtitle,
+            artPathOrUrl = displayArt,
             songs = collectionSongs,
             isAlbum = isAlbumType,
             isArtist = isArtistType,
             onDismiss = { showCollectionOptionsSheet = false },
+            onPlayAllClick = {
+                if (collectionSongs.isNotEmpty()) {
+                    playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
+                }
+            },
+            onShuffleClick = {
+                playbackViewModel.shuffleAll(collectionSongs, queueName = effectiveTitle)
+            },
             onPlayNextClick = {
                 collectionSongs.reversed().forEach { playbackViewModel.addNext(it) }
             },
             onAddToQueueClick = {
                 collectionSongs.forEach { playbackViewModel.addToQueue(it) }
             },
-            onAddToPlaylistClick = {},
+            onAddToPlaylistClick = {
+                showAddToPlaylistForSelection = true
+            },
             onFavoriteAllClick = {
                 collectionSongs.forEach { allSongsViewModel.updateSong(it.copy(isFavorite = true)) }
             },
-            onEditAlbumTagsClick = {
-                showEditAlbumSheet = true
+            onSaveImageClick = {
+                scope.launch {
+                    ArtworkExportHelper.saveImageToDownloads(context, displayArt, effectiveTitle)
+                }
             },
+            onEditArtistClick = {
+                if (viewModel.isCollectionSafCovered(collectionSongs)) {
+                    showEditArtistSheet = true
+                } else {
+                    pendingSafAction = "edit_artist"
+                    showSafRequiredDialog = true
+                }
+            },
+            onEditAlbumTagsClick = {
+                if (viewModel.isCollectionSafCovered(collectionSongs)) {
+                    showEditAlbumSheet = true
+                } else {
+                    pendingSafAction = "edit"
+                    showSafRequiredDialog = true
+                }
+            },
+            onGoToArtistClick = if (isAlbumType) { artist -> onNavigateToArtist(artist) } else null,
             onDeleteAlbumClick = {
-                showDeleteAlbumDialog = true
+                if (viewModel.isCollectionSafCovered(collectionSongs)) {
+                    showDeleteAlbumDialog = true
+                } else {
+                    pendingSafAction = "delete"
+                    showSafRequiredDialog = true
+                }
             },
             onDeleteArtistClick = {
-                showDeleteArtistDialog = true
+                if (viewModel.isCollectionSafCovered(collectionSongs)) {
+                    showDeleteArtistDialog = true
+                } else {
+                    pendingSafAction = "delete_artist"
+                    showSafRequiredDialog = true
+                }
             },
             accentColor = playbackState.accentColor
         )
@@ -696,6 +840,30 @@ fun CollectionDetailScreen(
                     removeArtwork = removeArtwork,
                     onComplete = { _, _ ->
                         showEditAlbumSheet = false
+                    }
+                )
+            }
+        )
+    }
+
+    // Edit Artist Bottom Sheet
+    if (showEditArtistSheet) {
+        EditArtistBottomSheet(
+            artistName = effectiveTitle,
+            currentImageUrl = displayArt,
+            songs = collectionSongs,
+            isSaving = progressState.isRunning,
+            accentColor = playbackState.accentColor,
+            onDismiss = { showEditArtistSheet = false },
+            onSave = { newArtistName, pickedImageUri, removeImage ->
+                viewModel.massEditArtist(
+                    oldArtistName = effectiveTitle,
+                    songs = collectionSongs,
+                    newArtistName = newArtistName,
+                    pickedImageUri = pickedImageUri,
+                    removeImage = removeImage,
+                    onComplete = { _, _ ->
+                        showEditArtistSheet = false
                     }
                 )
             }
@@ -835,5 +1003,442 @@ fun CollectionDetailScreen(
             onArtistClick = onNavigateToArtist,
             onAlbumClick = onNavigateToAlbum
         )
+    }
+}
+
+@Composable
+private fun HorizontalHeroHeader(
+    title: String,
+    subtitle: String,
+    artPath: String?,
+    isArtist: Boolean,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(110.dp)
+                .clip(if (isArtist) CircleShape else RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+        ) {
+            if (isArtist) {
+                ArtistCollage(artistImageUrl = artPath, modifier = Modifier.fillMaxSize(), shape = CircleShape)
+            } else {
+                OptimizedImage(url = artPath, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.50f),
+                fontSize = 13.sp,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        }
+    }
+}
+
+@Composable
+private fun CenteredHeroHeader(
+    title: String,
+    subtitle: String,
+    artPath: String?,
+    isArtist: Boolean,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(160.dp)
+                    .clip(if (isArtist) CircleShape else RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+            ) {
+                if (isArtist) {
+                    ArtistCollage(artistImageUrl = artPath, modifier = Modifier.fillMaxSize(), shape = CircleShape)
+                } else {
+                    OptimizedImage(url = artPath, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = DmSansFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.basicMarquee()
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = Color.White.copy(alpha = 0.50f),
+            fontSize = 13.sp,
+            fontFamily = DmSansFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.basicMarquee()
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+    }
+}
+
+@Composable
+private fun FullWidthHeroHeader(
+    title: String,
+    subtitle: String,
+    artPath: String?,
+    isArtist: Boolean,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(if (isArtist) CircleShape else RoundedCornerShape(22.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+        ) {
+            if (isArtist) {
+                ArtistCollage(artistImageUrl = artPath, modifier = Modifier.fillMaxSize(), shape = CircleShape)
+            } else {
+                OptimizedImage(url = artPath, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = DmSansFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.basicMarquee()
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = Color.White.copy(alpha = 0.50f),
+            fontSize = 13.sp,
+            fontFamily = DmSansFontFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.basicMarquee()
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+    }
+}
+
+@Composable
+private fun FolderHeroHeader(
+    title: String,
+    folderPath: String,
+    subtitle: String,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(accentColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Lucide.Folder,
+                contentDescription = "Folder",
+                tint = accentColor,
+                modifier = Modifier.size(44.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = folderPath,
+                color = Color.White.copy(alpha = 0.38f),
+                fontSize = 11.sp,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        }
+    }
+}
+
+@Composable
+private fun PlaylistHeroHeader(
+    title: String,
+    subtitle: String,
+    artPath: String?,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(accentColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!artPath.isNullOrEmpty()) {
+                OptimizedImage(url = artPath, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Icon(
+                    imageVector = Lucide.ListMusic,
+                    contentDescription = "Playlist",
+                    tint = accentColor,
+                    modifier = Modifier.size(44.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        }
+    }
+}
+
+@Composable
+private fun GenreHeroHeader(
+    title: String,
+    subtitle: String,
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(accentColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Lucide.Tag,
+                contentDescription = "Genre",
+                tint = accentColor,
+                modifier = Modifier.size(40.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontFamily = DmSansFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        }
+    }
+}
+
+@Composable
+private fun HeroActionBar(
+    accentColor: Color,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onSort: () -> Unit,
+    onOptions: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Play Button (Solid Accent Container)
+        PremiumSection(
+            height = 40.dp,
+            backgroundColor = accentColor,
+            shape = RoundedCornerShape(12.dp),
+            onClick = onPlayAll
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Lucide.Play, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                Text(
+                    text = "Play",
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            }
+        }
+
+        // Shuffle Button (Accent Tinted Glow)
+        PremiumSection(
+            width = 40.dp,
+            height = 40.dp,
+            backgroundColor = accentColor.copy(alpha = 0.14f),
+            shape = RoundedCornerShape(12.dp),
+            onClick = onShuffle
+        ) {
+            Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = accentColor, modifier = Modifier.size(16.dp))
+        }
+
+        // Sort Button
+        PremiumSection(
+            width = 40.dp,
+            height = 40.dp,
+            backgroundColor = Color.White.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            onClick = onSort
+        ) {
+            Icon(Lucide.ArrowUpDown, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(16.dp))
+        }
+
+        // 3-Dot Overflow Options Button
+        PremiumSection(
+            width = 40.dp,
+            height = 40.dp,
+            backgroundColor = Color.White.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            onClick = onOptions
+        ) {
+            Icon(Lucide.EllipsisVertical, contentDescription = "Collection Options", tint = Color.White, modifier = Modifier.size(17.dp))
+        }
     }
 }

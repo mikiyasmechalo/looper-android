@@ -84,7 +84,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val customAccentColor: StateFlow<Int> = repository.customAccentColor
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0xFF41C25E.toInt())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), repository.getInitialAccentColor())
 
     val dynamicLyrics: StateFlow<Boolean> = repository.dynamicLyrics
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -135,6 +135,12 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val downloadArtwork: StateFlow<Boolean> = repository.downloadArtwork
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showCardPlayButton: StateFlow<Boolean> = repository.showCardPlayButton
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showCardOptionsButton: StateFlow<Boolean> = repository.showCardOptionsButton
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val appLanguage: StateFlow<String> = repository.appLanguage
@@ -268,6 +274,8 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeDuration(value: Float) = viewModelScope.launch { repository.setCrossfadeDuration(value) }
 
     fun setUseAlbumArtist(value: Boolean) = viewModelScope.launch { repository.setUseAlbumArtist(value) }
+    fun setShowCardPlayButton(value: Boolean) = viewModelScope.launch { repository.setShowCardPlayButton(value) }
+    fun setShowCardOptionsButton(value: Boolean) = viewModelScope.launch { repository.setShowCardOptionsButton(value) }
     fun setDefaultScreen(value: String) = viewModelScope.launch { repository.setDefaultScreen(value) }
     fun setShowHomeArtists(value: Boolean) = viewModelScope.launch { repository.setShowHomeArtists(value) }
     fun setShowHomeAlbums(value: Boolean) = viewModelScope.launch { repository.setShowHomeAlbums(value) }

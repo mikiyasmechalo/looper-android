@@ -32,6 +32,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Circle
+import com.composables.icons.lucide.Image
+import com.composables.icons.lucide.Layers
+import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.ArrowDownZA
 import com.composables.icons.lucide.ArrowUpAZ
 import com.composables.icons.lucide.Check
@@ -41,6 +45,8 @@ import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.example.looper_android.ui.theme.DmSansFontFamily
 import com.example.looper_android.ui.widgets.PremiumSection
+
+enum class CardStyle { NORMAL, CIRCLE, CARD, IMAGE, IMAGE_GAPLESS }
 
 data class CategorySortOptionItem<T>(
     val option: T,
@@ -58,6 +64,8 @@ fun <T> CategorySortBottomSheet(
     onToggleAscending: () -> Unit,
     viewMode: ViewMode? = null,
     onViewModeChange: ((ViewMode) -> Unit)? = null,
+    cardStyle: CardStyle? = null,
+    onCardStyleChange: ((CardStyle) -> Unit)? = null,
     onDismiss: () -> Unit,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
@@ -148,6 +156,85 @@ fun <T> CategorySortBottomSheet(
                                     text = label,
                                     color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.70f),
                                     fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontFamily = DmSansFontFamily
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.10f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 14.dp)
+                )
+            }
+
+            // Optional Card Style Selector
+            if (cardStyle != null && onCardStyleChange != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Card Style",
+                        color = Color.White,
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val styles = listOf(
+                        Triple(CardStyle.NORMAL, "Normal", Lucide.Square),
+                        Triple(CardStyle.CIRCLE, "Circle", Lucide.Circle),
+                        Triple(CardStyle.CARD, "Card", Lucide.Layers),
+                        Triple(CardStyle.IMAGE, "Image", Lucide.Image),
+                        Triple(CardStyle.IMAGE_GAPLESS, "Gapless", Lucide.Grid3x3)
+                    )
+
+                    styles.forEach { (style, label, icon) ->
+                        val isSelected = cardStyle == style
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) accentColor else Color.Transparent)
+                                .clickable {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    onCardStyleChange(style)
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.Black else Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.70f),
+                                    fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     fontFamily = DmSansFontFamily
                                 )
