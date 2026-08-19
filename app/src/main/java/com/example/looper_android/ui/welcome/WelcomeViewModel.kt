@@ -18,6 +18,7 @@ import javax.inject.Inject
 
 data class WelcomeUiState(
     val isAudioPermissionGranted: Boolean = false,
+    val isNotificationPermissionGranted: Boolean = false,
     val isAllFilesPermissionGranted: Boolean = false,
     val grantedFolders: List<String> = emptyList(),
     val isScanning: Boolean = false,
@@ -58,6 +59,14 @@ class WelcomeViewModel @Inject constructor(
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
 
+        val notifGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+
         val allFilesGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             android.os.Environment.isExternalStorageManager()
         } else {
@@ -66,6 +75,7 @@ class WelcomeViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(
             isAudioPermissionGranted = audioGranted,
+            isNotificationPermissionGranted = notifGranted,
             isAllFilesPermissionGranted = allFilesGranted
         )
 

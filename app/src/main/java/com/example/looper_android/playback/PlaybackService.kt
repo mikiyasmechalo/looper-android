@@ -5,18 +5,36 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioManager
+import android.net.Uri
+import android.os.Bundle
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.BitmapLoader
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.example.looper_android.R
+import com.example.looper_android.data.db.LibraryDao
+import com.example.looper_android.data.repository.EqualizerRepository
 import com.example.looper_android.data.repository.SettingsRepository
 import com.example.looper_android.domain.QueueManager
+import com.example.looper_android.playback.equalizer.AudioDeviceDetector
 import com.example.looper_android.playback.equalizer.AudioOutputDeviceType
+import com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.concurrent.Executors
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -32,17 +50,51 @@ class PlaybackService : MediaSessionService() {
     lateinit var settingsRepository: SettingsRepository
 
     @Inject
-    lateinit var audioDeviceDetector: com.example.looper_android.playback.equalizer.AudioDeviceDetector
+    lateinit var libraryDao: LibraryDao
 
     @Inject
-    lateinit var equalizerRepository: com.example.looper_android.data.repository.EqualizerRepository
+    lateinit var audioDeviceDetector: AudioDeviceDetector
 
     @Inject
-    lateinit var equalizerAudioProcessor: com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor
+    lateinit var equalizerRepository: EqualizerRepository
+
+    @Inject
+    lateinit var equalizerAudioProcessor: CustomEqualizerAudioProcessor
 
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main)
+    private val bitmapExecutor = Executors.newFixedThreadPool(2)
     private var wasPausedByDisconnect = false
+
+    companion object {
+        const val ACTION_FAVORITE = "com.example.looper_android.ACTION_FAVORITE"
+        const val ACTION_CLOSE = "com.example.looper_android.ACTION_CLOSE"
+    }
+
+    private val favoriteCommand = SessionCommand(ACTION_FAVORITE, Bundle.EMPTY)
+    private val closeCommand = SessionCommand(ACTION_CLOSE, Bundle.EMPTY)
+
+    private fun createFavoriteButton(isFavorite: Boolean): CommandButton {
+        return CommandButton.Builder()
+            .setDisplayName(if (isFavorite) "Favorited" else "Favorite")
+            .setIconResId(if (isFavorite) R.drawable.ic_notif_favorite_filled else R.drawable.ic_notif_favorite_border)
+            .setSessionCommand(favoriteCommand)
+            .build()
+    }
+
+    private fun createCloseButton(): CommandButton {
+        return CommandButton.Builder()
+            .setDisplayName("Close")
+            .setIconResId(R.drawable.ic_notif_close)
+            .setSessionCommand(closeCommand)
+            .build()
+    }
+
+    private fun updateNotificationButtons(isFavorite: Boolean) {
+        val favBtn = createFavoriteButton(isFavorite)
+        val closeBtn = createCloseButton()
+        mediaSession?.setCustomLayout(listOf(favBtn, closeBtn))
+    }
 
     private val headsetStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -94,10 +146,122 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    private val playerListener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val currentMediaId = mediaItem?.mediaId?.toLongOrNull()
+            if (currentMediaId != null) {
+                serviceScope.launch(Dispatchers.IO) {
+                    val song = libraryDao.getSongByIdSync(currentMediaId)
+                    val isFav = song?.isFavorite ?: false
+                    serviceScope.launch(Dispatchers.Main) {
+                        updateNotificationButtons(isFav)
+                    }
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
-        
-        mediaSession = MediaSession.Builder(this, player).build()
+
+        val bitmapLoader = object : BitmapLoader {
+            override fun supportsMimeType(mimeType: String): Boolean = true
+
+            override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> {
+                return Futures.submit(java.util.concurrent.Callable<Bitmap> {
+                    BitmapFactory.decodeByteArray(data, 0, data.size)
+                        ?: throw IllegalArgumentException("Could not decode byte array")
+                }, bitmapExecutor)
+            }
+
+            override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
+                return Futures.submit(java.util.concurrent.Callable<Bitmap> {
+                    val bmp: Bitmap? = com.example.looper_android.data.repository.ArtworkLoaderHelper.loadArtworkBitmap(
+                        this@PlaybackService,
+                        uri.toString(),
+                        player.currentMediaItem?.localConfiguration?.uri?.toString()
+                    )
+                    bmp ?: throw IllegalArgumentException("Could not load bitmap for $uri")
+                }, bitmapExecutor)
+            }
+        }
+
+        val initialFavBtn = createFavoriteButton(false)
+        val initialCloseBtn = createCloseButton()
+
+        val callback = object : MediaSession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                    .add(favoriteCommand)
+                    .add(closeCommand)
+                    .build()
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(sessionCommands)
+                    .setCustomLayout(listOf(initialFavBtn, initialCloseBtn))
+                    .build()
+            }
+
+            override fun onCustomCommand(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                customCommand: SessionCommand,
+                args: Bundle
+            ): ListenableFuture<SessionResult> {
+                when (customCommand.customAction) {
+                    ACTION_FAVORITE -> {
+                        try {
+                            // MUST read player on Main thread to avoid ExoPlayer thread-check crash!
+                            val currentMediaId = player.currentMediaItem?.mediaId?.toLongOrNull()
+                            if (currentMediaId != null) {
+                                serviceScope.launch(Dispatchers.IO) {
+                                    val song = libraryDao.getSongByIdSync(currentMediaId)
+                                    if (song != null) {
+                                        val newFav = !song.isFavorite
+                                        libraryDao.updateFavorite(song.id, newFav)
+                                        serviceScope.launch(Dispatchers.Main) {
+                                            updateNotificationButtons(newFav)
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    ACTION_CLOSE -> {
+                        serviceScope.launch(Dispatchers.Main) {
+                            try {
+                                queueManager.saveCurrentStateSync()
+                                player.pause()
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    stopForeground(STOP_FOREGROUND_REMOVE)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    stopForeground(true)
+                                }
+                                val notifManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                                notifManager?.cancelAll()
+                                stopSelf()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+        }
+
+        mediaSession = MediaSession.Builder(this, player)
+            .setCallback(callback)
+            .setBitmapLoader(bitmapLoader)
+            .setCustomLayout(listOf(initialFavBtn, initialCloseBtn))
+            .build()
+
+        player.addListener(playerListener)
         queueManager.restoreLastQueue()
 
         val filter = IntentFilter().apply {
@@ -145,28 +309,22 @@ class PlaybackService : MediaSessionService() {
                             val remaining = duration - position
                             val newVolume = when {
                                 position < crossfadeDurationMs -> {
-                                    // Fade in at the start of track
                                     (position.toFloat() / crossfadeDurationMs.toFloat()).coerceIn(0f, 1f)
                                 }
                                 remaining < crossfadeDurationMs -> {
-                                    // Fade out at the end of track
                                     (remaining.toFloat() / crossfadeDurationMs.toFloat()).coerceIn(0f, 1f)
                                 }
                                 else -> 1f
                             }
-                            // Only update if change is significant to avoid spamming Volume changes
                             if (kotlin.math.abs(player.volume - newVolume) > 0.02f) {
                                 player.volume = newVolume
                             }
                         }
                     } else if (!crossfadeEnabled && player.volume < 1f) {
-                        // Restore volume instantly if crossfade is disabled while volume is ducked
                         player.volume = 1f
                     }
-                } catch (e: Exception) {
-                    // Ignore transient player access exceptions
-                }
-                kotlinx.coroutines.delay(50) // 20 Hz update rate for smooth volume transition
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(50)
             }
         }
     }
@@ -181,7 +339,7 @@ class PlaybackService : MediaSessionService() {
             val stop = settingsRepository.stopOnTaskRemoved.first()
             if (stop) {
                 queueManager.saveCurrentStateSync()
-                player.stop()
+                player.pause()
                 stopSelf()
             }
         }
@@ -191,6 +349,8 @@ class PlaybackService : MediaSessionService() {
         try {
             unregisterReceiver(headsetStateReceiver)
         } catch (_: Exception) {}
+        player.removeListener(playerListener)
+        bitmapExecutor.shutdown()
         queueManager.saveCurrentStateSync()
         mediaSession?.run {
             player.release()

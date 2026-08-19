@@ -211,15 +211,21 @@ fun SettingsOptionTile(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.widthIn(max = 140.dp)
+            ) {
                 Text(
                     text = selectedValue,
                     color = accentColor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    fontFamily = DmSansFontFamily
+                    fontFamily = DmSansFontFamily,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     imageVector = Lucide.ChevronRight,
                     contentDescription = null,
@@ -559,7 +565,10 @@ fun SettingsDropdownTile(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd), contentAlignment = Alignment.TopEnd) {
+            Box(
+                modifier = Modifier.widthIn(max = 145.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -567,16 +576,19 @@ fun SettingsDropdownTile(
                         .background(Color.White.copy(alpha = 0.07f))
                         .border(width = 0.5.dp, color = Color.White.copy(alpha = 0.12f), shape = RoundedCornerShape(10.dp))
                         .clickable { expanded = true }
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
                 ) {
                     Text(
                         text = selectedLabel,
                         color = accentColor,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = DmSansFontFamily
+                        fontFamily = DmSansFontFamily,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Lucide.ChevronDown,
                         contentDescription = null,

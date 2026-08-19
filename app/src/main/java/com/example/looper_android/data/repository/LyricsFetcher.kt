@@ -52,6 +52,21 @@ class LyricsFetcher @Inject constructor(
     // In-memory per-song source cache (songId -> Map of normalized provider names -> lyrics)
     private val sessionLyricsCache = java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.ConcurrentHashMap<String, String>>()
 
+    fun isLyricsSynced(raw: String?): Boolean {
+        if (raw.isNullOrBlank()) return false
+        return Regex("""\[\d{1,3}\s*:\s*\d{1,2}""").containsMatchIn(raw)
+    }
+
+    fun getCachedLyricsSync(song: SongEntity): String? {
+        val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
+        if (!inMem.isNullOrBlank()) return inMem
+        if (!song.lyrics.isNullOrBlank()) {
+            cacheInMemory(song.id, extractLyricsSource(song.lyrics).uppercase(), song.lyrics)
+            return song.lyrics
+        }
+        return null
+    }
+
     private fun cacheInMemory(songId: Long, provider: String, lyrics: String) {
         sessionLyricsCache.computeIfAbsent(songId) { java.util.concurrent.ConcurrentHashMap() }[provider.uppercase()] = lyrics
     }
@@ -229,14 +244,11 @@ class LyricsFetcher @Inject constructor(
     }
 
     suspend fun fetchLyrics(song: SongEntity): String? = withContext(Dispatchers.IO) {
-        // 1. Top Priority: Local Sidecar (.lrc / .txt) beside the song file
-        var lrc = tryLocalSidecarLyrics(song)
-        if (lrc != null) {
-            cacheInMemoryAndDb(song.id, "LOCAL", lrc)
-            return@withContext lrc
-        }
+        // Fast Check: If in-memory cache already has lyrics, return immediately
+        val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
+        if (!inMem.isNullOrBlank()) return@withContext inMem
 
-        // 2. DB cache (saved preference for this song)
+        // Check DB Cache
         val dbCached = libraryDao.getSongLyricsById(song.id) ?: libraryDao.getSongLyricsByPath(song.path)
         if (!dbCached.isNullOrEmpty()) {
             val src = extractLyricsSource(dbCached).uppercase()
@@ -244,43 +256,71 @@ class LyricsFetcher @Inject constructor(
             return@withContext dbCached
         }
 
-        // 3. Embedded ID3 Metadata IF SYNCED
+        // 1. Check Embedded Metadata
         val embedded = tryEmbeddedLyrics(song)
-        val isEmbeddedSynced = embedded != null && Regex("""\[\d{1,3}\s*:\s*\d{1,2}""").containsMatchIn(embedded)
+        val isEmbeddedSynced = isLyricsSynced(embedded)
+
+        // Rule 1: Embedded SYNCED lyrics have highest priority
         if (isEmbeddedSynced && embedded != null) {
             cacheInMemoryAndDb(song.id, "EMBEDDED", embedded)
             return@withContext embedded
         }
 
-        // 4. Online Services (Primary Provider + Auto Fallback)
+        // 2. Check Local Sidecar (.lrc / .txt)
+        val sidecar = tryLocalSidecarLyrics(song)
+        val isSidecarSynced = isLyricsSynced(sidecar)
+
+        // Rule 2: Local Sidecar (.lrc) SYNCED lyrics
+        if (isSidecarSynced && sidecar != null) {
+            cacheInMemoryAndDb(song.id, "LOCAL", sidecar)
+            return@withContext sidecar
+        }
+
+        // 3. Online Providers (Primary + Fallbacks) - Search for SYNCED lyrics first
+        var onlineUnsynced: String? = null
         val enableInternet = settingsRepository.enableInternet.first()
         if (enableInternet) {
             val primaryProvider = settingsRepository.primaryLyricsProvider.first().uppercase()
             val autoFallback = settingsRepository.autoFallbackLyricsProviders.first()
 
-            // First attempt selected primary provider
-            lrc = getFromMemoryOrFetch(song, primaryProvider)
-
-            // If primary returned nothing and autoFallback is true, cycle through remaining online providers
-            if (lrc == null && autoFallback) {
-                val remainingProviders = ALL_ONLINE_PROVIDERS.filter { !it.equals(primaryProvider, ignoreCase = true) }
-                for (fallback in remainingProviders) {
-                    lrc = getFromMemoryOrFetch(song, fallback)
-                    if (lrc != null) break
-                }
+            val primaryLyrics = getFromMemoryOrFetch(song, primaryProvider)
+            if (isLyricsSynced(primaryLyrics) && primaryLyrics != null) {
+                cacheInMemoryAndDb(song.id, extractLyricsSource(primaryLyrics).uppercase(), primaryLyrics)
+                return@withContext primaryLyrics
+            } else if (primaryLyrics != null && onlineUnsynced == null) {
+                onlineUnsynced = primaryLyrics
             }
 
-            // Save to DB and in-memory cache if found
-            if (lrc != null) {
-                cacheInMemoryAndDb(song.id, extractLyricsSource(lrc).uppercase(), lrc)
-                return@withContext lrc
+            if (autoFallback) {
+                val remainingProviders = ALL_ONLINE_PROVIDERS.filter { !it.equals(primaryProvider, ignoreCase = true) }
+                for (fallback in remainingProviders) {
+                    val fallbackLyrics = getFromMemoryOrFetch(song, fallback)
+                    if (isLyricsSynced(fallbackLyrics) && fallbackLyrics != null) {
+                        cacheInMemoryAndDb(song.id, extractLyricsSource(fallbackLyrics).uppercase(), fallbackLyrics)
+                        return@withContext fallbackLyrics
+                    } else if (fallbackLyrics != null && onlineUnsynced == null) {
+                        onlineUnsynced = fallbackLyrics
+                    }
+                }
             }
         }
 
-        // 5. Embedded ID3 Metadata IF UNSYNCED (last resort)
+        // Rule 4: Embedded UNSYNCED lyrics (if available)
         if (!embedded.isNullOrEmpty()) {
             cacheInMemoryAndDb(song.id, "EMBEDDED", embedded)
             return@withContext embedded
+        }
+
+        // Rule 5: Local Sidecar UNSYNCED lyrics (if available)
+        if (!sidecar.isNullOrEmpty()) {
+            cacheInMemoryAndDb(song.id, "LOCAL", sidecar)
+            return@withContext sidecar
+        }
+
+        // Rule 6: Online UNSYNCED lyrics (if available)
+        if (onlineUnsynced != null) {
+            cacheInMemoryAndDb(song.id, extractLyricsSource(onlineUnsynced).uppercase(), onlineUnsynced)
+            return@withContext onlineUnsynced
         }
 
         return@withContext null

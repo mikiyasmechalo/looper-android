@@ -29,6 +29,12 @@ interface LibraryDao {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     fun getSongById(id: Long): Flow<SongEntity?>
 
+    @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
+    suspend fun getSongByIdSync(id: Long): SongEntity?
+
+    @Query("UPDATE songs SET isFavorite = :isFavorite WHERE id = :id")
+    suspend fun updateFavorite(id: Long, isFavorite: Boolean)
+
     @Query("SELECT path, id, artPath, albumArtist, lyrics, genre, playCount, lastPlayed, isFavorite, hasCustomEqualizer, equalizerGains, year FROM songs")
     suspend fun getAllSongsForDiff(): List<SongDiffData>
 

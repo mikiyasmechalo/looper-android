@@ -222,6 +222,8 @@ private fun ThemeSettingsSection(
     val showQualityBadge by viewModel.showQualityBadge.collectAsState()
     val enablePlayerGradient by viewModel.enablePlayerGradient.collectAsState()
     val keepBackgroundGradient by viewModel.keepBackgroundGradient.collectAsState()
+    val appFontFamily by viewModel.appFontFamily.collectAsState()
+    val lyricsFontFamily by viewModel.lyricsFontFamily.collectAsState()
 
     val selectedPresetColor = remember(customAccentColorInt) { Color(customAccentColorInt) }
 
@@ -412,6 +414,56 @@ private fun ThemeSettingsSection(
                     icon = Lucide.Sparkles,
                     checked = autoFallbackLyricsProviders,
                     onCheckedChange = { viewModel.setAutoFallbackLyricsProviders(it) },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- TYPOGRAPHY & FONTS SUB-SECTION ---
+        SettingsSubHeader(title = "Typography & Fonts", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsDropdownTile(
+                    title = "App Font Family",
+                    subtitle = "Choose primary font used across the application",
+                    icon = Lucide.Type,
+                    options = listOf(
+                        "DM Sans (Default)" to "DM Sans",
+                        "Jost" to "Jost",
+                        "Google Sans" to "Google Sans",
+                        "Plus Jakarta Sans" to "Plus Jakarta Sans",
+                        "Poppins" to "Poppins",
+                        "Sora" to "Sora",
+                        "Space Grotesk" to "Space Grotesk"
+                    ),
+                    selectedOption = appFontFamily,
+                    onOptionSelected = { viewModel.setAppFontFamily(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsDropdownTile(
+                    title = "Lyrics Font Family",
+                    subtitle = "Font used when rendering synced and plain lyrics",
+                    icon = Lucide.Music,
+                    options = listOf(
+                        "Sora (Default)" to "Sora",
+                        "Space Grotesk" to "Space Grotesk",
+                        "Google Sans" to "Google Sans",
+                        "Plus Jakarta Sans" to "Plus Jakarta Sans",
+                        "DM Sans" to "DM Sans",
+                        "Jost" to "Jost",
+                        "Poppins" to "Poppins"
+                    ),
+                    selectedOption = lyricsFontFamily,
+                    onOptionSelected = { viewModel.setLyricsFontFamily(it) },
                     accentColor = accentColor
                 )
             }

@@ -12,9 +12,11 @@ import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.data.models.LyricLine
 import com.example.looper_android.data.repository.AudioTagReader
+import com.example.looper_android.data.repository.AudioTagWriter
 import com.example.looper_android.data.repository.LyricsFetcher
 import com.example.looper_android.data.repository.LyricsParser
 import com.example.looper_android.data.repository.SettingsRepository
+import com.example.looper_android.data.repository.WriteResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,12 +48,16 @@ class LyricsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val lyricsFetcher: LyricsFetcher,
     private val audioTagReader: AudioTagReader,
+    private val tagWriter: AudioTagWriter,
     private val libraryDao: LibraryDao,
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LyricsUiState())
     val uiState: StateFlow<LyricsUiState> = _uiState.asStateFlow()
+
+    private val _pendingPermission = MutableStateFlow<PendingWritePermission?>(null)
+    val pendingPermission: StateFlow<PendingWritePermission?> = _pendingPermission.asStateFlow()
 
     private var currentSongId: Long = -1L
 
@@ -81,7 +87,26 @@ class LyricsViewModel @Inject constructor(
         if (song.id == currentSongId && !forceReload && _uiState.value.rawLyrics != null) return
         currentSongId = song.id
 
-        _uiState.value = _uiState.value.copy(isLoading = true)
+        // Immediate Cache Check - If available, display instantly without showing a loading screen!
+        val cached = if (!forceReload) lyricsFetcher.getCachedLyricsSync(song) else null
+        if (cached != null) {
+            val parsed = LyricsParser.parseLyrics(cached, (song.duration ?: 180000).toLong())
+            val source = lyricsFetcher.extractLyricsSource(cached)
+            val offset = getTimingOffset(song.id, source)
+            _uiState.value = LyricsUiState(
+                isLoading = false,
+                rawLyrics = cached,
+                isSynced = parsed.isSynced,
+                source = source,
+                timingOffsetMs = offset,
+                parsedLines = parsed.timedLines,
+                plainLines = parsed.plainLines
+            )
+            return
+        }
+
+        // Only show loading indicator if there are currently no lyrics displayed
+        _uiState.value = _uiState.value.copy(isLoading = _uiState.value.rawLyrics == null)
 
         viewModelScope.launch {
             val raw = lyricsFetcher.fetchLyrics(song)
@@ -184,20 +209,76 @@ class LyricsViewModel @Inject constructor(
         if (raw.isNullOrBlank()) return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val success = audioTagReader.writeLyrics(song.path, raw)
-            if (success) {
-                val tagged = if (raw.startsWith("[source:")) raw else "[source:embedded]\n$raw"
-                libraryDao.updateSongLyrics(song.id, tagged)
-                _uiState.value = _uiState.value.copy(
-                    source = "Embedded",
-                    userFeedbackMessage = "Embedded lyrics into audio file tags successfully!"
-                )
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    userFeedbackMessage = "Failed to embed lyrics into file."
-                )
+            val edit = AudioTagWriter.TagEdit(
+                title = song.title,
+                artist = song.artist,
+                album = song.album,
+                albumArtist = song.albumArtist,
+                year = song.year,
+                genre = song.genre,
+                lyrics = raw,
+                trackNumber = song.trackNumber
+            )
+            val result = tagWriter.write(song.path, edit)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is WriteResult.Success -> {
+                        val tagged = if (raw.startsWith("[source:")) raw else "[source:embedded]\n$raw"
+                        viewModelScope.launch(Dispatchers.IO) {
+                            libraryDao.updateSongLyrics(song.id, tagged)
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            source = "Embedded",
+                            userFeedbackMessage = "Embedded lyrics into audio file tags successfully!"
+                        )
+                    }
+                    is WriteResult.RequiresPermission -> {
+                        _pendingPermission.value = PendingWritePermission(
+                            intentSender = result.intentSender,
+                            pendingSong = song,
+                            pendingEdit = edit
+                        )
+                    }
+                    is WriteResult.Failure -> {
+                        _uiState.value = _uiState.value.copy(
+                            userFeedbackMessage = "Failed to embed lyrics: ${result.error}"
+                        )
+                    }
+                }
             }
         }
+    }
+
+    fun onPermissionGranted() {
+        val pending = _pendingPermission.value ?: return
+        _pendingPermission.value = null
+        val raw = pending.pendingEdit.lyrics ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = tagWriter.write(pending.pendingSong.path, pending.pendingEdit)
+            withContext(Dispatchers.Main) {
+                if (result is WriteResult.Success) {
+                    val tagged = if (raw.startsWith("[source:")) raw else "[source:embedded]\n$raw"
+                    viewModelScope.launch(Dispatchers.IO) {
+                        libraryDao.updateSongLyrics(pending.pendingSong.id, tagged)
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        source = "Embedded",
+                        userFeedbackMessage = "Embedded lyrics into audio file tags successfully!"
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        userFeedbackMessage = "Failed to embed lyrics into file."
+                    )
+                }
+            }
+        }
+    }
+
+    fun onPermissionDenied() {
+        _pendingPermission.value = null
+        _uiState.value = _uiState.value.copy(
+            userFeedbackMessage = "Write permission was denied."
+        )
     }
 
     /**

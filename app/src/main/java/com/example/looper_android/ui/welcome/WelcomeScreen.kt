@@ -45,6 +45,12 @@ fun WelcomeScreen(
     val haptics = rememberHapticFeedbackHelper()
     val context = LocalContext.current
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        viewModel.checkPermissionsAndAutoScan()
+    }
+
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) {
@@ -60,16 +66,36 @@ fun WelcomeScreen(
         }
     }
 
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.checkPermissionsAndAutoScan()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Auto-prompt notification access on initial launch
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !uiState.isNotificationPermissionGranted) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val isSufficientPermission = uiState.isAudioPermissionGranted || uiState.isAllFilesPermissionGranted
     val isGoStartEnabled = isSufficientPermission && !uiState.isScanning
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(isGoStartEnabled) {
-        if (isGoStartEnabled) {
+    LaunchedEffect(isSufficientPermission) {
+        if (isSufficientPermission) {
             scrollState.animateScrollTo(
                 value = scrollState.maxValue,
                 animationSpec = androidx.compose.animation.core.tween(
-                    durationMillis = 600,
+                    durationMillis = 700,
                     easing = androidx.compose.animation.core.FastOutSlowInEasing
                 )
             )
@@ -126,21 +152,11 @@ fun WelcomeScreen(
         ) {
             // Brand Logo & Typography
             Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0x1A55DF69))
-                    .border(1.dp, Color(0x3355DF69), RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Lucide.Music,
-                    contentDescription = "Logo",
-                    tint = com.example.looper_android.ui.theme.LocalAccentColor.current,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.looper_android.R.drawable.app_logo_main),
+                contentDescription = "Logo",
+                modifier = Modifier.size(88.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -234,6 +250,25 @@ fun WelcomeScreen(
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    // 0. Notification Access Permission Row
+                    PermissionCheckRow(
+                        title = "NOTIFICATION ACCESS",
+                        description = "Required to display lockscreen playback controls, notification player, and media actions.",
+                        isGranted = uiState.isNotificationPermissionGranted,
+                        onGrant = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                viewModel.checkPermissionsAndAutoScan()
+                            }
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = Color.White.copy(alpha = 0.06f)
+                    )
 
                     // 1. Music & Audio Access Permission Row
                     PermissionCheckRow(

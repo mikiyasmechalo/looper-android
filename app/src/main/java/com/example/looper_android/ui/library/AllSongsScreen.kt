@@ -57,7 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.composables.icons.lucide.ArrowUpDown
+import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Lucide
@@ -337,7 +337,7 @@ fun AllSongsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Lucide.ArrowUpDown,
+                            imageVector = Lucide.SlidersHorizontal,
                             contentDescription = "Sort By",
                             tint = if (isSelectionMode) Color.White.copy(alpha = 0.3f) else playbackState.accentColor,
                             modifier = Modifier.size(18.dp)
@@ -391,9 +391,17 @@ fun AllSongsScreen(
                     )
                 }
             ) {
-                if (songs.isEmpty() && !isLoading) {
+                if (songs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No songs found.", color = Color.Gray)
+                        if (isLoading || !isDbLoaded) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                color = playbackState.accentColor,
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
+                        } else {
+                            Text("No songs found.", color = Color.Gray)
+                        }
                     }
                 } else {
                     val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()

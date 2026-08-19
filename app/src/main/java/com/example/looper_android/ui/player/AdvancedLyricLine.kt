@@ -73,6 +73,7 @@ fun AdvancedLyricLine(
             if (line.text == "...") {
                 Text(
                     text = "...",
+                    fontFamily = com.example.looper_android.ui.theme.LocalLyricsFontFamily.current,
                     color = animatedColor,
                     fontSize = fontSize.sp,
                     fontWeight = fontWeight,
@@ -90,6 +91,7 @@ fun AdvancedLyricLine(
         } else {
             Text(
                 text = line.text,
+                fontFamily = com.example.looper_android.ui.theme.LocalLyricsFontFamily.current,
                 color = animatedColor,
                 fontSize = fontSize.sp,
                 fontWeight = fontWeight,

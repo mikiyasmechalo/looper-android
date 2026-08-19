@@ -54,6 +54,14 @@ class SettingsRepository @Inject constructor(
         val SHOW_CARD_PLAY_BUTTON = booleanPreferencesKey("show_card_play_button")
         val SHOW_CARD_OPTIONS_BUTTON = booleanPreferencesKey("show_card_options_button")
 
+        // Typography & Font settings
+        val APP_FONT_FAMILY = stringPreferencesKey("app_font_family")
+        val APP_FONT_WEIGHT_DELTA = intPreferencesKey("app_font_weight_delta")
+        val USE_CUSTOM_FONT_LYRICS = booleanPreferencesKey("use_custom_font_lyrics")
+        val LYRICS_FONT_FAMILY = stringPreferencesKey("lyrics_font_family")
+        val LYRICS_FONT_WEIGHT_DELTA = intPreferencesKey("lyrics_font_weight_delta")
+        val ACTIVE_LYRICS_FONT_WEIGHT_DELTA = intPreferencesKey("active_lyrics_font_weight_delta")
+
         // Audio & Playback + Headphone settings
         val PAUSE_ON_DISCONNECT = booleanPreferencesKey("pause_on_disconnect")
         val RESUME_ONLY_IF_PAUSED_BY_DISCONNECT = booleanPreferencesKey("resume_only_if_paused_by_disconnect")
@@ -131,6 +139,13 @@ class SettingsRepository @Inject constructor(
 
     val showCardPlayButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_PLAY_BUTTON] ?: true }
     val showCardOptionsButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_OPTIONS_BUTTON] ?: true }
+
+    val appFontFamily: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_FONT_FAMILY] ?: "DM Sans" }
+    val appFontWeightDelta: Flow<Int> = dataStore.data.map { prefs -> prefs[Keys.APP_FONT_WEIGHT_DELTA] ?: 0 }
+    val useCustomFontLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.USE_CUSTOM_FONT_LYRICS] ?: false }
+    val lyricsFontFamily: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_FONT_FAMILY] ?: "Sora" }
+    val lyricsFontWeightDelta: Flow<Int> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_FONT_WEIGHT_DELTA] ?: 0 }
+    val activeLyricsFontWeightDelta: Flow<Int> = dataStore.data.map { prefs -> prefs[Keys.ACTIVE_LYRICS_FONT_WEIGHT_DELTA] ?: 0 }
 
     val pauseOnDisconnect: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.PAUSE_ON_DISCONNECT] ?: true }
     val resumeOnlyIfPausedByDisconnect: Flow<Boolean> =
@@ -387,5 +402,29 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setShowCardOptionsButton(show: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.SHOW_CARD_OPTIONS_BUTTON] = show }
+    }
+
+    suspend fun setAppFontFamily(family: String) {
+        dataStore.edit { prefs -> prefs[Keys.APP_FONT_FAMILY] = family }
+    }
+
+    suspend fun setAppFontWeightDelta(delta: Int) {
+        dataStore.edit { prefs -> prefs[Keys.APP_FONT_WEIGHT_DELTA] = delta }
+    }
+
+    suspend fun setUseCustomFontLyrics(use: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.USE_CUSTOM_FONT_LYRICS] = use }
+    }
+
+    suspend fun setLyricsFontFamily(family: String) {
+        dataStore.edit { prefs -> prefs[Keys.LYRICS_FONT_FAMILY] = family }
+    }
+
+    suspend fun setLyricsFontWeightDelta(delta: Int) {
+        dataStore.edit { prefs -> prefs[Keys.LYRICS_FONT_WEIGHT_DELTA] = delta }
+    }
+
+    suspend fun setActiveLyricsFontWeightDelta(delta: Int) {
+        dataStore.edit { prefs -> prefs[Keys.ACTIVE_LYRICS_FONT_WEIGHT_DELTA] = delta }
     }
 }

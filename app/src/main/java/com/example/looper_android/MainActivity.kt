@@ -26,6 +26,8 @@ class MainActivity : ComponentActivity() {
         window.setBackgroundDrawableResource(android.R.color.black)
         enableEdgeToEdge()
         
+
+
         val sessionToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         controllerFuture?.addListener({
@@ -41,11 +43,17 @@ class MainActivity : ComponentActivity() {
             val darkTheme by settingsViewModel.darkTheme.collectAsState()
             val dynamicTheming by settingsViewModel.dynamicTheming.collectAsState()
             val customAccentColorInt by settingsViewModel.customAccentColor.collectAsState()
+            val appFontFamily by settingsViewModel.appFontFamily.collectAsState()
+            val appFontWeightDelta by settingsViewModel.appFontWeightDelta.collectAsState()
+            val lyricsFontFamily by settingsViewModel.lyricsFontFamily.collectAsState()
 
             LooperandroidTheme(
                 darkTheme = darkTheme,
                 dynamicTheming = dynamicTheming,
-                customAccentColor = androidx.compose.ui.graphics.Color(customAccentColorInt)
+                customAccentColor = androidx.compose.ui.graphics.Color(customAccentColorInt),
+                fontFamilyName = appFontFamily,
+                fontWeightDelta = appFontWeightDelta,
+                lyricsFontFamilyName = lyricsFontFamily
             ) {
                 AppNavGraph()
             }

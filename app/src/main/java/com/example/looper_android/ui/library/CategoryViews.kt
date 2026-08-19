@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.looper_android.ui.components.ArtistCollage
 import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.ArrowUpDown
+import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.CalendarPlus
 import com.composables.icons.lucide.ChevronRight
@@ -405,7 +405,7 @@ fun AlbumsScreen(
                             shape = CircleShape,
                             onClick = { showSortSheet = true }
                         ) {
-                            Icon(Lucide.ArrowUpDown, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Lucide.SlidersHorizontal, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
                 )
@@ -702,12 +702,13 @@ fun AlbumsScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .aspectRatio(1f)
-                                            .clip(cardShape)
-                                            .background(Color.White.copy(alpha = 0.05f))
                                     ) {
                                         OptimizedImage(
                                             url = album.artPath,
-                                            modifier = Modifier.fillMaxSize(),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(cardShape)
+                                                .background(Color.White.copy(alpha = 0.05f)),
                                             contentScale = ContentScale.Crop
                                         )
                                         if (!isSelectionMode && showCardPlayButton) {
@@ -1179,7 +1180,7 @@ fun ArtistsScreen(
                             shape = CircleShape,
                             onClick = { showSortSheet = true }
                         ) {
-                            Icon(Lucide.ArrowUpDown, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Lucide.SlidersHorizontal, contentDescription = "Sort & Layout", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
                 )
@@ -2005,7 +2006,7 @@ fun GenresScreen(
                     shape = CircleShape,
                     onClick = { showSortSheet = true }
                 ) {
-                    Icon(Lucide.ArrowUpDown, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.SlidersHorizontal, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         )

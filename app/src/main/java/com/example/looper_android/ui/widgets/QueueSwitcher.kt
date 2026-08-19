@@ -73,7 +73,7 @@ fun QueueSwitcher(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             queues.forEach { queue ->
-                val isActive = queue.id == activeQueueId
+                val isActive = queue.id == activeQueueId || queue.name.equals(activeQueueName, ignoreCase = true)
                 DropdownMenuItem(
                     text = {
                         Text(

@@ -114,7 +114,7 @@ fun HomeTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Home",
+                text = "Looper",
                 color = Color.White,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,

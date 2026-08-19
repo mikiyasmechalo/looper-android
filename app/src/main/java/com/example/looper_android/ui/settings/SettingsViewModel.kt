@@ -143,6 +143,24 @@ class SettingsViewModel @Inject constructor(
     val showCardOptionsButton: StateFlow<Boolean> = repository.showCardOptionsButton
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val appFontFamily: StateFlow<String> = repository.appFontFamily
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "DM Sans")
+
+    val appFontWeightDelta: StateFlow<Int> = repository.appFontWeightDelta
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val useCustomFontLyrics: StateFlow<Boolean> = repository.useCustomFontLyrics
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val lyricsFontFamily: StateFlow<String> = repository.lyricsFontFamily
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Sora")
+
+    val lyricsFontWeightDelta: StateFlow<Int> = repository.lyricsFontWeightDelta
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val activeLyricsFontWeightDelta: StateFlow<Int> = repository.activeLyricsFontWeightDelta
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val appLanguage: StateFlow<String> = repository.appLanguage
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "System Default")
 
@@ -276,6 +294,12 @@ class SettingsViewModel @Inject constructor(
     fun setUseAlbumArtist(value: Boolean) = viewModelScope.launch { repository.setUseAlbumArtist(value) }
     fun setShowCardPlayButton(value: Boolean) = viewModelScope.launch { repository.setShowCardPlayButton(value) }
     fun setShowCardOptionsButton(value: Boolean) = viewModelScope.launch { repository.setShowCardOptionsButton(value) }
+    fun setAppFontFamily(value: String) = viewModelScope.launch { repository.setAppFontFamily(value) }
+    fun setAppFontWeightDelta(value: Int) = viewModelScope.launch { repository.setAppFontWeightDelta(value) }
+    fun setUseCustomFontLyrics(value: Boolean) = viewModelScope.launch { repository.setUseCustomFontLyrics(value) }
+    fun setLyricsFontFamily(value: String) = viewModelScope.launch { repository.setLyricsFontFamily(value) }
+    fun setLyricsFontWeightDelta(value: Int) = viewModelScope.launch { repository.setLyricsFontWeightDelta(value) }
+    fun setActiveLyricsFontWeightDelta(value: Int) = viewModelScope.launch { repository.setActiveLyricsFontWeightDelta(value) }
     fun setDefaultScreen(value: String) = viewModelScope.launch { repository.setDefaultScreen(value) }
     fun setShowHomeArtists(value: Boolean) = viewModelScope.launch { repository.setShowHomeArtists(value) }
     fun setShowHomeAlbums(value: Boolean) = viewModelScope.launch { repository.setShowHomeAlbums(value) }

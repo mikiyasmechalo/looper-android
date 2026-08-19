@@ -449,6 +449,16 @@ fun LyricsScreen(
 
             Box(modifier = Modifier.weight(1f)) {
                 if (lyricsState.isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            color = state.accentColor,
+                            modifier = Modifier.size(36.dp),
+                            strokeWidth = 3.dp
+                        )
+                    }
                 } else if (lyricsState.isSynced && lyricsState.parsedLines.isNotEmpty()) {
                     AdvancedLyricRenderer(
                         lines = lyricsState.parsedLines,

@@ -7,7 +7,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -32,6 +34,9 @@ fun LooperandroidTheme(
     darkTheme: Boolean = true,
     dynamicTheming: Boolean = false,
     customAccentColor: androidx.compose.ui.graphics.Color = BrandAccent,
+    fontFamilyName: String = "DM Sans",
+    fontWeightDelta: Int = 0,
+    lyricsFontFamilyName: String = "DM Sans",
     content: @Composable () -> Unit
 ) {
     val effectiveDarkTheme = darkTheme && !dynamicTheming
@@ -55,10 +60,19 @@ fun LooperandroidTheme(
         }
     }
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalAccentColor provides customAccentColor) {
+    val selectedFontFamily = remember(fontFamilyName) { getAppFontFamily(fontFamilyName) }
+    val selectedLyricsFontFamily = remember(lyricsFontFamilyName) { getAppFontFamily(lyricsFontFamilyName) }
+    val dynamicTypography = remember(selectedFontFamily) { createAppTypography(selectedFontFamily) }
+
+    CompositionLocalProvider(
+        LocalAccentColor provides customAccentColor,
+        LocalAppFontFamily provides selectedFontFamily,
+        LocalLyricsFontFamily provides selectedLyricsFontFamily,
+        LocalAppFontWeightDelta provides fontWeightDelta
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
+            typography = dynamicTypography,
             content = content
         )
     }

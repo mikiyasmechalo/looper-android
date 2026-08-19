@@ -267,23 +267,50 @@ fun SongOptionsSheet(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = song.artist ?: "Unknown Artist",
-                                    color = if (onArtistClick != null && !song.artist.isNullOrBlank()) accentColor else Color.White.copy(
-                                        alpha = 0.54f
-                                    ),
-                                    fontFamily = DmSansFontFamily,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = if (onArtistClick != null && !song.artist.isNullOrBlank()) {
-                                        Modifier.clickable {
-                                            hapticLight()
-                                            onDismiss()
-                                            onArtistClick(song.artist!!)
-                                        }
-                                    } else Modifier
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = song.artist ?: "Unknown Artist",
+                                        color = if (onArtistClick != null && !song.artist.isNullOrBlank()) accentColor else Color.White.copy(
+                                            alpha = 0.54f
+                                        ),
+                                        fontFamily = DmSansFontFamily,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = if (onArtistClick != null && !song.artist.isNullOrBlank()) {
+                                            Modifier.clickable {
+                                                hapticLight()
+                                                onDismiss()
+                                                onArtistClick(song.artist!!)
+                                            }
+                                        } else Modifier
+                                    )
+                                    if (!song.album.isNullOrBlank()) {
+                                        Text(
+                                            text = " • ",
+                                            color = Color.White.copy(alpha = 0.38f),
+                                            fontSize = 13.sp,
+                                            fontFamily = DmSansFontFamily
+                                        )
+                                        Text(
+                                            text = song.album!!,
+                                            color = if (onAlbumClick != null) accentColor else Color.White.copy(alpha = 0.54f),
+                                            fontFamily = DmSansFontFamily,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = if (onAlbumClick != null) {
+                                                Modifier.clickable {
+                                                    hapticLight()
+                                                    onDismiss()
+                                                    onAlbumClick(song.album!!)
+                                                }
+                                            } else Modifier
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -373,23 +400,7 @@ fun SongOptionsSheet(
                                 })
                             }
 
-                            // 5. Go to Artist
-                            if (showGoToArtist && onArtistClick != null && !song.artist.isNullOrBlank()) {
-                                add(OptionTileData(null, Lucide.User, "Go to Artist") {
-                                    hapticLight()
-                                    onDismiss()
-                                    onArtistClick(song.artist!!)
-                                })
-                            }
 
-                            // 6. Go to Album
-                            if (showGoToAlbum && onAlbumClick != null && !song.album.isNullOrBlank()) {
-                                add(OptionTileData(null, Lucide.Disc, "Go to Album") {
-                                    hapticLight()
-                                    onDismiss()
-                                    onAlbumClick(song.album!!)
-                                })
-                            }
 
                             // 7. Add to Playlists
                             add(OptionTileData(null, Lucide.ListMusic, "Add to Playlists") {

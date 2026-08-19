@@ -85,7 +85,7 @@ fun PlainLyricsRenderer(
                     fontSize = effectiveFontSize,
                     lineHeight = effectiveLineHeight,
                     fontWeight = FontWeight.SemiBold,
-                    fontFamily = DmSansFontFamily,
+                    fontFamily = com.example.looper_android.ui.theme.LocalLyricsFontFamily.current,
                     textAlign = textAlign,
                     modifier = Modifier.fillMaxWidth()
                 )
