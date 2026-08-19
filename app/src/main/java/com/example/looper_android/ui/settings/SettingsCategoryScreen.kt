@@ -180,7 +180,7 @@ fun SettingsCategoryScreen(
                 item {
                     PremiumSection(
                         cornerRadius = 24.dp,
-                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        backgroundColor = Color.White.copy(alpha = 0.06f),
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
@@ -230,7 +230,7 @@ private fun ThemeSettingsSection(
         SettingsSubHeader(title = "Color", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -316,7 +316,7 @@ private fun ThemeSettingsSection(
         SettingsSubHeader(title = "Lyrics", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -423,7 +423,7 @@ private fun ThemeSettingsSection(
         SettingsSubHeader(title = "Player", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -653,7 +653,7 @@ private fun LanguageAndServicesSection(
         SettingsSubHeader(title = "Language", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -676,7 +676,7 @@ private fun LanguageAndServicesSection(
         SettingsSubHeader(title = "Services & Gestures", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -707,7 +707,7 @@ private fun LanguageAndServicesSection(
         SettingsSubHeader(title = "Network Services", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -764,7 +764,7 @@ private fun AudioPlaybackSettingsSection(
         SettingsSubHeader(title = "Volume & Transitions", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -823,7 +823,7 @@ private fun AudioPlaybackSettingsSection(
         SettingsSubHeader(title = "Headphone Actions", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -872,7 +872,7 @@ private fun AudioPlaybackSettingsSection(
         SettingsSubHeader(title = "Audio Focus & Sessions", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -950,7 +950,7 @@ private fun AudioPlaybackSettingsSection(
         SettingsSubHeader(title = "Playback State", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -1089,7 +1089,7 @@ private fun ManageLibraryFoldersScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     PremiumSection(
                         cornerRadius = 24.dp,
-                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        backgroundColor = Color.White.copy(alpha = 0.06f),
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
@@ -1215,7 +1215,7 @@ private fun ManageLibraryFoldersScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     PremiumSection(
                         cornerRadius = 24.dp,
-                        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        backgroundColor = Color.White.copy(alpha = 0.06f),
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
@@ -1363,7 +1363,7 @@ private fun LibrarySettingsSection(
         SettingsSubHeader(title = "Folders & Scanning", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
@@ -1391,7 +1391,7 @@ private fun LibrarySettingsSection(
         Spacer(modifier = Modifier.height(6.dp))
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
@@ -1495,7 +1495,7 @@ private fun LibrarySettingsSection(
         SettingsSubHeader(title = "Organization & Tags", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -1515,7 +1515,7 @@ private fun LibrarySettingsSection(
         SettingsSubHeader(title = "Album & Artist Cards", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -1546,7 +1546,7 @@ private fun LibrarySettingsSection(
         SettingsSubHeader(title = "Offline Data", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -1568,7 +1568,7 @@ private fun LibrarySettingsSection(
         SettingsSubHeader(title = "Maintenance", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
@@ -1644,7 +1644,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Top Section Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1748,7 +1748,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Flutter Android Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             contentPadding = PaddingValues(vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1773,7 +1773,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // Original Flutter Maintainers Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             contentPadding = PaddingValues(vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1791,7 +1791,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         // App Info & Privacy Card
         PremiumSection(
             cornerRadius = 14.dp,
-            backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {

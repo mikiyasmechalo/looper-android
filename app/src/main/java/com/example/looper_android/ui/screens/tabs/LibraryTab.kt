@@ -135,16 +135,17 @@ fun LibraryTab(
             ) {
                 // 1. RECENT PLAYED SECTION
                 item {
-                    SectionHeaderPill(title = "Recent Played")
+                    SectionHeaderPill(title = "Recent Played", accentColor = playbackState.accentColor)
                     RecentlyPlayedHorizontalSection(
                         recentlyPlayed = uiState.recentlyPlayed,
+                        accentColor = playbackState.accentColor,
                         onSongClick = { index -> viewModel.playRecentlyPlayedSong(index) }
                     )
                 }
 
                 // 2. CATEGORIES SECTION
                 item {
-                    SectionHeaderPill(title = "Categories", topPadding = 24.dp)
+                    SectionHeaderPill(title = "Categories", accentColor = playbackState.accentColor, topPadding = 24.dp)
 
                     // Categories Block 1
                     Padding(
@@ -156,7 +157,8 @@ fun LibraryTab(
                                 CategoryItem("Albums", Lucide.Disc) { onNavigateToCategory("albums") },
                                 CategoryItem("Artists", Lucide.Users) { onNavigateToCategory("artists") },
                                 CategoryItem("Playlists", Lucide.ListMusic) { onNavigateToCategory("playlists") }
-                            )
+                            ),
+                            accentColor = playbackState.accentColor
                         )
                     }
 
@@ -172,7 +174,8 @@ fun LibraryTab(
                                 CategoryItem("Genres", Lucide.Music) { onNavigateToCategory("genres") },
                                 CategoryItem("Queue", Lucide.List) { onNavigateToCategory("queue") },
                                 CategoryItem("History", Lucide.History) { onNavigateToCategory("history") }
-                            )
+                            ),
+                            accentColor = playbackState.accentColor
                         )
                     }
                 }
@@ -184,12 +187,13 @@ fun LibraryTab(
 @Composable
 private fun SectionHeaderPill(
     title: String,
+    accentColor: Color,
     topPadding: androidx.compose.ui.unit.Dp = 8.dp
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = topPadding, bottom = 16.dp)
+            .padding(start = 20.dp, end = 20.dp, top = topPadding, bottom = 14.dp)
     ) {
         PremiumSection(
             shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 10.dp, bottomEnd = 10.dp),
@@ -211,6 +215,7 @@ private fun SectionHeaderPill(
 @Composable
 private fun RecentlyPlayedHorizontalSection(
     recentlyPlayed: List<SongEntity>,
+    accentColor: Color,
     onSongClick: (Int) -> Unit
 ) {
     if (recentlyPlayed.isEmpty()) {
@@ -256,6 +261,7 @@ private fun RecentlyPlayedHorizontalSection(
             for ((song, globalIndex) in row1Songs) {
                 RecentPill(
                     song = song,
+                    accentColor = accentColor,
                     onClick = { onSongClick(globalIndex) }
                 )
             }
@@ -267,6 +273,7 @@ private fun RecentlyPlayedHorizontalSection(
                 for ((song, globalIndex) in row2Songs) {
                     RecentPill(
                         song = song,
+                        accentColor = accentColor,
                         onClick = { onSongClick(globalIndex) }
                     )
                 }
@@ -278,6 +285,7 @@ private fun RecentlyPlayedHorizontalSection(
 @Composable
 private fun RecentPill(
     song: SongEntity,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
     Box(
@@ -289,12 +297,12 @@ private fun RecentPill(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(Color.White.copy(alpha = 0.05f))
             ) {
                 OptimizedImage(
@@ -324,33 +332,44 @@ private data class CategoryItem(
 )
 
 @Composable
-private fun CategoryBlock(items: List<CategoryItem>) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant)
+private fun CategoryBlock(
+    items: List<CategoryItem>,
+    accentColor: Color
+) {
+    PremiumSection(
+        shape = RoundedCornerShape(20.dp),
+        backgroundColor = Color.White.copy(alpha = 0.06f),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column {
             items.forEachIndexed { index, item ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(if (index == 0 && items.size == 1) RoundedCornerShape(20.dp) else if (index == 0) RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp) else if (index == items.lastIndex) RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp) else RoundedCornerShape(0.dp))
                         .clickable { item.onClick() }
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.title,
-                            tint = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(accentColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.title,
+                                tint = accentColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Text(
                             text = item.title,
                             color = Color.White,
@@ -363,16 +382,16 @@ private fun CategoryBlock(items: List<CategoryItem>) {
                     Icon(
                         imageVector = Lucide.ChevronRight,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.9f),
+                        tint = Color.White.copy(alpha = 0.35f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
 
                 if (index < items.lastIndex) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         thickness = 0.9.dp,
-                        color = Color.White.copy(alpha = 0.1f)
+                        color = Color.White.copy(alpha = 0.06f)
                     )
                 }
             }

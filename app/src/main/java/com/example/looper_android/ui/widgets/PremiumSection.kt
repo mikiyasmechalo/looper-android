@@ -29,7 +29,7 @@ fun PremiumSection(
     modifier: Modifier = Modifier,
     shape: Shape? = null,
     cornerRadius: Dp? = null,
-    backgroundColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+    backgroundColor: Color = Color.White.copy(alpha = 0.06f),
     width: Dp? = null,
     height: Dp? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),

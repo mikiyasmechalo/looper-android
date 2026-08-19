@@ -105,27 +105,8 @@ class QueueManager @Inject constructor(
         if (songs.isEmpty()) return
         queueJob?.cancel()
 
-        // Filter out any songs whose physical file no longer exists and purge them from DB
-        val validSongs = songs.filter { song ->
-            if (song.path.startsWith("content://")) true
-            else {
-                val file = java.io.File(song.path)
-                val exists = file.exists() && file.isFile && file.length() > 0L
-                if (!exists) {
-                    scope.launch(Dispatchers.IO) {
-                        libraryDao.deleteSongById(song.id)
-                    }
-                }
-                exists
-            }
-        }
-        if (validSongs.isEmpty()) return
-
-        val safeStartIndex = if (startIndex < songs.size && validSongs.contains(songs[startIndex])) {
-            validSongs.indexOf(songs[startIndex])
-        } else {
-            startIndex.coerceIn(0, validSongs.lastIndex)
-        }
+        val validSongs = songs
+        val safeStartIndex = startIndex.coerceIn(0, validSongs.lastIndex)
 
         val actualOriginalSongs = if (forceShuffleOriginal) {
             val startSong = validSongs[safeStartIndex]

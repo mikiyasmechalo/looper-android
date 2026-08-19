@@ -1,5 +1,8 @@
 package com.example.looper_android.ui.library
 
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +67,9 @@ import com.composables.icons.lucide.ArrowUpDown
 import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.CalendarPlus
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Heart
+import com.composables.icons.lucide.ListPlus
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Grid3x3
 import com.composables.icons.lucide.LayoutGrid
@@ -90,6 +96,10 @@ import com.example.looper_android.ui.widgets.PremiumSection
 import com.example.looper_android.ui.widgets.FastScroller
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import com.composables.icons.lucide.Check
@@ -175,9 +185,25 @@ fun AlbumsScreen(
     val pendingDelete by allSongsViewModel.pendingDeletePermission.collectAsState()
     val pendingBatchDelete by allSongsViewModel.pendingBatchDeletePermission.collectAsState()
     val playlistsViewModel: PlaylistsViewModel = hiltViewModel()
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = hiltViewModel()
+    val showCardPlayButton by settingsViewModel.showCardPlayButton.collectAsState()
+    val showCardOptionsButton by settingsViewModel.showCardOptionsButton.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE) }
+    var cardStyle by remember {
+        mutableStateOf(
+            try {
+                CardStyle.valueOf(prefs.getString("album_card_style", "NORMAL") ?: "NORMAL")
+            } catch (_: Exception) {
+                CardStyle.NORMAL
+            }
+        )
+    }
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var selectedAlbumForOptions by remember { mutableStateOf<AlbumEntity?>(null) }
 
     var selectedAlbums by remember { mutableStateOf(setOf<String>()) }
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -345,16 +371,25 @@ fun AlbumsScreen(
                             shape = CircleShape,
                             onClick = {
                                 if (albums.isNotEmpty() && allSongs.isNotEmpty()) {
-                                    val shuffledAlbums = albums.shuffled()
-                                    val songsInAlbumOrder = mutableListOf<SongEntity>()
-                                    for (album in shuffledAlbums) {
-                                        val albumSongs = allSongs
-                                            .filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }
-                                            .sortedBy { it.trackNumber ?: 0 }
-                                        songsInAlbumOrder.addAll(albumSongs)
-                                    }
-                                    if (songsInAlbumOrder.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(songsInAlbumOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Albums Shuffle")
+                                    scope.launch(Dispatchers.Default) {
+                                        val albumMap = mutableMapOf<String, MutableList<SongEntity>>()
+                                        for (song in allSongs) {
+                                            val key = (song.album ?: "Unknown Album").lowercase()
+                                            albumMap.getOrPut(key) { mutableListOf() }.add(song)
+                                        }
+                                        val shuffledAlbums = albums.shuffled()
+                                        val songsInAlbumOrder = ArrayList<SongEntity>(allSongs.size)
+                                        for (album in shuffledAlbums) {
+                                            val songsForAlbum = albumMap[album.name.lowercase()]
+                                            if (songsForAlbum != null) {
+                                                songsInAlbumOrder.addAll(songsForAlbum.sortedBy { it.trackNumber ?: 0 })
+                                            }
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            if (songsInAlbumOrder.isNotEmpty()) {
+                                                playbackViewModel.setPlaylist(songsInAlbumOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Albums Shuffle")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -462,8 +497,7 @@ fun AlbumsScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                // Direct Play Button left of Chevron (Disabled when selection mode is active)
-                                if (!isSelectionMode) {
+                                if (!isSelectionMode && showCardPlayButton) {
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
@@ -483,6 +517,19 @@ fun AlbumsScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
+                                if (!isSelectionMode && showCardOptionsButton) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { selectedAlbumForOptions = album },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Lucide.EllipsisVertical, contentDescription = "Album Options", tint = Color.White, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
                                 Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
                             }
                         }
@@ -497,45 +544,52 @@ fun AlbumsScreen(
                 val gridState = rememberLazyGridState()
                 Box(modifier = Modifier.fillMaxSize()) {
                     val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
-                    val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
-                    val cornerRadius = if (viewMode == ViewMode.GRID_3) 16.dp else 24.dp
+                    val cardPadding = when {
+                        cardStyle == CardStyle.IMAGE_GAPLESS -> 0.dp
+                        viewMode == ViewMode.GRID_3 -> 12.dp
+                        else -> 16.dp
+                    }
+                    val cornerRadius = when {
+                        cardStyle == CardStyle.IMAGE_GAPLESS -> 0.dp
+                        viewMode == ViewMode.GRID_3 -> 14.dp
+                        else -> 20.dp
+                    }
 
                     LazyVerticalGrid(
                         state = gridState,
                         columns = GridCells.Fixed(columnsCount),
-                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
+                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = if (cardStyle == CardStyle.IMAGE_GAPLESS) 0.dp else 16.dp, bottom = bottomPadding),
                         horizontalArrangement = Arrangement.spacedBy(cardPadding),
                         verticalArrangement = Arrangement.spacedBy(cardPadding),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(albums, key = { it.id }) { album ->
                             val isSelected = selectedAlbums.contains(album.name)
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .combinedClickable(
-                                        onClick = {
-                                            if (isSelectionMode) {
-                                                val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
-                                                selectedAlbums = next
-                                                if (next.isEmpty()) isSelectionMode = false
-                                            } else {
-                                                onAlbumClick(album.name)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (!isSelectionMode) {
-                                                isSelectionMode = true
-                                                selectedAlbums = setOf(album.name)
-                                            }
+                            val itemModifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            val next = if (isSelected) selectedAlbums - album.name else selectedAlbums + album.name
+                                            selectedAlbums = next
+                                            if (next.isEmpty()) isSelectionMode = false
+                                        } else {
+                                            onAlbumClick(album.name)
                                         }
-                                    )
-                            ) {
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) {
+                                            isSelectionMode = true
+                                            selectedAlbums = setOf(album.name)
+                                        }
+                                    }
+                                )
+
+                            if (cardStyle == CardStyle.IMAGE || cardStyle == CardStyle.IMAGE_GAPLESS) {
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
+                                    modifier = itemModifier
                                         .aspectRatio(1f)
-                                        .clip(RoundedCornerShape(cornerRadius))
+                                        .clip(if (cardStyle == CardStyle.IMAGE_GAPLESS) RoundedCornerShape(0.dp) else RoundedCornerShape(cornerRadius))
                                         .background(Color.White.copy(alpha = 0.05f))
                                 ) {
                                     OptimizedImage(
@@ -543,12 +597,43 @@ fun AlbumsScreen(
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
-                                    // Bottom-Right Play Button (Disabled when selection mode is active)
-                                    if (!isSelectionMode) {
+                                    // Gradient overlay with text
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .align(Alignment.BottomCenter)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                                )
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = album.name,
+                                                color = Color.White,
+                                                fontSize = if (viewMode == ViewMode.GRID_3) 13.sp else 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = DmSansFontFamily,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = album.artist ?: "Unknown Artist",
+                                                color = Color.White.copy(alpha = 0.7f),
+                                                fontSize = 11.sp,
+                                                fontFamily = DmSansFontFamily,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    if (!isSelectionMode && showCardPlayButton) {
                                         Box(
                                             modifier = Modifier
-                                                .padding(8.dp)
-                                                .size(36.dp)
+                                                .padding(6.dp)
+                                                .size(32.dp)
                                                 .align(Alignment.BottomEnd)
                                                 .clip(CircleShape)
                                                 .background(playbackState.accentColor)
@@ -562,7 +647,21 @@ fun AlbumsScreen(
                                                 },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.Play, contentDescription = "Play Album", tint = Color.Black, modifier = Modifier.size(18.dp))
+                                            Icon(Lucide.Play, contentDescription = "Play Album", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    if (!isSelectionMode && showCardOptionsButton) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(6.dp)
+                                                .size(28.dp)
+                                                .align(Alignment.TopEnd)
+                                                .clip(CircleShape)
+                                                .background(Color.Black.copy(alpha = 0.55f))
+                                                .clickable { selectedAlbumForOptions = album },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.EllipsisVertical, contentDescription = "Album Options", tint = Color.White, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                     if (isSelected) {
@@ -584,26 +683,111 @@ fun AlbumsScreen(
                                         }
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = album.name,
-                                    color = Color.White,
-                                    fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                )
-                                Text(
-                                    text = album.artist ?: "Unknown Artist",
-                                    color = Color.White.copy(alpha = 0.38f),
-                                    fontSize = 12.sp,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                )
+                            } else {
+                                val cardShape = if (cardStyle == CardStyle.CIRCLE) CircleShape else RoundedCornerShape(cornerRadius)
+                                val containerModifier = if (cardStyle == CardStyle.CARD) {
+                                    itemModifier
+                                        .clip(RoundedCornerShape(cornerRadius + 4.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                        .padding(8.dp)
+                                } else {
+                                    itemModifier
+                                }
+
+                                Column(
+                                    modifier = containerModifier,
+                                    horizontalAlignment = if (cardStyle == CardStyle.CIRCLE) Alignment.CenterHorizontally else Alignment.Start
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(1f)
+                                            .clip(cardShape)
+                                            .background(Color.White.copy(alpha = 0.05f))
+                                    ) {
+                                        OptimizedImage(
+                                            url = album.artPath,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                        if (!isSelectionMode && showCardPlayButton) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(8.dp)
+                                                    .size(34.dp)
+                                                    .align(Alignment.BottomEnd)
+                                                    .clip(CircleShape)
+                                                    .background(playbackState.accentColor)
+                                                    .clickable {
+                                                        val albumSongs = allSongs
+                                                            .filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }
+                                                            .sortedBy { it.trackNumber ?: 0 }
+                                                        if (albumSongs.isNotEmpty()) {
+                                                            playbackViewModel.setPlaylist(albumSongs, initialIndex = 0, disableShuffleMode = true, queueName = album.name)
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.Play, contentDescription = "Play Album", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                        if (!isSelectionMode && showCardOptionsButton) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(8.dp)
+                                                    .size(28.dp)
+                                                    .align(Alignment.TopEnd)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Black.copy(alpha = 0.55f))
+                                                    .clickable { selectedAlbumForOptions = album },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.EllipsisVertical, contentDescription = "Album Options", tint = Color.White, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(cardShape)
+                                                    .background(playbackState.accentColor.copy(alpha = 0.5f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(36.dp)
+                                                        .clip(CircleShape)
+                                                        .background(playbackState.accentColor),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = album.name,
+                                        color = Color.White,
+                                        fontSize = if (viewMode == ViewMode.GRID_3) 13.sp else 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = if (cardStyle == CardStyle.CIRCLE) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                    Text(
+                                        text = album.artist ?: "Unknown Artist",
+                                        color = Color.White.copy(alpha = 0.38f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = if (cardStyle == CardStyle.CIRCLE) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -676,8 +860,54 @@ fun AlbumsScreen(
             onToggleAscending = { viewModel.toggleAscending() },
             viewMode = viewMode,
             onViewModeChange = { viewModel.setViewMode(it) },
+            cardStyle = cardStyle,
+            onCardStyleChange = {
+                cardStyle = it
+                prefs.edit().putString("album_card_style", it.name).apply()
+            },
             onDismiss = { showSortSheet = false },
             accentColor = playbackState.accentColor
+        )
+    }
+
+    selectedAlbumForOptions?.let { album ->
+        val albumSongs = remember(album.name, allSongs) {
+            allSongs.filter { (it.album ?: "Unknown Album").equals(album.name, ignoreCase = true) }.sortedBy { it.trackNumber ?: 0 }
+        }
+        AlbumOptionsBottomSheet(
+            album = album,
+            songs = albumSongs,
+            accentColor = playbackState.accentColor,
+            onDismiss = { selectedAlbumForOptions = null },
+            onPlay = {
+                if (albumSongs.isNotEmpty()) {
+                    playbackViewModel.setPlaylist(albumSongs, initialIndex = 0, disableShuffleMode = true, queueName = album.name)
+                }
+                selectedAlbumForOptions = null
+            },
+            onPlayNext = {
+                if (albumSongs.isNotEmpty()) playbackViewModel.addNext(albumSongs)
+                selectedAlbumForOptions = null
+            },
+            onAddToQueue = {
+                if (albumSongs.isNotEmpty()) playbackViewModel.addToQueue(albumSongs)
+                selectedAlbumForOptions = null
+            },
+            onAddToPlaylist = {
+                selectedAlbums = setOf(album.name)
+                showAddToPlaylistSheet = true
+                selectedAlbumForOptions = null
+            },
+            onToggleFavorite = {
+                val anyUnfav = albumSongs.any { !it.isFavorite }
+                playbackViewModel.toggleFavorites(albumSongs, targetState = anyUnfav)
+                selectedAlbumForOptions = null
+            },
+            onDelete = {
+                selectedAlbums = setOf(album.name)
+                showDeleteConfirmationDialog = true
+                selectedAlbumForOptions = null
+            }
         )
     }
 }
@@ -704,9 +934,25 @@ fun ArtistsScreen(
     val pendingDelete by allSongsViewModel.pendingDeletePermission.collectAsState()
     val pendingBatchDelete by allSongsViewModel.pendingBatchDeletePermission.collectAsState()
     val playlistsViewModel: PlaylistsViewModel = hiltViewModel()
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = hiltViewModel()
+    val showCardPlayButton by settingsViewModel.showCardPlayButton.collectAsState()
+    val showCardOptionsButton by settingsViewModel.showCardOptionsButton.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE) }
+    var cardStyle by remember {
+        mutableStateOf(
+            try {
+                CardStyle.valueOf(prefs.getString("artist_card_style", "CIRCLE") ?: "CIRCLE")
+            } catch (_: Exception) {
+                CardStyle.CIRCLE
+            }
+        )
+    }
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var selectedArtistForOptions by remember { mutableStateOf<ArtistEntity?>(null) }
 
     var selectedArtists by remember { mutableStateOf(setOf<String>()) }
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -889,19 +1135,35 @@ fun ArtistsScreen(
                             shape = CircleShape,
                             onClick = {
                                 if (artists.isNotEmpty() && allSongs.isNotEmpty()) {
-                                    val shuffledArtists = artists.shuffled()
-                                    val songsInArtistOrder = mutableListOf<SongEntity>()
-                                    for (artist in shuffledArtists) {
-                                        val artistSongs = allSongs
-                                            .filter {
-                                                val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                                                effectiveArtist.equals(artist.name, ignoreCase = true) || (it.artist?.equals(artist.name, ignoreCase = true) == true)
+                                    scope.launch(Dispatchers.Default) {
+                                        val artistMap = mutableMapOf<String, MutableList<SongEntity>>()
+                                        for (song in allSongs) {
+                                            val effectiveArtist = song.albumArtist?.trim()?.ifBlank { null } ?: song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                                            artistMap.getOrPut(effectiveArtist.lowercase()) { mutableListOf() }.add(song)
+                                            val rawArtist = song.artist?.trim()?.ifBlank { null }
+                                            if (rawArtist != null && !rawArtist.equals(effectiveArtist, ignoreCase = true)) {
+                                                artistMap.getOrPut(rawArtist.lowercase()) { mutableListOf() }.add(song)
                                             }
-                                            .sortedBy { it.album ?: "" }
-                                        songsInArtistOrder.addAll(artistSongs)
-                                    }
-                                    if (songsInArtistOrder.isNotEmpty()) {
-                                        playbackViewModel.setPlaylist(songsInArtistOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Artists Shuffle")
+                                        }
+                                        val shuffledArtists = artists.shuffled()
+                                        val songsInArtistOrder = ArrayList<SongEntity>(allSongs.size)
+                                        val seenSongIds = HashSet<Long>()
+                                        for (artist in shuffledArtists) {
+                                            val songsForArtist = artistMap[artist.name.lowercase()]
+                                            if (songsForArtist != null) {
+                                                val sortedSongs = songsForArtist.sortedBy { it.album ?: "" }
+                                                for (s in sortedSongs) {
+                                                    if (seenSongIds.add(s.id)) {
+                                                        songsInArtistOrder.add(s)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            if (songsInArtistOrder.isNotEmpty()) {
+                                                playbackViewModel.setPlaylist(songsInArtistOrder, initialIndex = 0, disableShuffleMode = true, queueName = "Artists Shuffle")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1008,8 +1270,7 @@ fun ArtistsScreen(
                                         fontFamily = DmSansFontFamily
                                     )
                                 }
-                                // Direct Play Button left of Chevron (Disabled when selection mode is active)
-                                if (!isSelectionMode) {
+                                if (!isSelectionMode && showCardPlayButton) {
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
@@ -1032,6 +1293,19 @@ fun ArtistsScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
+                                if (!isSelectionMode && showCardOptionsButton) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { selectedArtistForOptions = artist },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Lucide.EllipsisVertical, contentDescription = "Artist Options", tint = Color.White, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
                                 Icon(Lucide.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(20.dp))
                             }
                         }
@@ -1046,12 +1320,21 @@ fun ArtistsScreen(
                 val gridState = rememberLazyGridState()
                 Box(modifier = Modifier.fillMaxSize()) {
                     val columnsCount = if (viewMode == ViewMode.GRID_3) 3 else 2
-                    val cardPadding = if (viewMode == ViewMode.GRID_3) 12.dp else 24.dp
+                    val cardPadding = when {
+                        cardStyle == CardStyle.IMAGE_GAPLESS -> 0.dp
+                        viewMode == ViewMode.GRID_3 -> 12.dp
+                        else -> 16.dp
+                    }
+                    val cornerRadius = when {
+                        cardStyle == CardStyle.IMAGE_GAPLESS -> 0.dp
+                        viewMode == ViewMode.GRID_3 -> 14.dp
+                        else -> 20.dp
+                    }
 
                     LazyVerticalGrid(
                         state = gridState,
                         columns = GridCells.Fixed(columnsCount),
-                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = 16.dp, bottom = bottomPadding),
+                        contentPadding = PaddingValues(start = cardPadding, end = cardPadding, top = if (cardStyle == CardStyle.IMAGE_GAPLESS) 0.dp else 16.dp, bottom = bottomPadding),
                         horizontalArrangement = Arrangement.spacedBy(cardPadding),
                         verticalArrangement = Arrangement.spacedBy(cardPadding),
                         modifier = Modifier.fillMaxSize()
@@ -1064,44 +1347,72 @@ fun ArtistsScreen(
                             }
                             val count = songCounts[artist.name] ?: 0
                             val isSelected = selectedArtists.contains(artist.name)
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .combinedClickable(
-                                        onClick = {
-                                            if (isSelectionMode) {
-                                                val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
-                                                selectedArtists = next
-                                                if (next.isEmpty()) isSelectionMode = false
-                                            } else {
-                                                onArtistClick(artist.name)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (!isSelectionMode) {
-                                                isSelectionMode = true
-                                                selectedArtists = setOf(artist.name)
-                                            }
+                            val itemModifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            val next = if (isSelected) selectedArtists - artist.name else selectedArtists + artist.name
+                                            selectedArtists = next
+                                            if (next.isEmpty()) isSelectionMode = false
+                                        } else {
+                                            onArtistClick(artist.name)
                                         }
-                                    ),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) {
+                                            isSelectionMode = true
+                                            selectedArtists = setOf(artist.name)
+                                        }
+                                    }
+                                )
+
+                            if (cardStyle == CardStyle.IMAGE || cardStyle == CardStyle.IMAGE_GAPLESS) {
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
+                                    modifier = itemModifier
                                         .aspectRatio(1f)
+                                        .clip(if (cardStyle == CardStyle.IMAGE_GAPLESS) RoundedCornerShape(0.dp) else RoundedCornerShape(cornerRadius))
+                                        .background(Color.White.copy(alpha = 0.05f))
                                 ) {
                                     ArtistCollage(
                                         artistImageUrl = artist.artistImageUrl ?: artist.artPath,
                                         modifier = Modifier.fillMaxSize(),
-                                        shape = CircleShape
+                                        shape = if (cardStyle == CardStyle.IMAGE_GAPLESS) RoundedCornerShape(0.dp) else RoundedCornerShape(cornerRadius)
                                     )
-                                    // Bottom-Right Play Button (Disabled when selection mode is active)
-                                    if (!isSelectionMode) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .align(Alignment.BottomCenter)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                                )
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = artist.name,
+                                                color = Color.White,
+                                                fontSize = if (viewMode == ViewMode.GRID_3) 13.sp else 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = DmSansFontFamily,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "$count ${if (count == 1) "song" else "songs"}",
+                                                color = Color.White.copy(alpha = 0.7f),
+                                                fontSize = 11.sp,
+                                                fontFamily = DmSansFontFamily
+                                            )
+                                        }
+                                    }
+                                    if (!isSelectionMode && showCardPlayButton) {
                                         Box(
                                             modifier = Modifier
                                                 .padding(6.dp)
-                                                .size(34.dp)
+                                                .size(32.dp)
                                                 .align(Alignment.BottomEnd)
                                                 .clip(CircleShape)
                                                 .background(playbackState.accentColor)
@@ -1121,11 +1432,24 @@ fun ArtistsScreen(
                                             Icon(Lucide.Play, contentDescription = "Play Artist", tint = Color.Black, modifier = Modifier.size(16.dp))
                                         }
                                     }
+                                    if (!isSelectionMode && showCardOptionsButton) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(6.dp)
+                                                .size(28.dp)
+                                                .align(Alignment.TopEnd)
+                                                .clip(CircleShape)
+                                                .background(Color.Black.copy(alpha = 0.55f))
+                                                .clickable { selectedArtistForOptions = artist },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.EllipsisVertical, contentDescription = "Artist Options", tint = Color.White, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
                                     if (isSelected) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .clip(CircleShape)
                                                 .background(playbackState.accentColor.copy(alpha = 0.5f)),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -1141,23 +1465,110 @@ fun ArtistsScreen(
                                         }
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = artist.name,
-                                    color = Color.White,
-                                    fontSize = if (viewMode == ViewMode.GRID_3) 14.sp else 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = DmSansFontFamily,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "$count ${if (count == 1) "song" else "songs"}",
-                                    color = Color.White.copy(alpha = 0.38f),
-                                    fontSize = 12.sp,
-                                    fontFamily = DmSansFontFamily
-                                )
+                            } else {
+                                val cardShape = if (cardStyle == CardStyle.CIRCLE) CircleShape else RoundedCornerShape(cornerRadius)
+                                val containerModifier = if (cardStyle == CardStyle.CARD) {
+                                    itemModifier
+                                        .clip(RoundedCornerShape(cornerRadius + 4.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                        .padding(8.dp)
+                                } else {
+                                    itemModifier
+                                }
+
+                                Column(
+                                    modifier = containerModifier,
+                                    horizontalAlignment = if (cardStyle == CardStyle.CIRCLE) Alignment.CenterHorizontally else Alignment.Start
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(1f)
+                                    ) {
+                                        ArtistCollage(
+                                            artistImageUrl = artist.artistImageUrl ?: artist.artPath,
+                                            modifier = Modifier.fillMaxSize(),
+                                            shape = cardShape
+                                        )
+                                        if (!isSelectionMode && showCardPlayButton) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(6.dp)
+                                                    .size(34.dp)
+                                                    .align(Alignment.BottomEnd)
+                                                    .clip(CircleShape)
+                                                    .background(playbackState.accentColor)
+                                                    .clickable {
+                                                        val artistSongs = allSongs
+                                                            .filter {
+                                                                val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                                                                effectiveArtist.equals(artist.name, ignoreCase = true) || (it.artist?.equals(artist.name, ignoreCase = true) == true)
+                                                            }
+                                                            .sortedBy { it.album ?: "" }
+                                                        if (artistSongs.isNotEmpty()) {
+                                                            playbackViewModel.setPlaylist(artistSongs, initialIndex = 0, disableShuffleMode = true, queueName = artist.name)
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.Play, contentDescription = "Play Artist", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                        if (!isSelectionMode && showCardOptionsButton) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(6.dp)
+                                                    .size(28.dp)
+                                                    .align(Alignment.TopEnd)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Black.copy(alpha = 0.55f))
+                                                    .clickable { selectedArtistForOptions = artist },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.EllipsisVertical, contentDescription = "Artist Options", tint = Color.White, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(cardShape)
+                                                    .background(playbackState.accentColor.copy(alpha = 0.5f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(36.dp)
+                                                        .clip(CircleShape)
+                                                        .background(playbackState.accentColor),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(Lucide.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = artist.name,
+                                        color = Color.White,
+                                        fontSize = if (viewMode == ViewMode.GRID_3) 13.sp else 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = DmSansFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = if (cardStyle == CardStyle.CIRCLE) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                    Text(
+                                        text = "$count ${if (count == 1) "song" else "songs"}",
+                                        color = Color.White.copy(alpha = 0.38f),
+                                        fontSize = 12.sp,
+                                        fontFamily = DmSansFontFamily,
+                                        textAlign = if (cardStyle == CardStyle.CIRCLE) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1233,8 +1644,57 @@ fun ArtistsScreen(
             onToggleAscending = { viewModel.toggleAscending() },
             viewMode = viewMode,
             onViewModeChange = { viewModel.setViewMode(it) },
+            cardStyle = cardStyle,
+            onCardStyleChange = {
+                cardStyle = it
+                prefs.edit().putString("artist_card_style", it.name).apply()
+            },
             onDismiss = { showSortSheet = false },
             accentColor = playbackState.accentColor
+        )
+    }
+
+    selectedArtistForOptions?.let { artist ->
+        val artistSongs = remember(artist.name, allSongs) {
+            allSongs.filter {
+                val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                effectiveArtist.equals(artist.name, ignoreCase = true) || (it.artist?.equals(artist.name, ignoreCase = true) == true)
+            }.sortedBy { it.album ?: "" }
+        }
+        ArtistOptionsBottomSheet(
+            artist = artist,
+            songs = artistSongs,
+            accentColor = playbackState.accentColor,
+            onDismiss = { selectedArtistForOptions = null },
+            onPlay = {
+                if (artistSongs.isNotEmpty()) {
+                    playbackViewModel.setPlaylist(artistSongs, initialIndex = 0, disableShuffleMode = true, queueName = artist.name)
+                }
+                selectedArtistForOptions = null
+            },
+            onPlayNext = {
+                if (artistSongs.isNotEmpty()) playbackViewModel.addNext(artistSongs)
+                selectedArtistForOptions = null
+            },
+            onAddToQueue = {
+                if (artistSongs.isNotEmpty()) playbackViewModel.addToQueue(artistSongs)
+                selectedArtistForOptions = null
+            },
+            onAddToPlaylist = {
+                selectedArtists = setOf(artist.name)
+                showAddToPlaylistSheet = true
+                selectedArtistForOptions = null
+            },
+            onToggleFavorite = {
+                val anyUnfav = artistSongs.any { !it.isFavorite }
+                playbackViewModel.toggleFavorites(artistSongs, targetState = anyUnfav)
+                selectedArtistForOptions = null
+            },
+            onDelete = {
+                selectedArtists = setOf(artist.name)
+                showDeleteConfirmationDialog = true
+                selectedArtistForOptions = null
+            }
         )
     }
 }
@@ -2169,6 +2629,257 @@ fun FavoritesScreen(
             onDismiss = { selectedSongForOptions = null },
             onArtistClick = onNavigateToArtist,
             onAlbumClick = onNavigateToAlbum
+        )
+    }
+}
+
+// --- ALBUM & ARTIST OPTIONS BOTTOM SHEETS ---
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun AlbumOptionsBottomSheet(
+    album: AlbumEntity,
+    songs: List<SongEntity>,
+    accentColor: Color,
+    onDismiss: () -> Unit,
+    onPlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val anyUnfavorite = remember(songs) { songs.any { !it.isFavorite } }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.24f))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                ) {
+                    OptimizedImage(
+                        url = album.artPath,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = album.name,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = DmSansFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "${album.artist ?: "Unknown Artist"} • ${songs.size} ${if (songs.size == 1) "song" else "songs"}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp,
+                        fontFamily = DmSansFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            androidx.compose.material3.HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Actions
+            CategoryOptionActionRow(icon = Lucide.Play, title = "Play", onClick = onPlay, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.ListPlus, title = "Play Next", onClick = onPlayNext, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.ListMusic, title = "Add to Queue", onClick = onAddToQueue, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.Plus, title = "Add to Playlist", onClick = onAddToPlaylist, accentColor = accentColor)
+            CategoryOptionActionRow(
+                icon = Lucide.Heart,
+                title = if (anyUnfavorite) "Favorite All Songs" else "Unfavorite All Songs",
+                onClick = onToggleFavorite,
+                accentColor = accentColor
+            )
+            CategoryOptionActionRow(
+                icon = Lucide.Trash2,
+                title = "Delete from Device",
+                onClick = onDelete,
+                accentColor = Color(0xFFFF5252),
+                textColor = Color(0xFFFF5252)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistOptionsBottomSheet(
+    artist: ArtistEntity,
+    songs: List<SongEntity>,
+    accentColor: Color,
+    onDismiss: () -> Unit,
+    onPlay: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val anyUnfavorite = remember(songs) { songs.any { !it.isFavorite } }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 8.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.24f))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                ) {
+                    ArtistCollage(
+                        artistImageUrl = artist.artistImageUrl ?: artist.artPath,
+                        modifier = Modifier.fillMaxSize(),
+                        shape = CircleShape
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = artist.name,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = DmSansFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "${songs.size} ${if (songs.size == 1) "song" else "songs"}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp,
+                        fontFamily = DmSansFontFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            androidx.compose.material3.HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Actions
+            CategoryOptionActionRow(icon = Lucide.Play, title = "Play", onClick = onPlay, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.ListPlus, title = "Play Next", onClick = onPlayNext, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.ListMusic, title = "Add to Queue", onClick = onAddToQueue, accentColor = accentColor)
+            CategoryOptionActionRow(icon = Lucide.Plus, title = "Add to Playlist", onClick = onAddToPlaylist, accentColor = accentColor)
+            CategoryOptionActionRow(
+                icon = Lucide.Heart,
+                title = if (anyUnfavorite) "Favorite All Songs" else "Unfavorite All Songs",
+                onClick = onToggleFavorite,
+                accentColor = accentColor
+            )
+            CategoryOptionActionRow(
+                icon = Lucide.Trash2,
+                title = "Delete from Device",
+                onClick = onDelete,
+                accentColor = Color(0xFFFF5252),
+                textColor = Color(0xFFFF5252)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun CategoryOptionActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    accentColor: Color,
+    textColor: Color = Color.White
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = if (textColor == Color(0xFFFF5252)) textColor else accentColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            color = textColor,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = DmSansFontFamily
         )
     }
 }

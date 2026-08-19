@@ -355,7 +355,7 @@ private fun CategoryCard(
     PremiumSection(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+        backgroundColor = Color.White.copy(alpha = 0.06f),
         onClick = onClick
     ) {
         Row(
