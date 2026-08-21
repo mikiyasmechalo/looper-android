@@ -1,4 +1,6 @@
 package com.example.looper_android.ui.library
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Disc3
 import com.composables.icons.lucide.Star
 import androidx.compose.animation.animateContentSize
 import com.composables.icons.lucide.Trash2
@@ -656,6 +658,67 @@ fun CollectionDetailScreen(
                         itemsIndexed(collectionSongs, key = { _, song -> song.id }) { index, song ->
                             val isCurrent = currentSong?.path == song.path
                             val isSelected = selectedSongIds.contains(song.id)
+                            val isArtistAlbumSort = isArtistType && sortOption == SongSortOption.ALBUM
+                            val isFirstOfAlbum = isArtistAlbumSort && (index == 0 || !song.album.equals(collectionSongs[index - 1].album, ignoreCase = true))
+
+                            if (isFirstOfAlbum) {
+                                val albName = song.album?.trim()?.ifBlank { null } ?: "Unknown Album"
+                                val albumTracks = remember(collectionSongs, song.album) {
+                                    collectionSongs.filter { it.album.equals(song.album, ignoreCase = true) }
+                                }
+                                val yearText = if (song.year != null && song.year > 0) "${song.year} • " else ""
+                                val countText = "$yearText${albumTracks.size} ${if (albumTracks.size == 1) "track" else "tracks"}"
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, top = if (index == 0) 12.dp else 24.dp, bottom = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                        .clickable { onNavigateToAlbum(albName) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color.White.copy(alpha = 0.08f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (!song.artPath.isNullOrBlank()) {
+                                            OptimizedImage(url = song.artPath, modifier = Modifier.fillMaxSize())
+                                        } else {
+                                            Icon(Lucide.Disc3, contentDescription = null, tint = playbackState.accentColor, modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = albName,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = DmSansFontFamily,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = countText,
+                                            color = Color.White.copy(alpha = 0.45f),
+                                            fontSize = 11.sp,
+                                            fontFamily = DmSansFontFamily
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Lucide.ChevronRight,
+                                        contentDescription = "Go to album",
+                                        tint = Color.White.copy(alpha = 0.35f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
                             SongTile(
                                 song = song,
                                 isCurrent = isCurrent,
@@ -681,7 +744,7 @@ fun CollectionDetailScreen(
                                     }
                                 },
                                 onOptionsClick = { selectedSongForOptions = song },
-                                showAlbumInSubtitle = (type != "album")
+                                showAlbumInSubtitle = (type != "album" && !isArtistAlbumSort)
                             )
                         }
 

@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.player
+import kotlinx.coroutines.withContext
 
 import android.content.Context
 import android.net.Uri
@@ -26,7 +27,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class RepeatMode {
-    OFF, ALL, ONE
+    OFF, ALL, ONE, NEXT_QUEUE
 }
 
 @Immutable
@@ -62,7 +63,8 @@ class PlaybackViewModel @Inject constructor(
     private val player: Player,
     private val libraryDao: LibraryDao,
     private val queueManager: com.example.looper_android.domain.QueueManager,
-    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
+    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository,
+    private val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
 ) : ViewModel() {
 
     private val _playbackState = MutableStateFlow(
@@ -81,6 +83,8 @@ class PlaybackViewModel @Inject constructor(
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+
+    private var currentRepeatMode: RepeatMode = RepeatMode.OFF
 
     val allQueues: StateFlow<List<com.example.looper_android.data.db.QueueEntity>> = queueManager.allQueues
         .stateIn(
@@ -117,6 +121,10 @@ class PlaybackViewModel @Inject constructor(
             if (playbackState == Player.STATE_ENDED) {
                 if (_playbackState.value.isSleepTimerActive) {
                     stopSleepTimer()
+                }
+                if (currentRepeatMode == RepeatMode.NEXT_QUEUE) {
+                    playNextQueue()
+                    return
                 }
                 if (player.mediaItemCount > 0) {
                     player.seekToDefaultPosition(0)
@@ -279,17 +287,44 @@ class PlaybackViewModel @Inject constructor(
 
 
         override fun onRepeatModeChanged(repeatModeInt: Int) {
-            val mode = when (repeatModeInt) {
-                Player.REPEAT_MODE_ONE -> RepeatMode.ONE
-                Player.REPEAT_MODE_ALL -> RepeatMode.ALL
-                else -> RepeatMode.OFF
+            when (repeatModeInt) {
+                Player.REPEAT_MODE_ONE -> currentRepeatMode = RepeatMode.ONE
+                Player.REPEAT_MODE_ALL -> currentRepeatMode = RepeatMode.ALL
+                Player.REPEAT_MODE_OFF -> {
+                    if (currentRepeatMode != RepeatMode.NEXT_QUEUE) {
+                        currentRepeatMode = RepeatMode.OFF
+                    }
+                }
             }
-            _playbackState.value = _playbackState.value.copy(repeatMode = mode)
+            _playbackState.value = _playbackState.value.copy(repeatMode = currentRepeatMode)
+            viewModelScope.launch(Dispatchers.IO) {
+                settingsRepository.setRepeatMode(currentRepeatMode.name)
+            }
         }
     }
 
     init {
         player.addListener(playerListener)
+
+        viewModelScope.launch {
+            settingsRepository.repeatMode.collectLatest { savedModeStr ->
+                val mode = when (savedModeStr) {
+                    "ALL" -> RepeatMode.ALL
+                    "ONE" -> RepeatMode.ONE
+                    "NEXT_QUEUE" -> RepeatMode.NEXT_QUEUE
+                    else -> RepeatMode.OFF
+                }
+                currentRepeatMode = mode
+                val media3Mode = when (mode) {
+                    RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+                    RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+                    RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+                    RepeatMode.NEXT_QUEUE -> Player.REPEAT_MODE_OFF
+                }
+                player.repeatMode = media3Mode
+                _playbackState.value = _playbackState.value.copy(repeatMode = mode)
+            }
+        }
 
         val initialItem = player.currentMediaItem
         if (initialItem != null && player.playbackState != Player.STATE_IDLE) {
@@ -506,11 +541,7 @@ class PlaybackViewModel @Inject constructor(
             position = pos,
             duration = dur,
             isShuffle = queueManager.isShuffleEnabled.value,
-            repeatMode = when (player.repeatMode) {
-                Player.REPEAT_MODE_ONE -> RepeatMode.ONE
-                Player.REPEAT_MODE_ALL -> RepeatMode.ALL
-                else -> RepeatMode.OFF
-            }
+            repeatMode = currentRepeatMode
         )
     }
 
@@ -538,6 +569,8 @@ class PlaybackViewModel @Inject constructor(
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToNextMediaItem()
+        } else if (currentRepeatMode == RepeatMode.NEXT_QUEUE) {
+            playNextQueue()
         }
     }
 
@@ -585,19 +618,29 @@ class PlaybackViewModel @Inject constructor(
         queueManager.toggleShuffle()
     }
 
+    private fun playNextQueue() {
+        queueManager.switchToNextSavedQueue(forcePlayFromBeginning = true)
+    }
+
     fun nextRepeatMode() {
-        val nextMode = when (_playbackState.value.repeatMode) {
+        val nextMode = when (currentRepeatMode) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
-            RepeatMode.ONE -> RepeatMode.OFF
+            RepeatMode.ONE -> RepeatMode.NEXT_QUEUE
+            RepeatMode.NEXT_QUEUE -> RepeatMode.OFF
         }
+        currentRepeatMode = nextMode
         val media3Mode = when (nextMode) {
             RepeatMode.OFF -> Player.REPEAT_MODE_OFF
             RepeatMode.ALL -> Player.REPEAT_MODE_ALL
             RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+            RepeatMode.NEXT_QUEUE -> Player.REPEAT_MODE_OFF
         }
         player.repeatMode = media3Mode
         _playbackState.value = _playbackState.value.copy(repeatMode = nextMode)
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setRepeatMode(nextMode.name)
+        }
     }
 
     fun toggleFavorite(targetSong: SongEntity? = null) {

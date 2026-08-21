@@ -17,6 +17,8 @@ import androidx.compose.runtime.getValue
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @javax.inject.Inject
+    lateinit var powerSaveMonitor: com.example.looper_android.data.repository.PowerSaveMonitor
     private var mediaController: MediaController? = null
     private var controllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
 
@@ -64,10 +66,15 @@ class MainActivity : ComponentActivity() {
                 com.example.looper_android.ui.theme.BrandAccent
             }
 
+            val isPowerSaveActive by this@MainActivity.powerSaveMonitor.isPowerSaveActive.collectAsState()
+            val effectiveDarkTheme = if (isPowerSaveActive) true else darkTheme
+            val effectiveDynamicTheming = if (isPowerSaveActive) false else dynamicTheming
+            val finalAccentColor = if (isPowerSaveActive) androidx.compose.ui.graphics.Color(0xFF888888) else effectiveAccentColor
+
             LooperandroidTheme(
-                darkTheme = darkTheme,
-                dynamicTheming = dynamicTheming,
-                customAccentColor = effectiveAccentColor,
+                darkTheme = effectiveDarkTheme,
+                dynamicTheming = effectiveDynamicTheming,
+                customAccentColor = finalAccentColor,
                 fontFamilyName = appFontFamily,
                 fontWeightDelta = appFontWeightDelta,
                 lyricsFontFamilyName = lyricsFontFamily

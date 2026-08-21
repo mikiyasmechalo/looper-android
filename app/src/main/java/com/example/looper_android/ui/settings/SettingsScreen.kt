@@ -98,6 +98,8 @@ fun SettingsScreen(
     val allSearchableItems = remember {
         listOf(
             SearchableSetting("theme", "Theme", "Dynamic Theming", "Adapt app colors and background dynamically from artwork"),
+            SearchableSetting("theme", "Theme", "Auto Power Saving Mode", "Automatically switch to pure black OLED theme and disable animations when battery is low"),
+            SearchableSetting("theme", "Theme", "Battery Threshold", "Battery percentage trigger level for auto power saving mode"),
             SearchableSetting("theme", "Theme", "Disable Blur Effects", "Turn off glassmorphism blur effects to boost UI performance"),
             SearchableSetting("theme", "Theme", "Dynamic Accent Color", "Update only the primary accent color dynamically from artwork"),
             SearchableSetting("theme", "Theme", "Pure Black (OLED)", "Use absolute pitch black backgrounds (#000000)"),

@@ -1,4 +1,7 @@
 package com.example.looper_android.ui.screens.tabs
+import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Clock
+import com.composables.icons.lucide.Layers
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +72,10 @@ fun LibraryTab(
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val showLibraryRecentlyPlayed by settingsViewModel.showLibraryRecentlyPlayed.collectAsState()
+    val showLibraryRecentlyAdded by settingsViewModel.showLibraryRecentlyAdded.collectAsState()
+    val showLibraryNotPlayed by settingsViewModel.showLibraryNotPlayed.collectAsState()
+    val recentlyAddedSongs by viewModel.libraryCacheManager.recentlyAddedSongs.collectAsState()
+    val notPlayedSongs by viewModel.libraryCacheManager.notPlayedSongs.collectAsState()
     val currentSong = playbackState.currentSong
     val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
@@ -147,6 +154,8 @@ fun LibraryTab(
                     }
                 }
 
+
+
                 // 2. CATEGORIES SECTION
                 item {
                     SectionHeaderPill(title = "Categories", accentColor = playbackState.accentColor, topPadding = 24.dp)
@@ -178,6 +187,21 @@ fun LibraryTab(
                                 CategoryItem("Genres", Lucide.Music) { onNavigateToCategory("genres") },
                                 CategoryItem("Queue", Lucide.List) { onNavigateToCategory("queue") },
                                 CategoryItem("History", Lucide.History) { onNavigateToCategory("history") }
+                            ),
+                            accentColor = playbackState.accentColor
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Categories Block 3 (Discovery Pages)
+                    Padding(
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    ) {
+                        CategoryBlock(
+                            items = listOf(
+                                CategoryItem("Recently Added", Lucide.Clock) { onNavigateToCategory("recently_added") },
+                                CategoryItem("Not Played", Lucide.Sparkles) { onNavigateToCategory("not_played") }
                             ),
                             accentColor = playbackState.accentColor
                         )

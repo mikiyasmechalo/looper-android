@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.settings
+import com.composables.icons.lucide.BatteryCharging
 
 import com.composables.icons.lucide.BookOpen
 import com.composables.icons.lucide.ListOrdered
@@ -318,7 +319,7 @@ private fun ThemeSettingsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- 2. LYRICS SUB-SECTION ---
+// --- 2. LYRICS SUB-SECTION ---
         SettingsSubHeader(title = "Lyrics", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
@@ -512,6 +513,51 @@ private fun ThemeSettingsSection(
                     onCheckedChange = { viewModel.setShowQualityBadge(it) },
                     accentColor = accentColor
                 )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 4. BATTERY & POWER SAVING SUB-SECTION ---
+        SettingsSubHeader(title = "Battery & Power Saving", accentColor = accentColor)
+        val autoPowerSaveEnabled by viewModel.autoPowerSaveEnabled.collectAsState()
+        val autoPowerSaveThreshold by viewModel.autoPowerSaveThreshold.collectAsState()
+
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsSwitchTile(
+                    title = "Auto Power Saving Mode",
+                    subtitle = "Automatically switch to pure black OLED theme and disable animations when battery is low",
+                    icon = Lucide.BatteryCharging,
+                    checked = autoPowerSaveEnabled,
+                    onCheckedChange = { viewModel.setAutoPowerSaveEnabled(it) },
+                    accentColor = accentColor
+                )
+                if (autoPowerSaveEnabled) {
+                    AboutDivider()
+                    SettingsDropdownTile(
+                        title = "Trigger Battery Threshold",
+                        subtitle = "Activates pure black OLED mode when battery is below $autoPowerSaveThreshold%",
+                        icon = Lucide.BatteryCharging,
+                        options = listOf(
+                            "10%" to "10",
+                            "15%" to "15",
+                            "20%" to "20",
+                            "25%" to "25",
+                            "30%" to "30",
+                            "35%" to "35",
+                            "40%" to "40",
+                            "50%" to "50"
+                        ),
+                        selectedOption = "$autoPowerSaveThreshold",
+                        onOptionSelected = { viewModel.setAutoPowerSaveThreshold(it.toIntOrNull() ?: 20) },
+                        accentColor = accentColor
+                    )
+                }
             }
         }
     }
@@ -1404,6 +1450,10 @@ private fun LibrarySettingsSection(
             val enableArtistBiography by viewModel.enableArtistBiography.collectAsState()
             val showCollectionTrackNumbers by viewModel.showCollectionTrackNumbers.collectAsState()
             val showLibraryRecentlyPlayed by viewModel.showLibraryRecentlyPlayed.collectAsState()
+    val showLibraryRecentlyAdded by viewModel.showLibraryRecentlyAdded.collectAsState()
+    val showLibraryNotPlayed by viewModel.showLibraryNotPlayed.collectAsState()
+    val showHomeRecentlyAdded by viewModel.showHomeRecentlyAdded.collectAsState()
+    val showHomeNotPlayed by viewModel.showHomeNotPlayed.collectAsState()
     val showCardPlayButton by viewModel.showCardPlayButton.collectAsState()
     val showCardOptionsButton by viewModel.showCardOptionsButton.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
@@ -1574,6 +1624,42 @@ private fun LibrarySettingsSection(
                     icon = Lucide.History,
                     checked = showLibraryRecentlyPlayed,
                     onCheckedChange = { viewModel.setShowLibraryRecentlyPlayed(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Recently Added on Library",
+                    subtitle = "Display recently added songs carousel on the Library tab",
+                    icon = Lucide.Clock,
+                    checked = showLibraryRecentlyAdded,
+                    onCheckedChange = { viewModel.setShowLibraryRecentlyAdded(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Unplayed Gems on Library",
+                    subtitle = "Display unplayed discovery carousel on the Library tab",
+                    icon = Lucide.Sparkles,
+                    checked = showLibraryNotPlayed,
+                    onCheckedChange = { viewModel.setShowLibraryNotPlayed(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Recently Added on Home",
+                    subtitle = "Display recently added songs section on the Home page",
+                    icon = Lucide.Clock,
+                    checked = showHomeRecentlyAdded,
+                    onCheckedChange = { viewModel.setShowHomeRecentlyAdded(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Unplayed Gems on Home",
+                    subtitle = "Display unplayed discovery section on the Home page",
+                    icon = Lucide.Sparkles,
+                    checked = showHomeNotPlayed,
+                    onCheckedChange = { viewModel.setShowHomeNotPlayed(it) },
                     accentColor = accentColor
                 )
                 AboutDivider()

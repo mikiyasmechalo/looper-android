@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.library
+import com.example.looper_android.ui.components.PremiumLoadingView
 import com.composables.icons.lucide.GitMerge
 
 import android.content.Context
@@ -2980,6 +2981,390 @@ private fun CategoryOptionActionRow(
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = DmSansFontFamily
+        )
+    }
+}
+
+// ==============================================================================
+
+// ==============================================================================
+// DISCOVERY CATEGORY SCREENS (Recently Added, Not Played, In Library)
+// ==============================================================================
+
+@Composable
+fun RecentlyAddedScreen(
+    onBackClick: () -> Unit,
+    allSongsViewModel: AllSongsViewModel = hiltViewModel(),
+    playbackViewModel: PlaybackViewModel = hiltViewModel(),
+    playlistsViewModel: PlaylistsViewModel = hiltViewModel(),
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {}
+) {
+    val allSongs by allSongsViewModel.libraryCacheManager.songs.collectAsState()
+    val isDbLoaded by allSongsViewModel.libraryCacheManager.isDbLoaded.collectAsState()
+    val recentlyAdded = remember(allSongs) {
+        allSongs.sortedByDescending { it.dateAdded }
+    }
+    GenericSongCategoryScreen(
+        title = "Recently Added",
+        songs = recentlyAdded,
+        isLoading = !isDbLoaded,
+        onBackClick = onBackClick,
+        allSongsViewModel = allSongsViewModel,
+        playbackViewModel = playbackViewModel,
+        playlistsViewModel = playlistsViewModel,
+        onNavigateToArtist = onNavigateToArtist,
+        onNavigateToAlbum = onNavigateToAlbum
+    )
+}
+
+@Composable
+fun NotPlayedScreen(
+    onBackClick: () -> Unit,
+    allSongsViewModel: AllSongsViewModel = hiltViewModel(),
+    playbackViewModel: PlaybackViewModel = hiltViewModel(),
+    playlistsViewModel: PlaylistsViewModel = hiltViewModel(),
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {}
+) {
+    val allSongs by allSongsViewModel.libraryCacheManager.songs.collectAsState()
+    val isDbLoaded by allSongsViewModel.libraryCacheManager.isDbLoaded.collectAsState()
+    val notPlayed = remember(allSongs) {
+        allSongs.filter { (it.playCount ?: 0) == 0 }
+    }
+    GenericSongCategoryScreen(
+        title = "Not Played",
+        songs = notPlayed,
+        isLoading = !isDbLoaded,
+        onBackClick = onBackClick,
+        allSongsViewModel = allSongsViewModel,
+        playbackViewModel = playbackViewModel,
+        playlistsViewModel = playlistsViewModel,
+        onNavigateToArtist = onNavigateToArtist,
+        onNavigateToAlbum = onNavigateToAlbum
+    )
+}
+
+
+
+@Composable
+private fun GenericSongCategoryScreen(
+    title: String,
+    songs: List<SongEntity>,
+    isLoading: Boolean = false,
+    onBackClick: () -> Unit,
+    allSongsViewModel: AllSongsViewModel,
+    playbackViewModel: PlaybackViewModel,
+    playlistsViewModel: PlaylistsViewModel,
+    onNavigateToArtist: (String) -> Unit,
+    onNavigateToAlbum: (String) -> Unit
+) {
+    val playbackState by playbackViewModel.playbackState.collectAsState()
+
+    var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
+    var selectedSongIds by remember { mutableStateOf(setOf<Long>()) }
+    var isSelectionMode by remember { mutableStateOf(false) }
+
+    val selectionBottomBar = com.example.looper_android.ui.components.LocalSelectionBottomBar.current
+    val isAllSelected = selectedSongIds.isNotEmpty() && selectedSongIds.size == songs.size
+
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+
+    val pendingDelete by allSongsViewModel.pendingDeletePermission.collectAsState()
+    val pendingBatchDelete by allSongsViewModel.pendingBatchDeletePermission.collectAsState()
+
+    val singleDeleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            allSongsViewModel.onDeletePermissionGranted()
+        } else {
+            allSongsViewModel.onDeletePermissionDenied()
+        }
+    }
+
+    val batchDeleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            allSongsViewModel.onBatchDeletePermissionGranted()
+        } else {
+            allSongsViewModel.onBatchDeletePermissionDenied()
+        }
+    }
+
+    LaunchedEffect(pendingDelete) {
+        pendingDelete?.let {
+            singleDeleteLauncher.launch(
+                androidx.activity.result.IntentSenderRequest.Builder(it.intentSender).build()
+            )
+        }
+    }
+
+    LaunchedEffect(pendingBatchDelete) {
+        pendingBatchDelete?.let {
+            batchDeleteLauncher.launch(
+                androidx.activity.result.IntentSenderRequest.Builder(it.intentSender).build()
+            )
+        }
+    }
+
+    LaunchedEffect(isSelectionMode, selectedSongIds, songs, isAllSelected, playbackState.accentColor) {
+        if (isSelectionMode && selectedSongIds.isNotEmpty()) {
+            selectionBottomBar.value = {
+                MultiSelectBottomBar(
+                    isVisible = true,
+                    accentColor = playbackState.accentColor,
+                    onPlay = {
+                        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+                        if (selectedSongs.isNotEmpty()) {
+                            playbackViewModel.setPlaylist(selectedSongs, initialIndex = 0, disableShuffleMode = true, queueName = "Selected Songs")
+                        }
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    onShuffle = {
+                        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }.shuffled()
+                        if (selectedSongs.isNotEmpty()) {
+                            playbackViewModel.setPlaylist(selectedSongs, initialIndex = 0, disableShuffleMode = true, queueName = "Selected Songs")
+                        }
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    onPlayNext = {
+                        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+                        if (selectedSongs.isNotEmpty()) {
+                            playbackViewModel.addNext(selectedSongs)
+                        }
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    onAddToQueue = {
+                        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+                        if (selectedSongs.isNotEmpty()) {
+                            playbackViewModel.addToQueue(selectedSongs)
+                        }
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    onAddToPlaylist = {
+                        showAddToPlaylistSheet = true
+                    },
+                    showFavorite = true,
+                    onToggleFavorite = {
+                        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+                        val anyUnfav = selectedSongs.any { !it.isFavorite }
+                        playbackViewModel.toggleFavorites(selectedSongs, targetState = anyUnfav)
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    showDelete = true,
+                    onDelete = {
+                        showDeleteConfirmationDialog = true
+                    }
+                )
+            }
+        } else {
+            selectionBottomBar.value = null
+        }
+    }
+
+    val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (isSelectionMode) {
+            SelectionTopBar(
+                selectedCount = selectedSongIds.size,
+                totalCount = songs.size,
+                onClearSelection = {
+                    selectedSongIds = emptySet()
+                    isSelectionMode = false
+                },
+                onToggleSelectAll = {
+                    if (selectedSongIds.size == songs.size) {
+                        selectedSongIds = emptySet()
+                        isSelectionMode = false
+                    } else {
+                        selectedSongIds = songs.map { it.id }.toSet()
+                    }
+                },
+                accentColor = playbackState.accentColor,
+                hasStatusBarsPadding = true
+            )
+        } else {
+            CategoryTopBar(
+                title = title,
+                onBackClick = onBackClick,
+                actions = {
+                    if (songs.isNotEmpty()) {
+                        PremiumSection(
+                            width = 44.dp,
+                            height = 44.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(12.dp),
+                            onClick = {
+                                playbackViewModel.setPlaylist(
+                                    songs.shuffled(),
+                                    initialIndex = 0,
+                                    disableShuffleMode = false,
+                                    queueName = "$title (Shuffle)"
+                                )
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Lucide.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = playbackState.accentColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        if (isLoading && songs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                PremiumLoadingView(message = "LOADING SONGS")
+            }
+        } else if (songs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No songs found", color = Color.Gray, fontFamily = DmSansFontFamily)
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item(key = "header_play_shuffle_row") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(playbackState.accentColor)
+                                .clickable {
+                                    playbackViewModel.setPlaylist(songs, initialIndex = 0, disableShuffleMode = true, queueName = title)
+                                }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Lucide.Play, contentDescription = null, tint = Color.Black, modifier = Modifier.size(17.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Play All", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily, fontSize = 14.sp)
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .clickable {
+                                    playbackViewModel.setPlaylist(songs.shuffled(), initialIndex = 0, disableShuffleMode = false, queueName = "$title (Shuffle)")
+                                }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Lucide.Shuffle, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Shuffle", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+
+                itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                    val isCurrent = playbackState.currentSong?.path == song.path
+                    val isSelected = selectedSongIds.contains(song.id)
+                    SongTile(
+                        song = song,
+                        isCurrent = isCurrent,
+                        isPlaying = isCurrent && playbackState.isPlaying,
+                        isSelectionMode = isSelectionMode,
+                        isSelected = isSelected,
+                        accentColor = playbackState.accentColor,
+                        onClick = {
+                            if (isSelectionMode) {
+                                val next = if (isSelected) selectedSongIds - song.id else selectedSongIds + song.id
+                                selectedSongIds = next
+                                if (next.isEmpty()) isSelectionMode = false
+                            } else {
+                                playbackViewModel.setPlaylist(songs, index, queueName = title)
+                            }
+                        },
+                        onLongClick = {
+                            if (!isSelectionMode) {
+                                isSelectionMode = true
+                                selectedSongIds = setOf(song.id)
+                            }
+                        },
+                        onOptionsClick = { selectedSongForOptions = song }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showAddToPlaylistSheet) {
+        AddToPlaylistBottomSheet(
+            onDismiss = { showAddToPlaylistSheet = false },
+            onPlaylistSelected = { playlist ->
+                val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+                playlistsViewModel.addSongsToPlaylist(playlist, selectedSongs.map { it.path })
+                isSelectionMode = false
+                selectedSongIds = emptySet()
+            },
+            accentColor = playbackState.accentColor
+        )
+    }
+
+    if (showDeleteConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmationDialog = false },
+            title = { Text("Delete ${selectedSongIds.size} songs?", fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily) },
+            text = { Text("This will permanently delete the selected songs from your device.", fontFamily = DmSansFontFamily) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val songsToDelete = songs.filter { selectedSongIds.contains(it.id) }
+                        allSongsViewModel.deleteSongs(songsToDelete)
+                        showDeleteConfirmationDialog = false
+                        isSelectionMode = false
+                        selectedSongIds = emptySet()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252), contentColor = Color.White)
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmationDialog = false }) {
+                    Text("Cancel", color = Color.White, fontFamily = DmSansFontFamily)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            titleContentColor = Color.White,
+            textContentColor = Color.White.copy(alpha = 0.8f)
+        )
+    }
+
+    selectedSongForOptions?.let { song ->
+        SongOptionsSheet(
+            song = song,
+            accentColor = playbackState.accentColor,
+            onDismiss = { selectedSongForOptions = null },
+            onArtistClick = onNavigateToArtist,
+            onAlbumClick = onNavigateToAlbum
         )
     }
 }

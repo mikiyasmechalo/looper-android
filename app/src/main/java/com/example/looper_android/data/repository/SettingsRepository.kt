@@ -53,6 +53,7 @@ class SettingsRepository @Inject constructor(
         val HOME_SECTIONS_ORDER = stringPreferencesKey("home_sections_order")
         val SHOW_CARD_PLAY_BUTTON = booleanPreferencesKey("show_card_play_button")
         val SHOW_CARD_OPTIONS_BUTTON = booleanPreferencesKey("show_card_options_button")
+        val REPEAT_MODE = stringPreferencesKey("repeat_mode")
 
         // Typography & Font settings
         val APP_FONT_FAMILY = stringPreferencesKey("app_font_family")
@@ -82,6 +83,12 @@ class SettingsRepository @Inject constructor(
         val ENABLE_ARTIST_BIOGRAPHY = booleanPreferencesKey("enable_artist_biography")
         val SHOW_COLLECTION_TRACK_NUMBERS = booleanPreferencesKey("show_collection_track_numbers")
         val SHOW_LIBRARY_RECENTLY_PLAYED = booleanPreferencesKey("show_library_recently_played")
+    val AUTO_POWER_SAVE_ENABLED = booleanPreferencesKey("auto_power_save_enabled")
+    val AUTO_POWER_SAVE_THRESHOLD = intPreferencesKey("auto_power_save_threshold")
+    val SHOW_HOME_RECENTLY_ADDED = booleanPreferencesKey("show_home_recently_added")
+    val SHOW_HOME_NOT_PLAYED = booleanPreferencesKey("show_home_not_played")
+    val SHOW_LIBRARY_RECENTLY_ADDED = booleanPreferencesKey("show_library_recently_added")
+    val SHOW_LIBRARY_NOT_PLAYED = booleanPreferencesKey("show_library_not_played")
     }
 
     private val syncPrefs = context.getSharedPreferences("settings_sync_cache", android.content.Context.MODE_PRIVATE)
@@ -137,6 +144,16 @@ class SettingsRepository @Inject constructor(
 
     fun saveCachedDynamicThemingEnabled(enabled: Boolean) {
         syncPrefs.edit().putBoolean("cached_dynamic_theming_enabled", enabled).apply()
+    }
+
+    val repeatMode: Flow<String> = dataStore.data.map { prefs ->
+        prefs[Keys.REPEAT_MODE] ?: "OFF"
+    }
+
+    suspend fun setRepeatMode(mode: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.REPEAT_MODE] = mode
+        }
     }
 
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
@@ -231,6 +248,12 @@ class SettingsRepository @Inject constructor(
     val enableArtistBiography: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_ARTIST_BIOGRAPHY] ?: true }
     val showCollectionTrackNumbers: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_COLLECTION_TRACK_NUMBERS] ?: false }
     val showLibraryRecentlyPlayed: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_PLAYED] ?: true }
+    val autoPowerSaveEnabled: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.AUTO_POWER_SAVE_ENABLED] ?: false }
+    val autoPowerSaveThreshold: Flow<Int> = dataStore.data.map { prefs -> prefs[Keys.AUTO_POWER_SAVE_THRESHOLD] ?: 20 }
+    val showHomeRecentlyAdded: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_RECENTLY_ADDED] ?: true }
+    val showHomeNotPlayed: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_NOT_PLAYED] ?: true }
+    val showLibraryRecentlyAdded: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_ADDED] ?: true }
+    val showLibraryNotPlayed: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_LIBRARY_NOT_PLAYED] ?: true }
 
     suspend fun setDisableAnimatedDuration(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] = value }
@@ -500,5 +523,24 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setShowLibraryRecentlyPlayed(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_PLAYED] = value }
+    }
+
+    suspend fun setAutoPowerSaveEnabled(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.AUTO_POWER_SAVE_ENABLED] = value }
+    }
+    suspend fun setAutoPowerSaveThreshold(value: Int) {
+        dataStore.edit { prefs -> prefs[Keys.AUTO_POWER_SAVE_THRESHOLD] = value }
+    }
+    suspend fun setShowHomeRecentlyAdded(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_RECENTLY_ADDED] = value }
+    }
+    suspend fun setShowHomeNotPlayed(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_NOT_PLAYED] = value }
+    }
+    suspend fun setShowLibraryRecentlyAdded(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_ADDED] = value }
+    }
+    suspend fun setShowLibraryNotPlayed(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_LIBRARY_NOT_PLAYED] = value }
     }
 }

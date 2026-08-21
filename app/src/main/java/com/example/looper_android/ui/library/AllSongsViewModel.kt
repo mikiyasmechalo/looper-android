@@ -43,7 +43,8 @@ class AllSongsViewModel @Inject constructor(
     private val libraryScanner: LibraryScanner,
     private val safScanner: SafScanner,
     private val audioFileDeleter: AudioFileDeleter,
-    private val queueManager: QueueManager
+    private val queueManager: QueueManager,
+    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
 ) : ViewModel() {
 
     private val _pendingDeletePermission = MutableStateFlow<PendingDeletePermission?>(null)
@@ -84,6 +85,9 @@ class AllSongsViewModel @Inject constructor(
     val isDbLoaded: StateFlow<Boolean> = _isDbLoaded.asStateFlow()
 
     init {
+        _songs.value = libraryCacheManager.songs.value
+        _isDbLoaded.value = libraryCacheManager.isDbLoaded.value
+
         libraryDao.getAllSongs()
             .onEach { 
                 _songs.value = it 

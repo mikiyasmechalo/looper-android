@@ -87,6 +87,12 @@ interface LibraryDao {
     @Query("SELECT * FROM albums ORDER BY name COLLATE NOCASE ASC")
     fun getAllAlbums(): Flow<List<AlbumEntity>>
 
+    @Query("SELECT * FROM albums ORDER BY name COLLATE NOCASE ASC")
+    suspend fun getAllAlbumsList(): List<AlbumEntity>
+
+    @Query("SELECT * FROM songs WHERE album = :albumName COLLATE NOCASE")
+    suspend fun getSongsByAlbum(albumName: String): List<SongEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAlbum(album: AlbumEntity): Long
 

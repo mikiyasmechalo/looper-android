@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface QueueDao {
-    @Query("SELECT * FROM queues ORDER BY lastPlayedAt DESC")
+    @Query("SELECT * FROM queues ORDER BY isPermanent DESC, id ASC")
     fun getAllQueues(): Flow<List<QueueEntity>>
 
     @Query("SELECT * FROM queues WHERE name = :name LIMIT 1")

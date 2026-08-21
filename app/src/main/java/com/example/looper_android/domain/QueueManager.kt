@@ -544,6 +544,90 @@ class QueueManager @Inject constructor(
         }
     }
 
+    fun switchToNextSavedQueue(forcePlayFromBeginning: Boolean = true) {
+        queueJob?.cancel()
+        scope.launch(Dispatchers.Main) {
+            val previousActiveId = _activeQueueId.value
+            withContext(Dispatchers.IO) {
+                val queues = queueDao.getAllQueues().firstOrNull() ?: return@withContext
+                if (queues.isEmpty()) return@withContext
+
+                val currentIndex = if (previousActiveId != null) {
+                    queues.indexOfFirst { it.id == previousActiveId }
+                } else -1
+
+                val nextQueue = if (currentIndex != -1 && currentIndex + 1 < queues.size) {
+                    queues[currentIndex + 1]
+                } else {
+                    queues.first()
+                }
+
+                val nextQueueId = nextQueue.id
+                val items = queueDao.getItemsForQueue(nextQueueId).firstOrNull() ?: return@withContext
+
+                queueDao.updateLastPlayed(nextQueueId, System.currentTimeMillis())
+                setActiveQueueIdInPrefs(nextQueueId)
+                _activeQueueName.value = nextQueue.name
+
+                val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
+                val restoredSongs = items.map { item ->
+                    val sId = item.mediaId.toLongOrNull()
+                    (if (sId != null) songMap[sId] else null) ?: SongEntity(
+                        id = sId ?: 0L,
+                        path = item.uri,
+                        title = item.title,
+                        artist = item.artist,
+                        albumArtist = item.artist,
+                        album = item.album,
+                        genre = null,
+                        duration = item.durationMs.toInt(),
+                        trackNumber = null,
+                        year = null,
+                        artPath = item.albumArtUri,
+                        dateAdded = 0L,
+                        isFavorite = false
+                    )
+                }
+
+                if (restoredSongs.isNotEmpty()) {
+                    val startIdx = if (forcePlayFromBeginning) 0 else nextQueue.currentItemIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
+                    val startPos = if (forcePlayFromBeginning) 0L else nextQueue.currentPlaybackPositionMs
+                    val startSong = restoredSongs[startIdx]
+                    val targetMediaItem = buildMediaItem(startSong, loadArtworkBytes = true)
+
+                    val afterItems = mutableListOf<androidx.media3.common.MediaItem>()
+                    for (i in startIdx + 1 until restoredSongs.size) {
+                        afterItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
+                    }
+                    val beforeItems = mutableListOf<androidx.media3.common.MediaItem>()
+                    for (i in 0 until startIdx) {
+                        beforeItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        workingSongs = restoredSongs
+                        originalSongs = restoredSongs
+                        _isShuffleEnabled.value = nextQueue.shuffleState
+
+                        val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
+                        if (exoPlayer != null) {
+                            exoPlayer.setMediaItem(targetMediaItem)
+                            if (afterItems.isNotEmpty()) {
+                                exoPlayer.addMediaItems(afterItems)
+                            }
+                            if (beforeItems.isNotEmpty()) {
+                                exoPlayer.addMediaItems(0, beforeItems)
+                            }
+                            exoPlayer.seekTo(startIdx, startPos)
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fun switchToQueue(queueId: Long) {
         queueJob?.cancel()
         scope.launch(Dispatchers.Main) {

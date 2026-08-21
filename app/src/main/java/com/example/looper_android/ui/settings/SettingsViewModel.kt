@@ -123,6 +123,32 @@ class SettingsViewModel @Inject constructor(
     val showQualityBadge: StateFlow<Boolean> = repository.showQualityBadge
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val autoPowerSaveEnabled: StateFlow<Boolean> = repository.autoPowerSaveEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val autoPowerSaveThreshold: StateFlow<Int> = repository.autoPowerSaveThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 20)
+
+    val showHomeRecentlyAdded: StateFlow<Boolean> = repository.showHomeRecentlyAdded
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showHomeNotPlayed: StateFlow<Boolean> = repository.showHomeNotPlayed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showLibraryRecentlyAdded: StateFlow<Boolean> = repository.showLibraryRecentlyAdded
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showLibraryNotPlayed: StateFlow<Boolean> = repository.showLibraryNotPlayed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setAutoPowerSaveEnabled(enabled: Boolean) = viewModelScope.launch { repository.setAutoPowerSaveEnabled(enabled) }
+    fun setAutoPowerSaveThreshold(threshold: Int) = viewModelScope.launch { repository.setAutoPowerSaveThreshold(threshold) }
+    fun setShowHomeRecentlyAdded(enabled: Boolean) = viewModelScope.launch { repository.setShowHomeRecentlyAdded(enabled) }
+    fun setShowHomeNotPlayed(enabled: Boolean) = viewModelScope.launch { repository.setShowHomeNotPlayed(enabled) }
+    fun setShowLibraryRecentlyAdded(enabled: Boolean) = viewModelScope.launch { repository.setShowLibraryRecentlyAdded(enabled) }
+    fun setShowLibraryNotPlayed(enabled: Boolean) = viewModelScope.launch { repository.setShowLibraryNotPlayed(enabled) }
+
+
     val enablePlayerGradient: StateFlow<Boolean> = repository.enablePlayerGradient
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 

@@ -79,6 +79,8 @@ import com.example.looper_android.ui.library.FoldersScreen
 import com.example.looper_android.ui.library.GenresScreen
 import com.example.looper_android.ui.library.HistoryScreen
 import com.example.looper_android.ui.library.PlaylistsScreen
+import com.example.looper_android.ui.library.RecentlyAddedScreen
+import com.example.looper_android.ui.library.NotPlayedScreen
 import com.example.looper_android.ui.search.SearchScreen
 import com.example.looper_android.ui.screens.tabs.HomeTab
 import com.example.looper_android.ui.screens.tabs.LibraryTab
@@ -472,6 +474,50 @@ fun DashboardScreen(
                     onBackClick = { childNavController.popBackStack() }
                 )
             }
+
+            composable(
+                route = "category/recently_added",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition }
+            ) {
+                RecentlyAddedScreen(
+                    playbackViewModel = playbackViewModel,
+                    onBackClick = { childNavController.popBackStack() },
+                    onNavigateToArtist = { artist ->
+                        val encoded = Uri.encode(artist)
+                        childNavController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onNavigateToAlbum = { album ->
+                        val encoded = Uri.encode(album)
+                        childNavController.navigate("collection_detail/album/$encoded")
+                    }
+                )
+            }
+
+            composable(
+                route = "category/not_played",
+                enterTransition = { categoryEnterTransition },
+                exitTransition = { categoryExitTransition },
+                popEnterTransition = { categoryPopEnterTransition },
+                popExitTransition = { categoryPopExitTransition }
+            ) {
+                NotPlayedScreen(
+                    playbackViewModel = playbackViewModel,
+                    onBackClick = { childNavController.popBackStack() },
+                    onNavigateToArtist = { artist ->
+                        val encoded = Uri.encode(artist)
+                        childNavController.navigate("collection_detail/artist/$encoded")
+                    },
+                    onNavigateToAlbum = { album ->
+                        val encoded = Uri.encode(album)
+                        childNavController.navigate("collection_detail/album/$encoded")
+                    }
+                )
+            }
+
+
 
             // Collection Detail route
             composable(

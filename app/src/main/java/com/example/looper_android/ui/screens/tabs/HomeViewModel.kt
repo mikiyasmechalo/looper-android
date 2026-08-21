@@ -41,7 +41,8 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val libraryDao: LibraryDao,
-    private val queueManager: QueueManager
+    private val queueManager: QueueManager,
+    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE)

@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.screens.tabs
+import com.composables.icons.lucide.Sparkles
 
 import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
@@ -95,6 +96,10 @@ fun HomeTab(
 
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
+    val recentlyAddedSongs by viewModel.libraryCacheManager.recentlyAddedSongs.collectAsState()
+    val notPlayedSongs by viewModel.libraryCacheManager.notPlayedSongs.collectAsState()
+    val showHomeRecentlyAdded by settingsViewModel.showHomeRecentlyAdded.collectAsState()
+    val showHomeNotPlayed by settingsViewModel.showHomeNotPlayed.collectAsState()
     val currentSong = playbackState.currentSong
     val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 

@@ -71,6 +71,12 @@ class LibraryCacheManager @Inject constructor(
     private val _historySongs = MutableStateFlow<List<SongEntity>>(emptyList())
     val historySongs: StateFlow<List<SongEntity>> = _historySongs.asStateFlow()
 
+    private val _recentlyAddedSongs = MutableStateFlow<List<SongEntity>>(emptyList())
+    val recentlyAddedSongs: StateFlow<List<SongEntity>> = _recentlyAddedSongs.asStateFlow()
+
+    private val _notPlayedSongs = MutableStateFlow<List<SongEntity>>(emptyList())
+    val notPlayedSongs: StateFlow<List<SongEntity>> = _notPlayedSongs.asStateFlow()
+
     private val _isDbLoaded = MutableStateFlow(false)
     val isDbLoaded: StateFlow<Boolean> = _isDbLoaded.asStateFlow()
 
@@ -78,6 +84,8 @@ class LibraryCacheManager @Inject constructor(
         // Observe base tables
         libraryDao.getAllSongs().onEach { 
             _songs.value = it 
+            _recentlyAddedSongs.value = it.sortedByDescending { s -> s.dateAdded }.take(25)
+            _notPlayedSongs.value = it.filter { s -> s.playCount == 0 }.shuffled().take(25)
             _isDbLoaded.value = true
         }.launchIn(scope)
 

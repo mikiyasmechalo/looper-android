@@ -1,4 +1,6 @@
 package com.example.looper_android.ui.player
+import com.example.looper_android.ui.player.RepeatMode
+import com.composables.icons.lucide.ListEnd
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -706,7 +708,7 @@ fun PlayerScreen(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = if (state.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
+                                    imageVector = when (state.repeatMode) { RepeatMode.ONE -> Lucide.Repeat1; RepeatMode.NEXT_QUEUE -> Lucide.ListEnd; else -> Lucide.Repeat },
                                     contentDescription = "Repeat",
                                     tint = if (state.repeatMode != RepeatMode.OFF) androidx.compose.material3.MaterialTheme.colorScheme.background else Color.White.copy(alpha = 0.70f),
                                     modifier = Modifier.size(16.dp)
@@ -1223,7 +1225,7 @@ fun PlayerScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = if (state.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
+                            imageVector = when (state.repeatMode) { RepeatMode.ONE -> Lucide.Repeat1; RepeatMode.NEXT_QUEUE -> Lucide.ListEnd; else -> Lucide.Repeat },
                             contentDescription = "Repeat",
                             tint = if (state.repeatMode != RepeatMode.OFF) androidx.compose.material3.MaterialTheme.colorScheme.background else Color.White.copy(alpha = 0.70f),
                             modifier = Modifier.size(18.dp)

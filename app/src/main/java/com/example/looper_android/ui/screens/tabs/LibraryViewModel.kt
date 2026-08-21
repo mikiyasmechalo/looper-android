@@ -24,7 +24,8 @@ data class LibraryUiState(
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
-    private val queueManager: QueueManager
+    private val queueManager: QueueManager,
+    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
