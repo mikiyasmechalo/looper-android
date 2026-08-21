@@ -67,6 +67,8 @@ fun LibraryTab(
     val uiState by viewModel.uiState.collectAsState()
     val playbackViewModel: PlaybackViewModel = hiltViewModel()
     val playbackState by playbackViewModel.playbackState.collectAsState()
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val showLibraryRecentlyPlayed by settingsViewModel.showLibraryRecentlyPlayed.collectAsState()
     val currentSong = playbackState.currentSong
     val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
@@ -134,13 +136,15 @@ fun LibraryTab(
                 contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding)
             ) {
                 // 1. RECENT PLAYED SECTION
-                item {
-                    SectionHeaderPill(title = "Recent Played", accentColor = playbackState.accentColor)
-                    RecentlyPlayedHorizontalSection(
-                        recentlyPlayed = uiState.recentlyPlayed,
-                        accentColor = playbackState.accentColor,
-                        onSongClick = { index -> viewModel.playRecentlyPlayedSong(index) }
-                    )
+                if (showLibraryRecentlyPlayed) {
+                    item {
+                        SectionHeaderPill(title = "Recent Played", accentColor = playbackState.accentColor)
+                        RecentlyPlayedHorizontalSection(
+                            recentlyPlayed = uiState.recentlyPlayed,
+                            accentColor = playbackState.accentColor,
+                            onSongClick = { index -> viewModel.playRecentlyPlayedSong(index) }
+                        )
+                    }
                 }
 
                 // 2. CATEGORIES SECTION

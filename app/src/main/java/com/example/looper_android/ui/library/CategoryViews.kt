@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.library
+import com.composables.icons.lucide.GitMerge
 
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
@@ -203,6 +204,8 @@ fun AlbumsScreen(
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var showMergeDialog by remember { mutableStateOf(false) }
+    val collectionDetailViewModel: CollectionDetailViewModel = hiltViewModel()
     var selectedAlbumForOptions by remember { mutableStateOf<AlbumEntity?>(null) }
 
     var selectedAlbums by remember { mutableStateOf(setOf<String>()) }
@@ -308,7 +311,7 @@ fun AlbumsScreen(
                     onAddToPlaylist = {
                         showAddToPlaylistSheet = true
                     },
-                    showFavorite = !isAllSelected,
+                    showFavorite = true,
                     onToggleFavorite = {
                         val songsToFav = allSongs.filter { it.album != null && selectedAlbums.contains(it.album) }
                         if (songsToFav.isNotEmpty()) {
@@ -318,7 +321,7 @@ fun AlbumsScreen(
                         isSelectionMode = false
                         selectedAlbums = emptySet()
                     },
-                    showDelete = !isAllSelected,
+                    showDelete = true,
                     onDelete = {
                         showDeleteConfirmationDialog = true
                     }
@@ -957,6 +960,8 @@ fun ArtistsScreen(
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var showMergeDialog by remember { mutableStateOf(false) }
+    val collectionDetailViewModel: CollectionDetailViewModel = hiltViewModel()
     var selectedArtistForOptions by remember { mutableStateOf<ArtistEntity?>(null) }
 
     var selectedArtists by remember { mutableStateOf(setOf<String>()) }
@@ -1071,7 +1076,11 @@ fun ArtistsScreen(
                     onAddToPlaylist = {
                         showAddToPlaylistSheet = true
                     },
-                    showFavorite = !isAllSelected,
+                    showMerge = selectedArtists.size == 2,
+                    onMerge = {
+                        showMergeDialog = true
+                    },
+                    showFavorite = true,
                     onToggleFavorite = {
                         val songsToFav = allSongs.filter {
                             val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
@@ -1084,7 +1093,7 @@ fun ArtistsScreen(
                         isSelectionMode = false
                         selectedArtists = emptySet()
                     },
-                    showDelete = !isAllSelected,
+                    showDelete = true,
                     onDelete = {
                         showDeleteConfirmationDialog = true
                     }
@@ -1601,6 +1610,89 @@ fun ArtistsScreen(
                 selectedArtists = emptySet()
             },
             accentColor = playbackState.accentColor
+        )
+    }
+
+    if (showMergeDialog && selectedArtists.size == 2) {
+        val artistList = selectedArtists.toList()
+        var targetArtist by remember { mutableStateOf(artistList[0]) }
+        val sourceArtist = if (targetArtist == artistList[0]) artistList[1] else artistList[0]
+
+        AlertDialog(
+            onDismissRequest = { showMergeDialog = false },
+            containerColor = Color(0xFF1E1E1E),
+            title = {
+                Text(
+                    text = "Merge Artists",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Choose the primary artist name to keep. All songs by '$sourceArtist' will be updated to '$targetArtist':",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 14.sp,
+                        fontFamily = DmSansFontFamily
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    artistList.forEach { artistName ->
+                        val isSelected = targetArtist == artistName
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) playbackState.accentColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f))
+                                .clickable { targetArtist = artistName }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = isSelected,
+                                onClick = { targetArtist = artistName },
+                                colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                                    selectedColor = playbackState.accentColor,
+                                    unselectedColor = Color.White.copy(alpha = 0.5f)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = artistName,
+                                color = Color.White,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 15.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showMergeDialog = false
+                        collectionDetailViewModel.mergeArtists(
+                            sourceArtistName = sourceArtist,
+                            targetArtistName = targetArtist
+                        ) {
+                            isSelectionMode = false
+                            selectedArtists = emptySet()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = playbackState.accentColor)
+                ) {
+                    Text("Merge", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMergeDialog = false }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            }
         )
     }
 
@@ -2229,7 +2321,7 @@ fun HistoryScreen(
                     onAddToPlaylist = {
                         showAddToPlaylistSheet = true
                     },
-                    showFavorite = !isAllSelected,
+                    showFavorite = true,
                     onToggleFavorite = {
                         val selectedSongs = historySongs.filter { selectedSongIds.contains(it.id) }
                         val anyUnfav = selectedSongs.any { !it.isFavorite }
@@ -2237,7 +2329,7 @@ fun HistoryScreen(
                         isSelectionMode = false
                         selectedSongIds = emptySet()
                     },
-                    showDelete = !isAllSelected,
+                    showDelete = true,
                     onDelete = {
                         showDeleteConfirmationDialog = true
                     }
@@ -2501,7 +2593,7 @@ fun FavoritesScreen(
                     onAddToPlaylist = {
                         showAddToPlaylistSheet = true
                     },
-                    showFavorite = !isAllSelected,
+                    showFavorite = true,
                     onToggleFavorite = {
                         val selectedSongs = favoriteSongs.filter { selectedSongIds.contains(it.id) }
                         val anyUnfav = selectedSongs.any { !it.isFavorite }
@@ -2509,7 +2601,7 @@ fun FavoritesScreen(
                         isSelectionMode = false
                         selectedSongIds = emptySet()
                     },
-                    showDelete = !isAllSelected,
+                    showDelete = true,
                     onDelete = {
                         showDeleteConfirmationDialog = true
                     }

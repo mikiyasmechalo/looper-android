@@ -1,5 +1,9 @@
 package com.example.looper_android.ui.settings
 
+import com.composables.icons.lucide.BookOpen
+import com.composables.icons.lucide.ListOrdered
+import com.composables.icons.lucide.History
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -1397,6 +1401,9 @@ private fun LibrarySettingsSection(
     val excludedFolders by viewModel.excludedFolders.collectAsState()
     val grantedSafUris by viewModel.grantedSafUris.collectAsState()
     val useAlbumArtist by viewModel.useAlbumArtist.collectAsState()
+            val enableArtistBiography by viewModel.enableArtistBiography.collectAsState()
+            val showCollectionTrackNumbers by viewModel.showCollectionTrackNumbers.collectAsState()
+            val showLibraryRecentlyPlayed by viewModel.showLibraryRecentlyPlayed.collectAsState()
     val showCardPlayButton by viewModel.showCardPlayButton.collectAsState()
     val showCardOptionsButton by viewModel.showCardOptionsButton.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
@@ -1543,22 +1550,51 @@ private fun LibrarySettingsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- 3. ORGANIZATION & TAGS ---
-        SettingsSubHeader(title = "Organization & Tags", accentColor = accentColor)
+        // --- 3. ORGANIZATION & DISPLAY ---
+        SettingsSubHeader(title = "Organization & Display", accentColor = accentColor)
         PremiumSection(
             cornerRadius = 24.dp,
             backgroundColor = Color.White.copy(alpha = 0.06f),
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            SettingsSwitchTile(
-                title = "Use Album Artist for Artists",
-                subtitle = "Group and identify artists on collections using the Album Artist tag field",
-                icon = Lucide.User,
-                checked = useAlbumArtist,
-                onCheckedChange = { viewModel.setUseAlbumArtist(it) },
-                accentColor = accentColor
-            )
+            Column {
+                SettingsSwitchTile(
+                    title = "Use Album Artist for Artists",
+                    subtitle = "Group and identify artists on collections using the Album Artist tag field",
+                    icon = Lucide.User,
+                    checked = useAlbumArtist,
+                    onCheckedChange = { viewModel.setUseAlbumArtist(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Recently Played on Library",
+                    subtitle = "Display the recently played carousel at the top of the Library tab",
+                    icon = Lucide.History,
+                    checked = showLibraryRecentlyPlayed,
+                    onCheckedChange = { viewModel.setShowLibraryRecentlyPlayed(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Show Track Numbers in Collections",
+                    subtitle = "Display track numbers to the left of songs in album and artist views",
+                    icon = Lucide.ListOrdered,
+                    checked = showCollectionTrackNumbers,
+                    onCheckedChange = { viewModel.setShowCollectionTrackNumbers(it) },
+                    accentColor = accentColor
+                )
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Artist Biography",
+                    subtitle = "Fetch and display artist biographies from online sources",
+                    icon = Lucide.BookOpen,
+                    checked = enableArtistBiography,
+                    onCheckedChange = { viewModel.setEnableArtistBiography(it) },
+                    accentColor = accentColor
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))

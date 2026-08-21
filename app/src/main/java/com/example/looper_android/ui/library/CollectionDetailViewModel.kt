@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.library
+import kotlinx.coroutines.flow.first
 
 import android.content.Context
 import android.net.Uri
@@ -45,13 +46,23 @@ class CollectionDetailViewModel @Inject constructor(
     private val audioFileDeleter: AudioFileDeleter,
     private val safPermissionRepo: SafPermissionRepository,
     private val artworkService: com.example.looper_android.data.repository.ArtworkService,
-    libraryCacheManager: LibraryCacheManager,
-    settingsRepository: SettingsRepository
+    private val artistBioService: com.example.looper_android.data.repository.ArtistBioService,
+    private val libraryCacheManager: LibraryCacheManager,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences("library_prefs", Context.MODE_PRIVATE)
 
     val isDbLoaded = libraryCacheManager.isDbLoaded
     val artists = libraryCacheManager.artists
+
+    private val _artistBiography = MutableStateFlow<String?>(null)
+    val artistBiography: StateFlow<String?> = _artistBiography.asStateFlow()
+
+    fun fetchArtistBiography(artistName: String) {
+        viewModelScope.launch {
+            _artistBiography.value = artistBioService.getArtistBiography(artistName)
+        }
+    }
 
     fun fetchArtistImage(artistName: String) {
         viewModelScope.launch {
@@ -77,6 +88,11 @@ class CollectionDetailViewModel @Inject constructor(
     fun initCollection(title: String, type: String) {
         _title.value = title
         _type.value = type
+        if (type.equals("artist", ignoreCase = true)) {
+            fetchArtistBiography(title)
+        } else {
+            _artistBiography.value = null
+        }
 
         val defaultSort = when (type.lowercase()) {
             "album" -> SongSortOption.TRACK_NUMBER
@@ -436,4 +452,105 @@ class CollectionDetailViewModel @Inject constructor(
         if (!asc) sorted.reverse()
         sorted
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun mergeArtists(
+        sourceArtistName: String,
+        targetArtistName: String,
+        onComplete: (success: Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _progressState.value = MassOperationProgress(
+                isRunning = true,
+                title = "Merging artists...",
+                current = 0,
+                total = 0
+            )
+
+            val useAlbumArtist = settingsRepository.useAlbumArtist.first()
+            val allSongs = libraryCacheManager.songs.first()
+
+            // Find all songs that belong to the source artist according to the current grouping mode
+            val songsToMerge = allSongs.filter { song ->
+                val effectiveArtist = if (useAlbumArtist) {
+                    song.albumArtist?.trim()?.ifBlank { null } ?: song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                } else {
+                    song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                }
+                effectiveArtist.equals(sourceArtistName, ignoreCase = true) ||
+                song.artist?.equals(sourceArtistName, ignoreCase = true) == true ||
+                song.albumArtist?.equals(sourceArtistName, ignoreCase = true) == true
+            }
+
+            _progressState.value = MassOperationProgress(
+                isRunning = true,
+                title = "Updating tags for ${songsToMerge.size} songs...",
+                current = 0,
+                total = songsToMerge.size
+            )
+
+            val updatedSongs = mutableListOf<SongEntity>()
+            var successCount = 0
+
+            songsToMerge.forEachIndexed { index, song ->
+                _progressState.value = MassOperationProgress(
+                    isRunning = true,
+                    title = "Updating metadata (${index + 1}/${songsToMerge.size})",
+                    current = index + 1,
+                    total = songsToMerge.size
+                )
+
+                val newArtist: String?
+                val newAlbumArtist: String?
+
+                if (useAlbumArtist) {
+                    // When 'Use Album Artist' is ON:
+                    // Primary artist identity is governed by the Album Artist tag field
+                    newAlbumArtist = when {
+                        song.albumArtist?.equals(sourceArtistName, ignoreCase = true) == true -> targetArtistName
+                        song.albumArtist.isNullOrBlank() && song.artist?.equals(sourceArtistName, ignoreCase = true) == true -> targetArtistName
+                        else -> song.albumArtist
+                    }
+                    newArtist = when {
+                        song.artist?.equals(sourceArtistName, ignoreCase = true) == true -> targetArtistName
+                        else -> song.artist
+                    }
+                } else {
+                    // When 'Use Album Artist' is OFF:
+                    // Primary artist identity is governed by the Track Artist tag field
+                    newArtist = when {
+                        song.artist?.equals(sourceArtistName, ignoreCase = true) == true -> targetArtistName
+                        else -> song.artist
+                    }
+                    newAlbumArtist = when {
+                        song.albumArtist?.equals(sourceArtistName, ignoreCase = true) == true -> targetArtistName
+                        else -> song.albumArtist
+                    }
+                }
+
+                val edit = AudioTagWriter.TagEdit(
+                    artist = newArtist,
+                    albumArtist = newAlbumArtist
+                )
+
+                val writeResult = tagWriter.write(song.path, edit)
+                if (writeResult is WriteResult.Success) {
+                    successCount++
+                }
+
+                updatedSongs.add(song.copy(artist = newArtist, albumArtist = newAlbumArtist))
+            }
+
+            if (updatedSongs.isNotEmpty()) {
+                libraryDao.updateSongs(updatedSongs)
+            }
+
+            libraryDao.updateAlbumArtist(oldArtist = sourceArtistName, newArtist = targetArtistName)
+            libraryDao.deleteArtistByName(sourceArtistName)
+
+            withContext(Dispatchers.Main) {
+                _progressState.value = MassOperationProgress(isRunning = false)
+                onComplete(true)
+            }
+        }
+    }
+
 }

@@ -548,7 +548,9 @@ fun SongTile(
     isSelected: Boolean = false,
     accentColor: Color = Color.White,
     onLongClick: () -> Unit = {},
-    showAlbumInSubtitle: Boolean = true
+    showAlbumInSubtitle: Boolean = true,
+    showTrackNumber: Boolean = false,
+    trackIndex: Int = 0
 ) {
     val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
     val albumName = song.album?.trim()?.ifBlank { null }
@@ -572,6 +574,25 @@ fun SongTile(
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (showTrackNumber) {
+            Box(
+                modifier = Modifier
+                    .size(width = 32.dp, height = 52.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val tNum = song.trackNumber
+                val displayNum = if (tNum != null && tNum > 0) String.format("%02d", tNum % 1000) else String.format("%02d", trackIndex + 1)
+                Text(
+                    text = displayNum,
+                    color = if (isPlaying) accentColor else Color.White.copy(alpha = 0.45f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         Box(
             modifier = Modifier
                 .size(52.dp)

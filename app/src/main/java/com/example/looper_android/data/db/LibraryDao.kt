@@ -96,6 +96,9 @@ interface LibraryDao {
     @Query("DELETE FROM albums WHERE name = :albumName")
     suspend fun deleteAlbumByName(albumName: String)
 
+    @Query("UPDATE albums SET artist = :newArtist WHERE artist = :oldArtist COLLATE NOCASE")
+    suspend fun updateAlbumArtist(oldArtist: String, newArtist: String)
+
     @Query("UPDATE albums SET name = :newAlbumName, artist = :newArtist, artPath = :newArtPath WHERE name = :oldAlbumName")
     suspend fun updateAlbumDetails(oldAlbumName: String, newAlbumName: String, newArtist: String?, newArtPath: String?)
 
@@ -103,6 +106,9 @@ interface LibraryDao {
     suspend fun clearAlbums()
 
     // --- Artists ---
+    @Query("SELECT * FROM songs WHERE artist = :artistName COLLATE NOCASE OR albumArtist = :artistName COLLATE NOCASE")
+    suspend fun getSongsByArtistName(artistName: String): List<SongEntity>
+
     @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
     fun getAllArtists(): Flow<List<ArtistEntity>>
 

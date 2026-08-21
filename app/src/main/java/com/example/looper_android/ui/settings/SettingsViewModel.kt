@@ -234,6 +234,19 @@ class SettingsViewModel @Inject constructor(
     val homeSectionsOrder: StateFlow<List<String>> = repository.homeSectionsOrder
         .stateIn(viewModelScope, SharingStarted.Eagerly, listOf("quick_picks", "songs", "artists", "albums", "genres"))
 
+    val enableArtistBiography: StateFlow<Boolean> = repository.enableArtistBiography
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val showCollectionTrackNumbers: StateFlow<Boolean> = repository.showCollectionTrackNumbers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val showLibraryRecentlyPlayed: StateFlow<Boolean> = repository.showLibraryRecentlyPlayed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setEnableArtistBiography(value: Boolean) = viewModelScope.launch { repository.setEnableArtistBiography(value) }
+    fun setShowCollectionTrackNumbers(value: Boolean) = viewModelScope.launch { repository.setShowCollectionTrackNumbers(value) }
+    fun setShowLibraryRecentlyPlayed(value: Boolean) = viewModelScope.launch { repository.setShowLibraryRecentlyPlayed(value) }
+
     fun setDynamicTheming(value: Boolean) = viewModelScope.launch { repository.setDynamicTheming(value) }
     fun setDisableBlur(value: Boolean) = viewModelScope.launch { repository.setDisableBlur(value) }
     fun setDynamicAccentColor(value: Boolean) = viewModelScope.launch { repository.setDynamicAccentColor(value) }

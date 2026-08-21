@@ -1,5 +1,7 @@
 package com.example.looper_android.ui.components
 
+import com.composables.icons.lucide.GitMerge
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -141,6 +143,8 @@ fun MultiSelectBottomBar(
     onToggleFavorite: (() -> Unit)? = null,
     showDelete: Boolean = false,
     onDelete: (() -> Unit)? = null,
+    showMerge: Boolean = false,
+    onMerge: (() -> Unit)? = null,
     enableBlur: Boolean = com.example.looper_android.ui.widgets.LocalIsBlurEnabled.current,
     hazeState: dev.chrisbanes.haze.HazeState? = com.example.looper_android.ui.widgets.LocalHazeState.current,
     darkTheme: Boolean = false
@@ -188,6 +192,10 @@ fun MultiSelectBottomBar(
 
             if (showFavorite && onToggleFavorite != null) {
                 MultiSelectActionButton(icon = Lucide.Star, label = "Favorite", onClick = onToggleFavorite, accentColor = Color(0xFFFFD54F))
+            }
+
+            if (showMerge && onMerge != null) {
+                MultiSelectActionButton(icon = Lucide.GitMerge, label = "Merge", onClick = onMerge, accentColor = accentColor)
             }
 
             if (showDelete && onDelete != null) {

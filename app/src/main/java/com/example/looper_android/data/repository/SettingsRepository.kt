@@ -79,6 +79,9 @@ class SettingsRepository @Inject constructor(
         val PERMANENT_AUDIO_FOCUS_CHANGE = booleanPreferencesKey("permanent_audio_focus_change")
         val ENABLE_CROSSFADE = booleanPreferencesKey("enable_crossfade")
         val CROSSFADE_DURATION = floatPreferencesKey("crossfade_duration")
+        val ENABLE_ARTIST_BIOGRAPHY = booleanPreferencesKey("enable_artist_biography")
+        val SHOW_COLLECTION_TRACK_NUMBERS = booleanPreferencesKey("show_collection_track_numbers")
+        val SHOW_LIBRARY_RECENTLY_PLAYED = booleanPreferencesKey("show_library_recently_played")
     }
 
     private val syncPrefs = context.getSharedPreferences("settings_sync_cache", android.content.Context.MODE_PRIVATE)
@@ -225,6 +228,9 @@ class SettingsRepository @Inject constructor(
         dataStore.data.map { prefs -> prefs[Keys.PERMANENT_AUDIO_FOCUS_CHANGE] ?: false }
     val enableCrossfade: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_CROSSFADE] ?: false }
     val crossfadeDuration: Flow<Float> = dataStore.data.map { prefs -> prefs[Keys.CROSSFADE_DURATION] ?: 3f } // Default 3s
+    val enableArtistBiography: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_ARTIST_BIOGRAPHY] ?: true }
+    val showCollectionTrackNumbers: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_COLLECTION_TRACK_NUMBERS] ?: false }
+    val showLibraryRecentlyPlayed: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_PLAYED] ?: true }
 
     suspend fun setDisableAnimatedDuration(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] = value }
@@ -482,5 +488,17 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setActiveLyricsFontWeightDelta(delta: Int) {
         dataStore.edit { prefs -> prefs[Keys.ACTIVE_LYRICS_FONT_WEIGHT_DELTA] = delta }
+    }
+
+    suspend fun setEnableArtistBiography(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.ENABLE_ARTIST_BIOGRAPHY] = value }
+    }
+
+    suspend fun setShowCollectionTrackNumbers(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_COLLECTION_TRACK_NUMBERS] = value }
+    }
+
+    suspend fun setShowLibraryRecentlyPlayed(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_LIBRARY_RECENTLY_PLAYED] = value }
     }
 }

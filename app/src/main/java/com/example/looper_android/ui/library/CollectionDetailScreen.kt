@@ -1,4 +1,7 @@
 package com.example.looper_android.ui.library
+import com.composables.icons.lucide.Star
+import androidx.compose.animation.animateContentSize
+import com.composables.icons.lucide.Trash2
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -133,6 +136,11 @@ fun CollectionDetailScreen(
     val isAscending by viewModel.isAscending.collectAsState()
     
     val playbackState by playbackViewModel.playbackState.collectAsState()
+    val settingsViewModel: com.example.looper_android.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val showCollectionTrackNumbers by settingsViewModel.showCollectionTrackNumbers.collectAsState()
+    val enableArtistBiography by settingsViewModel.enableArtistBiography.collectAsState()
+    val artistBiography by viewModel.artistBiography.collectAsState()
+    var isBioExpanded by remember { mutableStateOf(false) }
     val currentSong = playbackState.currentSong
 
     val currentTitle by viewModel.currentTitle.collectAsState()
@@ -259,7 +267,7 @@ fun CollectionDetailScreen(
                     onAddToPlaylist = {
                         showAddToPlaylistForSelection = true
                     },
-                    showFavorite = !isAllSelected,
+                    showFavorite = true,
                     onToggleFavorite = {
                         val selectedSongs = collectionSongs.filter { selectedSongIds.contains(it.id) }
                         val anyUnfav = selectedSongs.any { !it.isFavorite }
@@ -267,7 +275,7 @@ fun CollectionDetailScreen(
                         isSelectionMode = false
                         selectedSongIds = emptySet()
                     },
-                    showDelete = !isAllSelected,
+                    showDelete = true,
                     onDelete = {
                         showDeleteSelectedSongsDialog = true
                     }
@@ -478,6 +486,20 @@ fun CollectionDetailScreen(
                                             folderPath = collectionSongs.firstOrNull()?.let { java.io.File(it.path).parent } ?: effectiveTitle,
                                             subtitle = collectionSubtitle,
                                             accentColor = playbackState.accentColor,
+                                            isFavorite = collectionSongs.isNotEmpty() && collectionSongs.all { it.isFavorite },
+                                            onToggleFavorite = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    val anyUnfav = collectionSongs.any { !it.isFavorite }
+                                                    playbackViewModel.toggleFavorites(collectionSongs, targetState = anyUnfav)
+                                                }
+                                            },
+                                            onDelete = {
+                                                when {
+                                                    type.equals("album", ignoreCase = true) -> showDeleteAlbumDialog = true
+                                                    type.equals("artist", ignoreCase = true) -> showDeleteArtistDialog = true
+                                                    else -> showDeleteSelectedSongsDialog = true
+                                                }
+                                            },
                                             onPlayAll = {
                                                 if (collectionSongs.isNotEmpty()) {
                                                     playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
@@ -496,6 +518,20 @@ fun CollectionDetailScreen(
                                             subtitle = collectionSubtitle,
                                             artPath = displayArt,
                                             accentColor = playbackState.accentColor,
+                                            isFavorite = collectionSongs.isNotEmpty() && collectionSongs.all { it.isFavorite },
+                                            onToggleFavorite = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    val anyUnfav = collectionSongs.any { !it.isFavorite }
+                                                    playbackViewModel.toggleFavorites(collectionSongs, targetState = anyUnfav)
+                                                }
+                                            },
+                                            onDelete = {
+                                                when {
+                                                    type.equals("album", ignoreCase = true) -> showDeleteAlbumDialog = true
+                                                    type.equals("artist", ignoreCase = true) -> showDeleteArtistDialog = true
+                                                    else -> showDeleteSelectedSongsDialog = true
+                                                }
+                                            },
                                             onPlayAll = {
                                                 if (collectionSongs.isNotEmpty()) {
                                                     playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
@@ -513,6 +549,20 @@ fun CollectionDetailScreen(
                                             title = effectiveTitle,
                                             subtitle = collectionSubtitle,
                                             accentColor = playbackState.accentColor,
+                                            isFavorite = collectionSongs.isNotEmpty() && collectionSongs.all { it.isFavorite },
+                                            onToggleFavorite = {
+                                                if (collectionSongs.isNotEmpty()) {
+                                                    val anyUnfav = collectionSongs.any { !it.isFavorite }
+                                                    playbackViewModel.toggleFavorites(collectionSongs, targetState = anyUnfav)
+                                                }
+                                            },
+                                            onDelete = {
+                                                when {
+                                                    type.equals("album", ignoreCase = true) -> showDeleteAlbumDialog = true
+                                                    type.equals("artist", ignoreCase = true) -> showDeleteArtistDialog = true
+                                                    else -> showDeleteSelectedSongsDialog = true
+                                                }
+                                            },
                                             onPlayAll = {
                                                 if (collectionSongs.isNotEmpty()) {
                                                     playbackViewModel.setPlaylist(collectionSongs, initialIndex = 0, queueName = effectiveTitle)
@@ -597,6 +647,8 @@ fun CollectionDetailScreen(
                                         }
                                     }
                                 }
+
+
                             }
                         }
 
@@ -611,6 +663,8 @@ fun CollectionDetailScreen(
                                 isSelectionMode = isSelectionMode,
                                 isSelected = isSelected,
                                 accentColor = playbackState.accentColor,
+                                showTrackNumber = showCollectionTrackNumbers && (type.equals("album", ignoreCase = true) || type.equals("artist", ignoreCase = true)),
+                                trackIndex = index,
                                 onClick = {
                                     if (isSelectionMode) {
                                         val next = if (isSelected) selectedSongIds - song.id else selectedSongIds + song.id
@@ -629,6 +683,57 @@ fun CollectionDetailScreen(
                                 onOptionsClick = { selectedSongForOptions = song },
                                 showAlbumInSubtitle = (type != "album")
                             )
+                        }
+
+                        // 3. Artist Biography Section at the END (after track list)
+                        if (isArtistType && enableArtistBiography && !artistBiography.isNullOrBlank()) {
+                            item {
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color.White.copy(alpha = 0.06f))
+                                        .clickable { isBioExpanded = !isBioExpanded }
+                                        .padding(16.dp)
+                                        .animateContentSize()
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "About $effectiveTitle",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = DmSansFontFamily
+                                            )
+                                            Text(
+                                                text = if (isBioExpanded) "Show Less" else "Read More",
+                                                color = playbackState.accentColor,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontFamily = DmSansFontFamily
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = artistBiography ?: "",
+                                            color = Color.White.copy(alpha = 0.72f),
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp,
+                                            fontFamily = DmSansFontFamily,
+                                            maxLines = if (isBioExpanded) Int.MAX_VALUE else 3,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
                         }
                     }
 
@@ -1015,6 +1120,9 @@ private fun HorizontalHeroHeader(
     artPath: String?,
     isArtist: Boolean,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1061,7 +1169,7 @@ private fun HorizontalHeroHeader(
                 modifier = Modifier.basicMarquee()
             )
             Spacer(modifier = Modifier.height(10.dp))
-            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
         }
     }
 }
@@ -1073,6 +1181,9 @@ private fun CenteredHeroHeader(
     artPath: String?,
     isArtist: Boolean,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1123,7 +1234,7 @@ private fun CenteredHeroHeader(
             modifier = Modifier.basicMarquee()
         )
         Spacer(modifier = Modifier.height(12.dp))
-        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
     }
 }
 
@@ -1134,6 +1245,9 @@ private fun FullWidthHeroHeader(
     artPath: String?,
     isArtist: Boolean,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1180,7 +1294,7 @@ private fun FullWidthHeroHeader(
             modifier = Modifier.basicMarquee()
         )
         Spacer(modifier = Modifier.height(12.dp))
-        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+        HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
     }
 }
 
@@ -1190,6 +1304,9 @@ private fun FolderHeroHeader(
     folderPath: String,
     subtitle: String,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1248,7 +1365,7 @@ private fun FolderHeroHeader(
                 modifier = Modifier.basicMarquee()
             )
             Spacer(modifier = Modifier.height(10.dp))
-            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
         }
     }
 }
@@ -1257,8 +1374,11 @@ private fun FolderHeroHeader(
 private fun PlaylistHeroHeader(
     title: String,
     subtitle: String,
-    artPath: String?,
+    artPath: String? = null,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1311,7 +1431,7 @@ private fun PlaylistHeroHeader(
                 modifier = Modifier.basicMarquee()
             )
             Spacer(modifier = Modifier.height(10.dp))
-            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
         }
     }
 }
@@ -1320,7 +1440,11 @@ private fun PlaylistHeroHeader(
 private fun GenreHeroHeader(
     title: String,
     subtitle: String,
+    artPath: String? = null,
     accentColor: Color,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onSort: () -> Unit,
@@ -1369,7 +1493,7 @@ private fun GenreHeroHeader(
                 modifier = Modifier.basicMarquee()
             )
             Spacer(modifier = Modifier.height(10.dp))
-            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, onSort = onSort, onOptions = onOptions)
+            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
         }
     }
 }
@@ -1379,6 +1503,9 @@ private fun HeroActionBar(
     accentColor: Color,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onSort: () -> Unit,
     onOptions: () -> Unit
 ) {
@@ -1419,6 +1546,42 @@ private fun HeroActionBar(
             onClick = onShuffle
         ) {
             Icon(Lucide.Shuffle, contentDescription = "Shuffle", tint = accentColor, modifier = Modifier.size(16.dp))
+        }
+
+        // Favorite Button
+        if (onToggleFavorite != null) {
+            PremiumSection(
+                width = 40.dp,
+                height = 40.dp,
+                backgroundColor = if (isFavorite) accentColor.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(12.dp),
+                onClick = onToggleFavorite
+            ) {
+                Icon(
+                    imageVector = Lucide.Star,
+                    contentDescription = "Favorite",
+                    tint = if (isFavorite) Color(0xFFFFD54F) else Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        // Delete Button
+        if (onDelete != null) {
+            PremiumSection(
+                width = 40.dp,
+                height = 40.dp,
+                backgroundColor = Color(0xFFFF5252).copy(alpha = 0.12f),
+                shape = RoundedCornerShape(12.dp),
+                onClick = onDelete
+            ) {
+                Icon(
+                    imageVector = Lucide.Trash2,
+                    contentDescription = "Delete",
+                    tint = Color(0xFFFF5252),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
 
         // Sort Button
