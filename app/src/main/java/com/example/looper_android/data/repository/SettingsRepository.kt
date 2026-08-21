@@ -54,6 +54,7 @@ class SettingsRepository @Inject constructor(
         val SHOW_CARD_PLAY_BUTTON = booleanPreferencesKey("show_card_play_button")
         val SHOW_CARD_OPTIONS_BUTTON = booleanPreferencesKey("show_card_options_button")
         val REPEAT_MODE = stringPreferencesKey("repeat_mode")
+        val SKIP_SILENCE = booleanPreferencesKey("skip_silence")
 
         // Typography & Font settings
         val APP_FONT_FAMILY = stringPreferencesKey("app_font_family")
@@ -144,6 +145,16 @@ class SettingsRepository @Inject constructor(
 
     fun saveCachedDynamicThemingEnabled(enabled: Boolean) {
         syncPrefs.edit().putBoolean("cached_dynamic_theming_enabled", enabled).apply()
+    }
+
+    val skipSilence: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.SKIP_SILENCE] ?: false
+    }
+
+    suspend fun setSkipSilence(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.SKIP_SILENCE] = enabled
+        }
     }
 
     val repeatMode: Flow<String> = dataStore.data.map { prefs ->

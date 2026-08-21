@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import coil.imageLoader
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
@@ -305,6 +306,12 @@ class PlaybackViewModel @Inject constructor(
 
     init {
         player.addListener(playerListener)
+
+        viewModelScope.launch {
+            settingsRepository.skipSilence.collectLatest { enabled ->
+                (player as? ExoPlayer)?.skipSilenceEnabled = enabled
+            }
+        }
 
         viewModelScope.launch {
             settingsRepository.repeatMode.collectLatest { savedModeStr ->

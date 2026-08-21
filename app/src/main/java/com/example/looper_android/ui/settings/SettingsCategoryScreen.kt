@@ -83,6 +83,7 @@ import com.composables.icons.lucide.Power
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.Save
+import com.composables.icons.lucide.VolumeX
 import com.composables.icons.lucide.PaintBucket
 import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Droplet
@@ -873,6 +874,7 @@ private fun AudioPlaybackSettingsSection(
     val permanentAudioFocusChange by viewModel.permanentAudioFocusChange.collectAsState()
     val persistQueue by viewModel.persistQueue.collectAsState()
     val enableCrossfade by viewModel.enableCrossfade.collectAsState()
+    val skipSilence by viewModel.skipSilence.collectAsState()
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
 
     Column {
@@ -930,6 +932,15 @@ private fun AudioPlaybackSettingsSection(
                         accentColor = accentColor
                     )
                 }
+                AboutDivider()
+                SettingsSwitchTile(
+                    title = "Skip Silence",
+                    subtitle = "Automatically skip silent and quiet intervals during track playback",
+                    icon = Lucide.VolumeX,
+                    checked = skipSilence,
+                    onCheckedChange = { viewModel.setSkipSilence(it) },
+                    accentColor = accentColor
+                )
             }
         }
 

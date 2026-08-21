@@ -236,6 +236,15 @@ class SettingsViewModel @Inject constructor(
     val permanentAudioFocusChange: StateFlow<Boolean> = repository.permanentAudioFocusChange
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val skipSilence: StateFlow<Boolean> = repository.skipSilence
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setSkipSilence(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setSkipSilence(enabled)
+        }
+    }
+
     val enableCrossfade: StateFlow<Boolean> = repository.enableCrossfade
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 

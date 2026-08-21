@@ -12,6 +12,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.flow.collectLatest
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
@@ -271,6 +273,12 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         player.addListener(playerListener)
+
+        serviceScope.launch {
+            settingsRepository.skipSilence.collectLatest { enabled ->
+                (player as? ExoPlayer)?.skipSilenceEnabled = enabled
+            }
+        }
         queueManager.restoreLastQueue()
 
         val filter = IntentFilter().apply {

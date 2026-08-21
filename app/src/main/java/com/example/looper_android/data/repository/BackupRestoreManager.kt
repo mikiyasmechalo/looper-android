@@ -157,6 +157,7 @@ class BackupRestoreManager @Inject constructor(
                 put("autoPowerSaveEnabled", settingsRepository.autoPowerSaveEnabled.first())
                 put("autoPowerSaveThreshold", settingsRepository.autoPowerSaveThreshold.first())
                 put("repeatMode", settingsRepository.repeatMode.first())
+                put("skipSilence", settingsRepository.skipSilence.first())
                 put("appFontFamily", settingsRepository.appFontFamily.first())
                 put("lyricsFontFamily", settingsRepository.lyricsFontFamily.first())
             }
@@ -347,6 +348,7 @@ class BackupRestoreManager @Inject constructor(
                 if (settingsObj.has("autoPowerSaveEnabled")) settingsRepository.setAutoPowerSaveEnabled(settingsObj.optBoolean("autoPowerSaveEnabled"))
                 if (settingsObj.has("autoPowerSaveThreshold")) settingsRepository.setAutoPowerSaveThreshold(settingsObj.optInt("autoPowerSaveThreshold"))
                 if (settingsObj.has("repeatMode")) settingsRepository.setRepeatMode(settingsObj.optString("repeatMode"))
+                if (settingsObj.has("skipSilence")) settingsRepository.setSkipSilence(settingsObj.optBoolean("skipSilence"))
                 if (settingsObj.has("appFontFamily")) settingsRepository.setAppFontFamily(settingsObj.optString("appFontFamily"))
                 if (settingsObj.has("lyricsFontFamily")) settingsRepository.setLyricsFontFamily(settingsObj.optString("lyricsFontFamily"))
                 settingsRestored = true
