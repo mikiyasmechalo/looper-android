@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.components
+import com.example.looper_android.ui.library.AllSongsViewModel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,7 +59,8 @@ fun AddToPlaylistBottomSheet(
     onDismiss: () -> Unit,
     onPlaylistSelected: (PlaylistEntity) -> Unit,
     accentColor: Color = Color.White,
-    playlistsViewModel: PlaylistsViewModel = hiltViewModel()
+    playlistsViewModel: PlaylistsViewModel = hiltViewModel(),
+    allSongsViewModel: AllSongsViewModel = hiltViewModel()
 ) {
     val playlists by playlistsViewModel.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }

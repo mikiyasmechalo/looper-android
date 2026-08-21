@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.library
+import com.example.looper_android.ui.components.PlaylistArtworkCollage
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Disc3
 import com.composables.icons.lucide.Star
@@ -518,7 +519,7 @@ fun CollectionDetailScreen(
                                         PlaylistHeroHeader(
                                             title = effectiveTitle,
                                             subtitle = collectionSubtitle,
-                                            artPath = displayArt,
+                                            songs = collectionSongs,
                                             accentColor = playbackState.accentColor,
                                             isFavorite = collectionSongs.isNotEmpty() && collectionSongs.all { it.isFavorite },
                                             onToggleFavorite = {
@@ -1437,7 +1438,7 @@ private fun FolderHeroHeader(
 private fun PlaylistHeroHeader(
     title: String,
     subtitle: String,
-    artPath: String? = null,
+    songs: List<SongEntity> = emptyList(),
     accentColor: Color,
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
@@ -1447,55 +1448,58 @@ private fun PlaylistHeroHeader(
     onSort: () -> Unit,
     onOptions: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(90.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(accentColor.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!artPath.isNullOrEmpty()) {
-                OptimizedImage(url = artPath, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            } else {
-                Icon(
-                    imageVector = Lucide.ListMusic,
-                    contentDescription = "Playlist",
-                    tint = accentColor,
-                    modifier = Modifier.size(44.dp)
+            val songPaths = remember(songs) { songs.map { it.path } }
+            PlaylistArtworkCollage(
+                songPaths = songPaths,
+                allSongs = songs,
+                modifier = Modifier.size(92.dp),
+                shape = RoundedCornerShape(20.dp),
+                accentColor = accentColor,
+                fallbackIconSize = 40.dp
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 13.sp,
+                    fontFamily = DmSansFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = DmSansFontFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.basicMarquee()
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                color = Color.White.copy(alpha = 0.55f),
-                fontSize = 12.sp,
-                fontFamily = DmSansFontFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.basicMarquee()
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            HeroActionBar(accentColor = accentColor, onPlayAll = onPlayAll, onShuffle = onShuffle, isFavorite = isFavorite, onToggleFavorite = onToggleFavorite, onDelete = onDelete, onSort = onSort, onOptions = onOptions)
-        }
+        Spacer(modifier = Modifier.height(14.dp))
+        HeroActionBar(
+            accentColor = accentColor,
+            onPlayAll = onPlayAll,
+            onShuffle = onShuffle,
+            isFavorite = isFavorite,
+            onToggleFavorite = onToggleFavorite,
+            onDelete = onDelete,
+            onSort = onSort,
+            onOptions = onOptions
+        )
     }
 }
 

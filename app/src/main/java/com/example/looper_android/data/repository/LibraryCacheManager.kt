@@ -200,12 +200,14 @@ class LibraryCacheManager @Inject constructor(
     }
 
     // Proxy for creating/updating playlists
-    fun createPlaylist(name: String) {
+    fun createPlaylist(name: String, initialSongs: List<String> = emptyList()) {
         scope.launch(Dispatchers.IO) {
+            val jsonArray = org.json.JSONArray()
+            initialSongs.forEach { jsonArray.put(it) }
             libraryDao.insertPlaylist(
                 PlaylistEntity(
                     name = name,
-                    songPaths = "[]",
+                    songPaths = jsonArray.toString(),
                     dateCreated = System.currentTimeMillis(),
                     dateModified = System.currentTimeMillis()
                 )
@@ -263,6 +265,16 @@ class LibraryCacheManager @Inject constructor(
             }
             val updated = playlist.copy(
                 songPaths = newArray.toString(),
+                dateModified = System.currentTimeMillis()
+            )
+            libraryDao.insertPlaylist(updated)
+        }
+    }
+
+    fun renamePlaylist(playlist: PlaylistEntity, newName: String) {
+        scope.launch(Dispatchers.IO) {
+            val updated = playlist.copy(
+                name = newName,
                 dateModified = System.currentTimeMillis()
             )
             libraryDao.insertPlaylist(updated)

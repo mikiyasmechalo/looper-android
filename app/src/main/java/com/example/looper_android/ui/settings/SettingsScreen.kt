@@ -54,6 +54,7 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.X
 import com.example.looper_android.ui.theme.BrandAccent
 import com.example.looper_android.ui.theme.DmSansFontFamily
@@ -90,6 +91,7 @@ fun SettingsScreen(
             SettingCategory("playback", "Language & Services", "Language, Gestures, Background Tasks & Network Services", Lucide.Globe),
             SettingCategory("audio_playback", "Audio & Playback", "Crossfade, Equalizer & Audio Engine", Lucide.Music),
             SettingCategory("library", "Music Library", "Library Folders, Scanning & Rescan", Lucide.Database),
+            SettingCategory("backup_restore", "Backup & Restore", "Export & Import Playlists, History, Favorites & App Data", Lucide.Save),
             SettingCategory("about", "About & Maintainers", "App Details, Version & Creators", Lucide.Info),
             SettingCategory("support_us", "Support Us", "Buy Me a Coffee & Support Development", LucideIcons.Heart)
         )

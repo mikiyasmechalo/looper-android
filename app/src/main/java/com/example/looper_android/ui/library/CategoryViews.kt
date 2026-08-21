@@ -1,4 +1,9 @@
 package com.example.looper_android.ui.library
+import com.example.looper_android.ui.components.PlaylistArtworkCollage
+import com.composables.icons.lucide.FolderInput
+import com.composables.icons.lucide.Download
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.example.looper_android.ui.components.PremiumLoadingView
 import com.composables.icons.lucide.GitMerge
 
@@ -1799,17 +1804,74 @@ fun ArtistsScreen(
 }
 
 // 3. PLAYLISTS SCREEN
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel = hiltViewModel(),
+    allSongsViewModel: AllSongsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     onBackClick: () -> Unit,
     onPlaylistClick: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val playlists by viewModel.playlists.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var playlistToDelete by remember { mutableStateOf<com.example.looper_android.data.db.PlaylistEntity?>(null) }
+    var playlistToRename by remember { mutableStateOf<com.example.looper_android.data.db.PlaylistEntity?>(null) }
+    var selectedPlaylistForOptions by remember { mutableStateOf<com.example.looper_android.data.db.PlaylistEntity?>(null) }
+    var playlistToExportM3u by remember { mutableStateOf<com.example.looper_android.data.db.PlaylistEntity?>(null) }
+    var playlistToExportJson by remember { mutableStateOf<com.example.looper_android.data.db.PlaylistEntity?>(null) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val res = viewModel.importPlaylist(uri)
+                res.onSuccess {
+                    Toast.makeText(context, "Imported '${it.playlistName}' (${it.matchedTracks} songs)", Toast.LENGTH_LONG).show()
+                }.onFailure {
+                    Toast.makeText(context, "Import failed: ${it.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    val exportM3uLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        val p = playlistToExportM3u
+        if (uri != null && p != null) {
+            coroutineScope.launch {
+                val res = viewModel.exportPlaylistToM3u(uri, p)
+                res.onSuccess {
+                    Toast.makeText(context, "Exported '${p.name}.m3u8' ($it songs)", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "Export failed: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        playlistToExportM3u = null
+    }
+
+    val exportJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val p = playlistToExportJson
+        if (uri != null && p != null) {
+            coroutineScope.launch {
+                val res = viewModel.exportPlaylistToJson(uri, p)
+                res.onSuccess {
+                    Toast.makeText(context, "Exported '${p.name}.json' ($it songs)", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "Export failed: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        playlistToExportJson = null
+    }
 
     val bottomPadding = if (playbackState.currentSong != null) 200.dp else 140.dp
 
@@ -1819,8 +1881,17 @@ fun PlaylistsScreen(
             onBackClick = onBackClick,
             actions = {
                 PremiumSection(
-                    width = 48.dp,
-                    height = 48.dp,
+                    width = 44.dp,
+                    height = 44.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    onClick = { importLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "application/json", "*/*")) }
+                ) {
+                    Icon(Lucide.FolderInput, contentDescription = "Import Playlist", tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                PremiumSection(
+                    width = 44.dp,
+                    height = 44.dp,
                     backgroundColor = Color.White.copy(alpha = 0.08f),
                     shape = CircleShape,
                     onClick = { showCreateDialog = true }
@@ -1888,15 +1959,23 @@ fun PlaylistsScreen(
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Lucide.ListMusic, contentDescription = null, tint = playbackState.accentColor, modifier = Modifier.size(24.dp))
+                    val parsedSongPaths = remember(playlist.songPaths) {
+                        try {
+                            val arr = org.json.JSONArray(playlist.songPaths.ifBlank { "[]" })
+                            (0 until arr.length()).map { arr.getString(it) }
+                        } catch (_: Exception) {
+                            playlist.songPaths.split(",").map { it.trim() }
+                        }
                     }
+                    val allLibrarySongs by allSongsViewModel.songs.collectAsState()
+                    PlaylistArtworkCollage(
+                        songPaths = parsedSongPaths,
+                        allSongs = allLibrarySongs,
+                        modifier = Modifier.size(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        accentColor = playbackState.accentColor,
+                        fallbackIconSize = 24.dp
+                    )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -1915,8 +1994,8 @@ fun PlaylistsScreen(
                             fontFamily = DmSansFontFamily
                         )
                     }
-                    IconButton(onClick = { playlistToDelete = playlist }) {
-                        Icon(Lucide.Trash2, contentDescription = "Delete Playlist", tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
+                    IconButton(onClick = { selectedPlaylistForOptions = playlist }) {
+                        Icon(Lucide.EllipsisVertical, contentDescription = "Playlist Options", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -1940,6 +2019,122 @@ fun PlaylistsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { playlistToDelete = null }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontFamily = DmSansFontFamily)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+
+    if (selectedPlaylistForOptions != null) {
+        val playlist = selectedPlaylistForOptions!!
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedPlaylistForOptions = null },
+            containerColor = Color(0xFF1E1E1E),
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 10.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f))
+                )
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = playlist.name,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                CategoryOptionActionRow(
+                    icon = Lucide.Download,
+                    title = "Export as M3U8 Playlist (.m3u8)",
+                    onClick = {
+                        selectedPlaylistForOptions = null
+                        playlistToExportM3u = playlist
+                        exportM3uLauncher.launch("${playlist.name}.m3u8")
+                    },
+                    accentColor = playbackState.accentColor
+                )
+
+                CategoryOptionActionRow(
+                    icon = Lucide.Download,
+                    title = "Export as JSON (.json)",
+                    onClick = {
+                        selectedPlaylistForOptions = null
+                        playlistToExportJson = playlist
+                        exportJsonLauncher.launch("${playlist.name}.json")
+                    },
+                    accentColor = playbackState.accentColor
+                )
+
+                CategoryOptionActionRow(
+                    icon = Lucide.SlidersHorizontal,
+                    title = "Rename Playlist",
+                    onClick = {
+                        val p = playlist
+                        selectedPlaylistForOptions = null
+                        playlistToRename = p
+                    },
+                    accentColor = playbackState.accentColor
+                )
+
+                CategoryOptionActionRow(
+                    icon = Lucide.Trash2,
+                    title = "Delete Playlist",
+                    onClick = {
+                        val p = playlist
+                        selectedPlaylistForOptions = null
+                        playlistToDelete = p
+                    },
+                    accentColor = Color(0xFFFF5252),
+                    textColor = Color(0xFFFF5252)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    if (playlistToRename != null) {
+        val p = playlistToRename!!
+        var newNameText by remember { mutableStateOf(p.name) }
+        AlertDialog(
+            onDismissRequest = { playlistToRename = null },
+            title = { Text("Rename Playlist", color = Color.White, fontFamily = DmSansFontFamily, fontWeight = FontWeight.Bold) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = newNameText,
+                    onValueChange = { newNameText = it },
+                    singleLine = true,
+                    label = { Text("Playlist Name", fontFamily = DmSansFontFamily) }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newNameText.isNotBlank()) {
+                            viewModel.renamePlaylist(p, newNameText.trim())
+                        }
+                        playlistToRename = null
+                    }
+                ) {
+                    Text("Save", color = playbackState.accentColor, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { playlistToRename = null }) {
                     Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontFamily = DmSansFontFamily)
                 }
             },

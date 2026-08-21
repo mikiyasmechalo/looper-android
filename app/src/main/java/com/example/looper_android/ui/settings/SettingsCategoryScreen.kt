@@ -1,4 +1,16 @@
 package com.example.looper_android.ui.settings
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.example.looper_android.data.repository.BackupRestoreManager
+import com.example.looper_android.data.repository.PlaylistIOManager
+import com.composables.icons.lucide.Upload
+import com.composables.icons.lucide.Download
+import com.composables.icons.lucide.FolderInput
+import com.composables.icons.lucide.HardDrive
+import com.composables.icons.lucide.FolderArchive
+
 import com.composables.icons.lucide.BatteryCharging
 
 import com.composables.icons.lucide.BookOpen
@@ -174,6 +186,8 @@ fun SettingsCategoryScreen(
                 item { LanguageAndServicesSection(accentColor = accentColor) }
             } else if (categoryId == "audio_playback") {
                 item { AudioPlaybackSettingsSection(accentColor = accentColor) }
+            } else if (categoryId == "backup_restore") {
+                item { BackupRestoreSettingsSection(accentColor = accentColor) }
             } else if (categoryId == "library") {
                 item {
                     LibrarySettingsSection(
@@ -2055,4 +2069,203 @@ fun AboutDivider() {
             .padding(start = 72.dp)
             .background(Color.White.copy(alpha = 0.1f))
     )
+}
+
+
+// 6. Backup & Restore Settings Section
+@Composable
+private fun BackupRestoreSettingsSection(
+    accentColor: Color
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val entryPoint = remember {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            BackupRestoreEntryPoint::class.java
+        )
+    }
+    val backupManager = entryPoint.backupRestoreManager()
+    val playlistIOManager = entryPoint.playlistIOManager()
+
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isProcessing by remember { mutableStateOf(false) }
+
+    val createBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val result = backupManager.createBackup(uri)
+                isProcessing = false
+                result.onSuccess { report ->
+                    statusMessage = "Backup created successfully!\n(${report.playlistCount} playlists, ${report.favoritesCount} favorites, ${report.savedQueuesCount} saved queues)"
+                }.onFailure { err ->
+                    statusMessage = "Backup failed: ${err.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val result = backupManager.restoreBackup(uri)
+                isProcessing = false
+                result.onSuccess { report ->
+                    statusMessage = "Backup restored successfully!\n(${report.playlistsRestored} playlists, ${report.favoritesRestored} favorites, ${report.statsRestored} song stats)"
+                }.onFailure { err ->
+                    statusMessage = "Restore failed: ${err.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    val importPlaylistLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val result = playlistIOManager.importPlaylist(uri)
+                isProcessing = false
+                result.onSuccess { report ->
+                    statusMessage = "Imported '${report.playlistName}'!\n(${report.matchedTracks} / ${report.totalTracks} tracks matched)"
+                }.onFailure { err ->
+                    statusMessage = "Import failed: ${err.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    val exportAllPlaylistsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val result = playlistIOManager.exportAllPlaylistsToJson(uri)
+                isProcessing = false
+                result.onSuccess { count ->
+                    statusMessage = "Exported $count playlists to JSON successfully!"
+                }.onFailure { err ->
+                    statusMessage = "Export failed: ${err.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    Column {
+        // --- 1. FULL APP BACKUP ---
+        SettingsSubHeader(title = "App Data Backup & Restore", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsActionTile(
+                    title = "Create Backup",
+                    subtitle = "Export complete archive of playlists, favorites, play history, queues and settings",
+                    icon = Lucide.Save,
+                    onClick = {
+                        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+                        createBackupLauncher.launch("looper_backup_$timestamp.json")
+                    },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+
+                SettingsActionTile(
+                    title = "Restore from Backup",
+                    subtitle = "Import and restore your saved playlists, stats, equalizers and preferences",
+                    icon = Lucide.RotateCcw,
+                    onClick = {
+                        restoreBackupLauncher.launch(arrayOf("application/json", "*/*"))
+                    },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 2. PLAYLIST IMPORT & EXPORT ---
+        SettingsSubHeader(title = "Playlists Transfer", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            Column {
+                SettingsActionTile(
+                    title = "Export All Playlists",
+                    subtitle = "Export all your playlists and tracks into a JSON archive",
+                    icon = Lucide.Download,
+                    onClick = {
+                        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+                        exportAllPlaylistsLauncher.launch("looper_playlists_$timestamp.json")
+                    },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+
+                SettingsActionTile(
+                    title = "Import Playlist",
+                    subtitle = "Import .m3u, .m3u8 or .json playlist files into your library",
+                    icon = Lucide.FolderInput,
+                    onClick = {
+                        importPlaylistLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "application/json", "*/*"))
+                    },
+                    accentColor = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+
+    if (statusMessage != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { statusMessage = null },
+            title = {
+                Text(
+                    text = if (statusMessage?.contains("failed", ignoreCase = true) == true) "Operation Failed" else "Success",
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily,
+                    color = Color.White
+                )
+            },
+            text = {
+                Text(
+                    text = statusMessage ?: "",
+                    fontFamily = DmSansFontFamily,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { statusMessage = null }) {
+                    Text("OK", color = accentColor, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+}
+
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+interface BackupRestoreEntryPoint {
+    fun backupRestoreManager(): BackupRestoreManager
+    fun playlistIOManager(): PlaylistIOManager
 }

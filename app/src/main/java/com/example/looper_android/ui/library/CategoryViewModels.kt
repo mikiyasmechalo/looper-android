@@ -1,4 +1,8 @@
 package com.example.looper_android.ui.library
+import android.net.Uri
+import com.example.looper_android.data.repository.PlaylistIOManager
+import com.example.looper_android.data.repository.PlaylistImportResult
+import com.example.looper_android.data.db.LibraryDao
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -168,15 +172,48 @@ class ArtistsViewModel @Inject constructor(
 // --- PLAYLISTS VIEW MODEL ---
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
-    private val libraryCacheManager: LibraryCacheManager
+    private val libraryCacheManager: LibraryCacheManager,
+    private val playlistIOManager: PlaylistIOManager,
+    private val libraryDao: LibraryDao
 ) : ViewModel() {
     val playlists: StateFlow<List<PlaylistEntity>> = libraryCacheManager.playlists
 
     fun createPlaylist(name: String) = libraryCacheManager.createPlaylist(name)
     fun deletePlaylist(id: Long) = libraryCacheManager.deletePlaylist(id)
+    fun renamePlaylist(playlist: PlaylistEntity, newName: String) = libraryCacheManager.renamePlaylist(playlist, newName)
     fun addSongToPlaylist(playlist: PlaylistEntity, songPath: String) = libraryCacheManager.addSongToPlaylist(playlist, songPath)
     fun addSongsToPlaylist(playlist: PlaylistEntity, songPaths: List<String>) = libraryCacheManager.addSongsToPlaylist(playlist, songPaths)
     fun removeSongFromPlaylist(playlist: PlaylistEntity, songPath: String) = libraryCacheManager.removeSongFromPlaylist(playlist, songPath)
+
+    suspend fun exportPlaylistToM3u(uri: Uri, playlist: PlaylistEntity): Result<Int> {
+        val allSongs = libraryCacheManager.songs.value.ifEmpty { libraryDao.getAllSongsList() }
+        val songPaths = try {
+            val arr = org.json.JSONArray(playlist.songPaths)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) {
+            playlist.songPaths.split(",").map { it.trim() }
+        }
+        val pathMap = allSongs.associateBy { it.path }
+        val songsToExport = songPaths.mapNotNull { pathMap[it] }
+        return playlistIOManager.exportPlaylistToM3u(uri, playlist.name, songsToExport)
+    }
+
+    suspend fun exportPlaylistToJson(uri: Uri, playlist: PlaylistEntity): Result<Int> {
+        val allSongs = libraryCacheManager.songs.value.ifEmpty { libraryDao.getAllSongsList() }
+        val songPaths = try {
+            val arr = org.json.JSONArray(playlist.songPaths)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) {
+            playlist.songPaths.split(",").map { it.trim() }
+        }
+        val pathMap = allSongs.associateBy { it.path }
+        val songsToExport = songPaths.mapNotNull { pathMap[it] }
+        return playlistIOManager.exportPlaylistToJson(uri, playlist.name, songsToExport)
+    }
+
+    suspend fun importPlaylist(uri: Uri): Result<PlaylistImportResult> {
+        return playlistIOManager.importPlaylist(uri)
+    }
 }
 
 // --- GENRES VIEW MODEL ---
