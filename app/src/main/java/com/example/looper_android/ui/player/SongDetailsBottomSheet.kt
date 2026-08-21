@@ -151,25 +151,25 @@ private fun CleanSongInfoContent(
 
         // Metadata Rows
         // 1. Artist
-        val artistName = song.artist ?: "Unknown Artist"
+        val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
         DetailRow(
             label = "Artist",
             value = artistName,
-            isClickable = showGoToArtist && song.artist != null,
+            isClickable = showGoToArtist && !song.artist.isNullOrBlank(),
             onClick = {
-                song.artist?.let { onArtistClick(it) }
+                song.artist?.trim()?.ifBlank { null }?.let { onArtistClick(it) }
             },
             accentColor = accentColor
         )
 
         // 2. Album Artist
-        val albumArtistName = song.albumArtist ?: song.artist ?: "Unknown Album Artist"
+        val albumArtistName = song.albumArtist?.trim()?.ifBlank { null } ?: song.artist?.trim()?.ifBlank { null } ?: "Unknown Album Artist"
         DetailRow(
             label = "Album Artist",
             value = albumArtistName,
-            isClickable = showGoToArtist && (song.albumArtist != null || song.artist != null),
+            isClickable = showGoToArtist && (!song.albumArtist.isNullOrBlank() || !song.artist.isNullOrBlank()),
             onClick = {
-                val target = song.albumArtist ?: song.artist
+                val target = song.albumArtist?.trim()?.ifBlank { null } ?: song.artist?.trim()?.ifBlank { null }
                 target?.let { onArtistClick(it) }
             },
             accentColor = accentColor

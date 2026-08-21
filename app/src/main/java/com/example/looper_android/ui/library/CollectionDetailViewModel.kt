@@ -381,12 +381,13 @@ class CollectionDetailViewModel @Inject constructor(
                 effectiveAlbum.equals(title, ignoreCase = true)
             }
             "artist" -> allSongs.filter {
-                val effectiveArtist = if (useAlbumArtist) {
-                    it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                val artistMatch = it.artist?.trim()?.equals(title, ignoreCase = true) == true
+                val albumArtistMatch = it.albumArtist?.trim()?.equals(title, ignoreCase = true) == true
+                if (useAlbumArtist) {
+                    albumArtistMatch || artistMatch
                 } else {
-                    it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
+                    artistMatch
                 }
-                effectiveArtist.equals(title, ignoreCase = true)
             }
             "genre" -> allSongs.filter {
                 val effectiveGenre = it.genre?.trim()?.ifBlank { null } ?: "Unknown"

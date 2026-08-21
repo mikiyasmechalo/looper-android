@@ -28,6 +28,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +90,19 @@ fun SearchScreen(
     var showAllSongs by remember { androidx.compose.runtime.mutableStateOf(false) }
     var selectedSongForOptions by remember { androidx.compose.runtime.mutableStateOf<SongEntity?>(null) }
     val songEditViewModel: com.example.looper_android.ui.player.SongEditViewModel = hiltViewModel()
+
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val openOptionsForSong: (SongEntity) -> Unit = { song ->
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+        coroutineScope.launch {
+            kotlinx.coroutines.delay(200)
+            selectedSongForOptions = song
+        }
+    }
 
     LaunchedEffect(query) {
         if (query != textFieldValue.text) {
@@ -175,7 +191,7 @@ fun SearchScreen(
                     fontSize = 16.sp,
                     fontFamily = DmSansFontFamily
                 ),
-                cursorBrush = SolidColor(Color(0xFF55DF69)),
+                cursorBrush = SolidColor(playbackState.accentColor),
                 singleLine = true,
                 decorationBox = { innerTextField ->
                     if (textFieldValue.text.isEmpty()) {
@@ -250,7 +266,7 @@ fun SearchScreen(
                             )
                             when (topResult) {
                                 is SongEntity -> {
-                                    TopSongCard(song = topResult, isPlaying = playbackState.currentSong?.id == topResult.id, onOptionsClick = { selectedSongForOptions = topResult }) {
+                                    TopSongCard(song = topResult, isPlaying = playbackState.currentSong?.id == topResult.id, onOptionsClick = { openOptionsForSong(topResult) }) {
                                         playbackViewModel.setPlaylist(listOf(topResult), queueName = "Search Results")
                                     }
                                 }
@@ -278,7 +294,7 @@ fun SearchScreen(
                             isCurrent = playbackState.currentSong?.id == song.id,
                             isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
                             onClick = { playbackViewModel.setPlaylist(listOf(song), queueName = "Search Results") },
-                            onOptionsClick = { selectedSongForOptions = song }
+                            onOptionsClick = { openOptionsForSong(song) }
                         )
                     }
                     if (!showAllSongs && results.songs.size > 5) {
@@ -327,7 +343,7 @@ fun SearchScreen(
                             isCurrent = playbackState.currentSong?.id == song.id,
                             isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
                             onClick = { playbackViewModel.setPlaylist(listOf(song), queueName = "Search Results") },
-                            onOptionsClick = { selectedSongForOptions = song }
+                            onOptionsClick = { openOptionsForSong(song) }
                         )
                     }
                     if (!showAllSongs && results.songs.size > 5) {
@@ -376,7 +392,7 @@ fun SearchScreen(
                             isCurrent = playbackState.currentSong?.id == song.id,
                             isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
                             onClick = { playbackViewModel.setPlaylist(listOf(song), queueName = "Search Results") },
-                            onOptionsClick = { selectedSongForOptions = song }
+                            onOptionsClick = { openOptionsForSong(song) }
                         )
                     }
                     if (!showAllSongs && results.songs.size > 5) {
@@ -425,7 +441,7 @@ fun SearchScreen(
                             isCurrent = playbackState.currentSong?.id == song.id,
                             isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
                             onClick = { playbackViewModel.setPlaylist(listOf(song), queueName = "Search Results") },
-                            onOptionsClick = { selectedSongForOptions = song }
+                            onOptionsClick = { openOptionsForSong(song) }
                         )
                     }
                     if (!showAllSongs && results.songs.size > 5) {
@@ -573,9 +589,10 @@ fun TopAlbumCard(album: AlbumEntity, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                val accentColor = com.example.looper_android.ui.theme.LocalAccentColor.current
                 Text(
                     text = "Album",
-                    color = Color(0xFF55DF69),
+                    color = accentColor,
                     fontSize = 12.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Bold
@@ -624,9 +641,10 @@ fun TopArtistCard(artist: ArtistEntity, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                val accentColor = com.example.looper_android.ui.theme.LocalAccentColor.current
                 Text(
                     text = "Artist",
-                    color = Color(0xFF55DF69),
+                    color = accentColor,
                     fontSize = 12.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Bold
@@ -647,13 +665,14 @@ fun TopGenreCard(genre: GenreData, onClick: () -> Unit) {
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            val accentColor = com.example.looper_android.ui.theme.LocalAccentColor.current
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .background(Color(0xFF55DF69).copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
+                    .background(accentColor.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Lucide.Music, contentDescription = null, tint = Color(0xFF55DF69), modifier = Modifier.size(32.dp))
+                Icon(Lucide.Music, contentDescription = null, tint = accentColor, modifier = Modifier.size(32.dp))
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -668,7 +687,7 @@ fun TopGenreCard(genre: GenreData, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Genre",
-                    color = Color(0xFF55DF69),
+                    color = accentColor,
                     fontSize = 12.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Bold
