@@ -28,6 +28,7 @@ data class DiscoveredFolder(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+
     private val repository: SettingsRepository,
     private val artworkService: ArtworkService,
     private val lyricsFetcher: LyricsFetcher,
@@ -70,6 +71,9 @@ class SettingsViewModel @Inject constructor(
             )
         }.sortedBy { it.folderName.lowercase() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun getInitialAccentColor(): Int = repository.getInitialAccentColor()
+    fun getInitialSongArtPath(): String? = repository.getInitialSongArtPath()
 
     val dynamicTheming: StateFlow<Boolean> = repository.dynamicTheming
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)

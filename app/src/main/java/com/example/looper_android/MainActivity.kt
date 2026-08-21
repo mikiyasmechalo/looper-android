@@ -47,10 +47,27 @@ class MainActivity : ComponentActivity() {
             val appFontWeightDelta by settingsViewModel.appFontWeightDelta.collectAsState()
             val lyricsFontFamily by settingsViewModel.lyricsFontFamily.collectAsState()
 
+            val dynamicAccentColor by settingsViewModel.dynamicAccentColor.collectAsState(initial = true)
+
+            val safeAccentInt = if (dynamicTheming || dynamicAccentColor) {
+                settingsViewModel.getInitialAccentColor()
+            } else {
+                if (customAccentColorInt != 0 && (customAccentColorInt and 0xFF000000.toInt()) != 0) {
+                    customAccentColorInt
+                } else {
+                    settingsViewModel.getInitialAccentColor()
+                }
+            }
+            val effectiveAccentColor = if (safeAccentInt != 0 && (safeAccentInt and 0xFF000000.toInt()) != 0) {
+                androidx.compose.ui.graphics.Color(safeAccentInt)
+            } else {
+                com.example.looper_android.ui.theme.BrandAccent
+            }
+
             LooperandroidTheme(
                 darkTheme = darkTheme,
                 dynamicTheming = dynamicTheming,
-                customAccentColor = androidx.compose.ui.graphics.Color(customAccentColorInt),
+                customAccentColor = effectiveAccentColor,
                 fontFamilyName = appFontFamily,
                 fontWeightDelta = appFontWeightDelta,
                 lyricsFontFamilyName = lyricsFontFamily

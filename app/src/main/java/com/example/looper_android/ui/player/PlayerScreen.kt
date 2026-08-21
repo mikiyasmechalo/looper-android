@@ -209,7 +209,8 @@ fun PlayerScreen(
                 .haze(playerHazeState)
         ) {
             // 1. Prioritize Dynamic Theming Blurred Artwork Background
-            val artPath = song.artPath
+            val initialArtPath = remember { settingsViewModel.getInitialSongArtPath() }
+            val artPath = song.artPath ?: (if (dynamicTheming) initialArtPath else null)
             val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !artPath.isNullOrEmpty()
 
             if (shouldShowBlurredArt) {

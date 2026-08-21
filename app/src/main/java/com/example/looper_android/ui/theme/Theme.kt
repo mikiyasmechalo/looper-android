@@ -39,14 +39,20 @@ fun LooperandroidTheme(
     lyricsFontFamilyName: String = "DM Sans",
     content: @Composable () -> Unit
 ) {
+    val safeAccentColor = if (customAccentColor == androidx.compose.ui.graphics.Color.Transparent || customAccentColor.alpha < 0.1f) {
+        BrandAccent
+    } else {
+        customAccentColor.copy(alpha = 1f)
+    }
+
     val effectiveDarkTheme = darkTheme && !dynamicTheming
     val containerColor = if (effectiveDarkTheme) androidx.compose.ui.graphics.Color(0xFF0A0A0A) else PremiumContainer
     val backgroundColor = if (effectiveDarkTheme) androidx.compose.ui.graphics.Color.Black else PremiumDeepBlack
     
     val colorScheme = DarkColorScheme.copy(
-        primary = customAccentColor,
-        secondary = customAccentColor,
-        tertiary = customAccentColor,
+        primary = safeAccentColor,
+        secondary = safeAccentColor,
+        tertiary = safeAccentColor,
         background = backgroundColor,
         surface = backgroundColor,
         surfaceVariant = containerColor
@@ -65,7 +71,7 @@ fun LooperandroidTheme(
     val dynamicTypography = remember(selectedFontFamily) { createAppTypography(selectedFontFamily) }
 
     CompositionLocalProvider(
-        LocalAccentColor provides customAccentColor,
+        LocalAccentColor provides safeAccentColor,
         LocalAppFontFamily provides selectedFontFamily,
         LocalLyricsFontFamily provides selectedLyricsFontFamily,
         LocalAppFontWeightDelta provides fontWeightDelta

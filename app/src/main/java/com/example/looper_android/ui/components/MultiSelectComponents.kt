@@ -140,7 +140,10 @@ fun MultiSelectBottomBar(
     showFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     showDelete: Boolean = false,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    enableBlur: Boolean = com.example.looper_android.ui.widgets.LocalIsBlurEnabled.current,
+    hazeState: dev.chrisbanes.haze.HazeState? = com.example.looper_android.ui.widgets.LocalHazeState.current,
+    darkTheme: Boolean = false
 ) {
     val scrollState = rememberScrollState()
 
@@ -150,8 +153,7 @@ fun MultiSelectBottomBar(
         }
     }
 
-    val isPureBlack = androidx.compose.material3.MaterialTheme.colorScheme.background == Color.Black
-    val containerBgColor = if (isPureBlack) Color.Black.copy(alpha = 0.92f) else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+    val containerColor = if (darkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
 
     Box(
         modifier = modifier
@@ -160,21 +162,24 @@ fun MultiSelectBottomBar(
             .then(if (bottomPadding > 0.dp) Modifier.padding(bottom = bottomPadding) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(28.dp))
-                .background(containerBgColor)
-                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(28.dp))
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { _, _ ->
-                        // Consume drag events so they do not leak to parent HorizontalPager
-                    }
-                }
-                .horizontalScroll(scrollState)
-                .padding(start = 14.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        PremiumSection(
+            shape = RoundedCornerShape(28.dp),
+            backgroundColor = containerColor,
+            enableBlur = enableBlur,
+            hazeState = hazeState
         ) {
+            Row(
+                modifier = Modifier
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { _, _ ->
+                            // Consume drag events so they do not leak to parent HorizontalPager
+                        }
+                    }
+                    .horizontalScroll(scrollState)
+                    .padding(start = 14.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
             MultiSelectActionButton(icon = Lucide.Play, label = "Play", onClick = onPlay, accentColor = accentColor)
             MultiSelectActionButton(icon = Lucide.Shuffle, label = "Shuffle", onClick = onShuffle, accentColor = accentColor)
             MultiSelectActionButton(icon = Lucide.ListPlus, label = "Play Next", onClick = onPlayNext, accentColor = accentColor)
@@ -190,6 +195,7 @@ fun MultiSelectBottomBar(
             }
         }
     }
+}
 }
 
 @Composable

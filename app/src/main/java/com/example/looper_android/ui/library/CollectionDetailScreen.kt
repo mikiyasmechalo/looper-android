@@ -68,6 +68,7 @@ import com.composables.icons.lucide.Tag
 import com.example.looper_android.data.repository.ArtworkExportHelper
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ListFilter
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.CalendarPlus
@@ -222,6 +223,7 @@ fun CollectionDetailScreen(
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+
                     onPlay = {
                         val selectedSongs = collectionSongs.filter { selectedSongIds.contains(it.id) }
                         if (selectedSongs.isNotEmpty()) {
@@ -1427,7 +1429,7 @@ private fun HeroActionBar(
             shape = RoundedCornerShape(12.dp),
             onClick = onSort
         ) {
-            Icon(Lucide.SlidersHorizontal, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(Lucide.ListFilter, contentDescription = "Sort", tint = Color.White, modifier = Modifier.size(16.dp))
         }
 
         // 3-Dot Overflow Options Button

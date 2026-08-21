@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.composables.icons.lucide.ListFilter
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.EllipsisVertical
@@ -129,12 +130,19 @@ fun AllSongsScreen(
         }
     }
 
-    LaunchedEffect(isSelectionMode, selectedSongIds, songs, isAllSelected, playbackState.accentColor) {
+    val hazeState = com.example.looper_android.ui.widgets.LocalHazeState.current
+    val isBlurEnabled = com.example.looper_android.ui.widgets.LocalIsBlurEnabled.current
+    val isDarkTheme = androidx.compose.material3.MaterialTheme.colorScheme.background == Color.Black
+
+    LaunchedEffect(isSelectionMode, selectedSongIds, songs, isAllSelected, playbackState.accentColor, isBlurEnabled, hazeState, isDarkTheme) {
         if (isSelectionMode) {
             selectionBottomBar.value = {
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+                    enableBlur = isBlurEnabled,
+                    hazeState = hazeState,
+                    darkTheme = isDarkTheme,
                     onPlay = {
                         val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
                         if (selectedSongs.isNotEmpty()) {
@@ -337,7 +345,7 @@ fun AllSongsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Lucide.SlidersHorizontal,
+                            imageVector = Lucide.ListFilter,
                             contentDescription = "Sort By",
                             tint = if (isSelectionMode) Color.White.copy(alpha = 0.3f) else playbackState.accentColor,
                             modifier = Modifier.size(18.dp)
@@ -459,34 +467,9 @@ fun AllSongsScreen(
             }
         }
 
-        if (!isSelectionMode) {
-            val bottomInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val fabBottomPadding = if (isMiniPlayerVisible) (185.dp + bottomInsets) else (120.dp + bottomInsets)
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = fabBottomPadding, end = 40.dp),
-                contentAlignment = Alignment.BottomEnd
-            ) {
-                PremiumSection(
-                    width = 48.dp,
-                    height = 48.dp,
-                    shape = RoundedCornerShape(48.dp),
-                    backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                    onClick = {
-                        viewModel.shuffleAll()
-                    }
-                ) {
-                    Icon(
-                        imageVector = Lucide.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
+
+
 
         if (showAddToPlaylistSheet) {
             AddToPlaylistBottomSheet(

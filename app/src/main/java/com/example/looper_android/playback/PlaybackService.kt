@@ -176,10 +176,19 @@ class PlaybackService : MediaSessionService() {
 
             override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
                 return Futures.submit(java.util.concurrent.Callable<Bitmap> {
+                    val currentSong = runCatching {
+                        val mediaId = player.currentMediaItem?.mediaId?.toLongOrNull()
+                        if (mediaId != null) {
+                            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                                libraryDao.getSongByIdSync(mediaId)
+                            }
+                        } else null
+                    }.getOrNull()
+
                     val bmp: Bitmap? = com.example.looper_android.data.repository.ArtworkLoaderHelper.loadArtworkBitmap(
                         this@PlaybackService,
-                        uri.toString(),
-                        player.currentMediaItem?.localConfiguration?.uri?.toString()
+                        currentSong?.artPath ?: uri.toString(),
+                        currentSong?.path ?: player.currentMediaItem?.localConfiguration?.uri?.toString()
                     )
                     bmp ?: throw IllegalArgumentException("Could not load bitmap for $uri")
                 }, bitmapExecutor)

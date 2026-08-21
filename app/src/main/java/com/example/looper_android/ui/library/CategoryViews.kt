@@ -210,6 +210,9 @@ fun AlbumsScreen(
 
     val selectionBottomBar = com.example.looper_android.ui.components.LocalSelectionBottomBar.current
     val isAllSelected = selectedAlbums.isNotEmpty() && selectedAlbums.size == albums.size
+    val hazeState = com.example.looper_android.ui.widgets.LocalHazeState.current
+    val isBlurEnabled = com.example.looper_android.ui.widgets.LocalIsBlurEnabled.current
+    val isDarkTheme = androidx.compose.material3.MaterialTheme.colorScheme.background == Color.Black
 
     val singleDeleteLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -269,6 +272,7 @@ fun AlbumsScreen(
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+
                     onPlay = {
                         val songsToPlay = allSongs.filter { it.album != null && selectedAlbums.contains(it.album) }
                         if (songsToPlay.isNotEmpty()) {
@@ -1019,6 +1023,7 @@ fun ArtistsScreen(
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+
                     onPlay = {
                         val songsToPlay = allSongs.filter {
                             val effectiveArtist = it.albumArtist?.trim()?.ifBlank { null } ?: it.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
@@ -2188,6 +2193,7 @@ fun HistoryScreen(
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+
                     onPlay = {
                         val selectedSongs = historySongs.filter { selectedSongIds.contains(it.id) }
                         if (selectedSongs.isNotEmpty()) {
@@ -2459,6 +2465,7 @@ fun FavoritesScreen(
                 MultiSelectBottomBar(
                     isVisible = true,
                     accentColor = playbackState.accentColor,
+
                     onPlay = {
                         val selectedSongs = favoriteSongs.filter { selectedSongIds.contains(it.id) }
                         if (selectedSongs.isNotEmpty()) {

@@ -1,5 +1,14 @@
 package com.example.looper_android.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Shuffle
+
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
@@ -196,20 +205,26 @@ fun DashboardScreen(
     val disableBlur by settingsViewModel.disableBlur.collectAsState()
     val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
     val keepBackgroundGradient by settingsViewModel.keepBackgroundGradient.collectAsState()
+    val initialArtPath = remember { settingsViewModel.getInitialSongArtPath() }
     val currentSongArtPath = playbackState.currentSong?.artPath
+    val effectiveArtPath = currentSongArtPath ?: (if (dynamicTheming) initialArtPath else null)
     
     val animatedAccentColor by androidx.compose.animation.animateColorAsState(
         targetValue = playbackState.accentColor,
-        animationSpec = tween(durationMillis = 600),
+        animationSpec = tween(durationMillis = 350),
         label = "dashboardAccentAnim"
     )
 
     val hazeState = remember { dev.chrisbanes.haze.HazeState() }
     val selectionBottomBarState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
 
+    val isBlurEnabled = dynamicTheming && !disableBlur
+
     androidx.compose.runtime.CompositionLocalProvider(
         com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor,
-        com.example.looper_android.ui.components.LocalSelectionBottomBar provides selectionBottomBarState
+        com.example.looper_android.ui.components.LocalSelectionBottomBar provides selectionBottomBarState,
+        com.example.looper_android.ui.widgets.LocalHazeState provides hazeState,
+        com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides isBlurEnabled
     ) {
         Box(
             modifier = Modifier
@@ -221,12 +236,12 @@ fun DashboardScreen(
                     .background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
                     .haze(hazeState)
             ) {
-            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !currentSongArtPath.isNullOrEmpty()
+            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !effectiveArtPath.isNullOrEmpty()
             if (shouldShowBlurredArt) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     AsyncImage(
                         model = coil.request.ImageRequest.Builder(LocalContext.current)
-                            .data(currentSongArtPath)
+                            .data(effectiveArtPath)
                             .crossfade(true)
                             .build(),
                         contentDescription = null,
@@ -577,6 +592,41 @@ fun DashboardScreen(
                     )
                 )
         )
+
+
+
+        // FLOATING SHUFFLE BUTTON FOR ALL SONGS (Outside HorizontalPager for 100% stable live blur)
+        val isMiniPlayerVisible = playbackState.isSongReady && playbackState.currentSong != null
+        val fabBottomPadding = if (isMiniPlayerVisible) 185.dp else 118.dp
+
+        AnimatedVisibility(
+            visible = selectedTabIndex == 1 && !isSelectionActive && (currentRoute == "tabs" || currentRoute == null),
+            enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+            exit = fadeOut(tween(150)) + scaleOut(tween(150)),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(bottom = fabBottomPadding, end = 24.dp)
+        ) {
+            com.example.looper_android.ui.widgets.PremiumSection(
+                width = 48.dp,
+                height = 48.dp,
+                shape = CircleShape,
+                backgroundColor = if (effectiveDarkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E),
+                enableBlur = isBlurEnabled,
+                hazeState = hazeState,
+                onClick = {
+                    allSongsViewModel.shuffleAll()
+                }
+            ) {
+                Icon(
+                    imageVector = Lucide.Shuffle,
+                    contentDescription = "Shuffle",
+                    tint = playbackState.accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
 
         // PERSISTENT MINI PLAYER & NAVBAR (Always on top across all library items)
         Column(

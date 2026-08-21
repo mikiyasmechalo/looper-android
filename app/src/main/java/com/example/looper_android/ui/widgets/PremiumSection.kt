@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,6 +24,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
+
+val LocalHazeState = compositionLocalOf<HazeState?> { null }
+val LocalIsBlurEnabled = compositionLocalOf { false }
 
 @Composable
 fun PremiumSection(
@@ -47,7 +51,7 @@ fun PremiumSection(
     }
 
     val actualBgColor = if (enableBlur) {
-        if (backgroundColor == Color(0xFF2A2A2A) || backgroundColor == Color(0xFF1A1A1A)) {
+        if (backgroundColor == Color(0xFF2A2A2A) || backgroundColor == Color(0xFF1A1A1A) || backgroundColor == Color(0xFF1E1E1E) || backgroundColor == Color(0xFF0A0A0A)) {
             Color.White.copy(alpha = 0.08f)
         } else if (backgroundColor == androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant || backgroundColor == Color.White.copy(alpha = 0.05f)) {
             Color.White.copy(alpha = 0.05f) // Matches Flutter app's 5% white glass tint

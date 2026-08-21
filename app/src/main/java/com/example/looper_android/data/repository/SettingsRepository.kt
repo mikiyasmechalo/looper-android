@@ -84,7 +84,56 @@ class SettingsRepository @Inject constructor(
     private val syncPrefs = context.getSharedPreferences("settings_sync_cache", android.content.Context.MODE_PRIVATE)
 
     fun getInitialAccentColor(): Int {
-        return syncPrefs.getInt("cached_custom_accent_color", 0xFF55DF69.toInt())
+        val isDynamic = syncPrefs.getBoolean("cached_dynamic_accent_color_enabled", true)
+        val isDynamicTheming = syncPrefs.getBoolean("cached_dynamic_theming_enabled", false)
+        if (isDynamic || isDynamicTheming) {
+            val cachedDynamic = syncPrefs.getInt("cached_dynamic_accent_color", -1)
+            if (cachedDynamic != -1 && cachedDynamic != 0 && (cachedDynamic and 0xFF000000.toInt()) != 0) {
+                return cachedDynamic
+            }
+            val cachedLast = syncPrefs.getInt("cached_last_accent_color", -1)
+            if (cachedLast != -1 && cachedLast != 0 && (cachedLast and 0xFF000000.toInt()) != 0) {
+                return cachedLast
+            }
+        }
+        val cachedCustom = syncPrefs.getInt("cached_custom_accent_color", 0xFF55DF69.toInt())
+        if (cachedCustom != 0 && (cachedCustom and 0xFF000000.toInt()) != 0) {
+            return cachedCustom
+        }
+        return 0xFF55DF69.toInt()
+    }
+
+    fun getInitialSongArtPath(): String? {
+        return syncPrefs.getString("cached_last_song_art_path", null)
+    }
+
+    fun saveCachedAccentColor(color: Int, isDynamic: Boolean) {
+        if (color == 0 || (color and 0xFF000000.toInt()) == 0) return // Guard against transparent/0
+        if (isDynamic) {
+            syncPrefs.edit()
+                .putInt("cached_dynamic_accent_color", color)
+                .putInt("cached_last_accent_color", color)
+                .apply()
+        } else {
+            syncPrefs.edit()
+                .putInt("cached_custom_accent_color", color)
+                .putInt("cached_last_accent_color", color)
+                .apply()
+        }
+    }
+
+    fun saveCachedSongArtPath(artPath: String?) {
+        if (!artPath.isNullOrEmpty()) {
+            syncPrefs.edit().putString("cached_last_song_art_path", artPath).apply()
+        }
+    }
+
+    fun saveCachedDynamicAccentColorEnabled(enabled: Boolean) {
+        syncPrefs.edit().putBoolean("cached_dynamic_accent_color_enabled", enabled).apply()
+    }
+
+    fun saveCachedDynamicThemingEnabled(enabled: Boolean) {
+        syncPrefs.edit().putBoolean("cached_dynamic_theming_enabled", enabled).apply()
     }
 
     val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
@@ -93,7 +142,12 @@ class SettingsRepository @Inject constructor(
     val darkTheme: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DARK_THEME] ?: false }
     val customAccentColor: Flow<Int> =
         dataStore.data.map { prefs ->
-            prefs[Keys.CUSTOM_ACCENT_COLOR] ?: getInitialAccentColor()
+            val stored = prefs[Keys.CUSTOM_ACCENT_COLOR]
+            if (stored != null && stored != 0 && (stored and 0xFF000000.toInt()) != 0) {
+                stored
+            } else {
+                getInitialAccentColor()
+            }
         }
     val dynamicLyrics: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_LYRICS] ?: true }
     val blurredArtworkForLyrics: Flow<Boolean> =
@@ -177,6 +231,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setDynamicTheming(value: Boolean) {
+        saveCachedDynamicThemingEnabled(value)
         dataStore.edit { prefs -> prefs[Keys.DYNAMIC_THEMING] = value }
     }
 
@@ -185,6 +240,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setDynamicAccentColor(value: Boolean) {
+        saveCachedDynamicAccentColorEnabled(value)
         dataStore.edit { prefs -> prefs[Keys.DYNAMIC_ACCENT_COLOR] = value }
     }
 

@@ -241,9 +241,8 @@ class PlaybackViewModel @Inject constructor(
                         context.imageLoader.enqueue(request)
                     }
 
-                    // Calculate quality and accent color once in background
-                    launch {
-                        kotlinx.coroutines.delay(300)
+                    // Calculate quality and accent color in background
+                    launch(Dispatchers.Default) {
                         val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
                         val dynamicTheming = settingsRepository.dynamicTheming.first()
                         val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
@@ -341,12 +340,21 @@ class PlaybackViewModel @Inject constructor(
                 Triple(dynamicTheming, dynamicAccentColor, customAccentColorInt)
             }.collectLatest { (dynamicTheming, dynamicAccentColor, customAccentColorInt) ->
                 val song = _playbackState.value.currentSong
-                if (song != null && (dynamicTheming || dynamicAccentColor)) {
-                    val extracted = extractAccentColor(song)
-                    _playbackState.value = _playbackState.value.copy(accentColor = extracted)
+                val targetColor = if (dynamicTheming || dynamicAccentColor) {
+                    if (song != null) {
+                        extractAccentColor(song)
+                    } else {
+                        Color(settingsRepository.getInitialAccentColor())
+                    }
                 } else {
-                    _playbackState.value = _playbackState.value.copy(accentColor = Color(customAccentColorInt))
+                    val safeInt = if (customAccentColorInt != 0 && (customAccentColorInt and 0xFF000000.toInt()) != 0) {
+                        customAccentColorInt
+                    } else {
+                        settingsRepository.getInitialAccentColor()
+                    }
+                    Color(safeInt)
                 }
+                _playbackState.value = _playbackState.value.copy(accentColor = ensureValidAccentColor(targetColor))
             }
         }
     }
@@ -423,11 +431,30 @@ class PlaybackViewModel @Inject constructor(
                 fallbackColor
             }
 
-            return ensureVibrantAccentColor(rawColor)
+            val finalColor = ensureVibrantAccentColor(rawColor)
+            try {
+                val a = (finalColor.alpha.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                val r = (finalColor.red.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                val g = (finalColor.green.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                val b = (finalColor.blue.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                val argb = (a shl 24) or (r shl 16) or (g shl 8) or b
+                settingsRepository.saveCachedAccentColor(argb, isDynamic = true)
+                settingsRepository.saveCachedSongArtPath(song.artPath)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            return finalColor
         } catch (e: Exception) {
             e.printStackTrace()
             return fallbackColor
         }
+    }
+
+    private fun ensureValidAccentColor(color: Color): Color {
+        if (color == Color.Transparent || color.alpha < 0.1f) {
+            return Color(settingsRepository.getInitialAccentColor())
+        }
+        return ensureVibrantAccentColor(color.copy(alpha = 1f))
     }
 
     private fun ensureVibrantAccentColor(rawColor: Color): Color {
