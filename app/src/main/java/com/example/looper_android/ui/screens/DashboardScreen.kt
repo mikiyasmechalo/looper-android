@@ -1,17 +1,9 @@
 package com.example.looper_android.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Shuffle
-
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -20,6 +12,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -28,7 +22,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -37,10 +30,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,8 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import coil.compose.AsyncImage
-import dev.chrisbanes.haze.haze
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -69,21 +63,25 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import coil.compose.AsyncImage
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Shuffle
 import com.example.looper_android.ui.components.PremiumNavbar
-import com.example.looper_android.ui.library.AllSongsScreen
 import com.example.looper_android.ui.library.AlbumsScreen
+import com.example.looper_android.ui.library.AllSongsScreen
 import com.example.looper_android.ui.library.ArtistsScreen
 import com.example.looper_android.ui.library.CollectionDetailScreen
 import com.example.looper_android.ui.library.FavoritesScreen
 import com.example.looper_android.ui.library.FoldersScreen
 import com.example.looper_android.ui.library.GenresScreen
 import com.example.looper_android.ui.library.HistoryScreen
+import com.example.looper_android.ui.library.NotPlayedScreen
 import com.example.looper_android.ui.library.PlaylistsScreen
 import com.example.looper_android.ui.library.RecentlyAddedScreen
-import com.example.looper_android.ui.library.NotPlayedScreen
-import com.example.looper_android.ui.search.SearchScreen
 import com.example.looper_android.ui.screens.tabs.HomeTab
 import com.example.looper_android.ui.screens.tabs.LibraryTab
+import com.example.looper_android.ui.search.SearchScreen
+import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 
 // Material Shared Axis Horizontal Transitions (Matches Flutter 1-to-1)

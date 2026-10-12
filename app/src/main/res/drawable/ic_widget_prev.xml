@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Rounded triangle -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M18,5.5 C18,4.7 17.1,4.2 16.4,4.7 L8.8,11.2 C8.25,11.6 8.25,12.4 8.8,12.8 L16.4,19.3 C17.1,19.8 18,19.3 18,18.5 Z" />
+    <!-- Rounded bar -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M5,5.5 L5,18.5" />
+</vector>

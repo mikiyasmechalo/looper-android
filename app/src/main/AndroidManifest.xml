@@ -30,12 +30,22 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustNothing"
             android:theme="@style/Theme.Looperandroid">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.widgets.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Looperandroid">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
 
@@ -61,6 +71,7 @@
         <!-- Glance App Widgets -->
         <receiver
             android:name=".ui.widgets.FullAlbumArtWidgetReceiver"
+            android:label="@string/widget_full_art_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -72,6 +83,7 @@
 
         <receiver
             android:name=".ui.widgets.CompactWidgetReceiver"
+            android:label="@string/widget_compact_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -83,6 +95,7 @@
 
         <receiver
             android:name=".ui.widgets.LyricsWidgetReceiver"
+            android:label="@string/widget_lyrics_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -90,6 +103,17 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/lyrics_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".ui.widgets.SquareProgressWidgetReceiver"
+            android:label="@string/widget_square_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/square_progress_widget_info" />
         </receiver>
     </application>
 

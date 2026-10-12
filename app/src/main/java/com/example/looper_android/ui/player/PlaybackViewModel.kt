@@ -1,4 +1,5 @@
 package com.example.looper_android.ui.player
+import com.example.looper_android.ui.widgets.WidgetStateRepository
 import kotlinx.coroutines.withContext
 
 import android.content.Context
@@ -65,7 +66,8 @@ class PlaybackViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
     private val queueManager: com.example.looper_android.domain.QueueManager,
     private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository,
-    private val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
+    private val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager,
+    private val lyricsFetcher: com.example.looper_android.data.repository.LyricsFetcher
 ) : ViewModel() {
 
     private val _playbackState = MutableStateFlow(
@@ -250,6 +252,14 @@ class PlaybackViewModel @Inject constructor(
                         context.imageLoader.enqueue(request)
                     }
 
+                    // Proactively load lyrics in background for widgets & instant display
+                    launch(Dispatchers.IO) {
+                        val fetched = lyricsFetcher.fetchLyrics(targetSong)
+                        if (!fetched.isNullOrBlank()) {
+                            WidgetStateRepository.updateLyrics(context, targetSong.id, fetched)
+                        }
+                    }
+
                     // Calculate quality and accent color in background
                     launch(Dispatchers.Default) {
                         val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
@@ -306,6 +316,33 @@ class PlaybackViewModel @Inject constructor(
 
     init {
         player.addListener(playerListener)
+
+        // Real-time Widget State Synchronizer
+        viewModelScope.launch {
+            _playbackState.collectLatest { state ->
+                val currentSong = state.currentSong
+                val isPlaying = state.isPlaying
+                val pos = _currentPosition.value
+                val dur = state.duration
+                val accent = state.accentColor
+                val accentInt = try {
+                    val a = (accent.alpha.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                    val r = (accent.red.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                    val g = (accent.green.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                    val b = (accent.blue.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                    (a shl 24) or (r shl 16) or (g shl 8) or b
+                } catch (_: Exception) { 0 }
+
+                WidgetStateRepository.updateState(
+                    context = context,
+                    song = currentSong,
+                    isPlaying = isPlaying,
+                    positionMs = pos,
+                    durationMs = dur,
+                    accentColorInt = accentInt
+                )
+            }
+        }
 
         viewModelScope.launch {
             settingsRepository.skipSilence.collectLatest { enabled ->

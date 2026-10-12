@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">looper-android</string>
+
+    <string name="widget_compact_name">Compact Player (1x4)</string>
+    <string name="widget_compact_desc">Compact bar with album artwork and playback controls</string>
+
+    <string name="widget_full_art_name">Full Artwork Player</string>
+    <string name="widget_full_art_desc">Full-bleed artwork background with ambient player controls</string>
+
+    <string name="widget_lyrics_name">Synced Lyrics Player</string>
+    <string name="widget_lyrics_desc">Real-time scrolling lyrics window with mini player bar</string>
+
+    <string name="widget_square_name">Square Player (2x2)</string>
+    <string name="widget_square_desc">Square music card with album art and playback controls</string>
 </resources>

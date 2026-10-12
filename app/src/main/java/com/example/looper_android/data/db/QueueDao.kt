@@ -12,6 +12,12 @@ interface QueueDao {
     @Query("SELECT * FROM queues ORDER BY isPermanent DESC, id ASC")
     fun getAllQueues(): Flow<List<QueueEntity>>
 
+    @Query("SELECT * FROM queues WHERE id = :queueId LIMIT 1")
+    suspend fun getQueueById(queueId: Long): QueueEntity?
+
+    @Query("SELECT * FROM queue_items WHERE queueId = :queueId ORDER BY positionInQueue ASC")
+    suspend fun getQueueItemsList(queueId: Long): List<QueueItemEntity>
+
     @Query("SELECT * FROM queues WHERE name = :name LIMIT 1")
     suspend fun getQueueByName(name: String): QueueEntity?
 

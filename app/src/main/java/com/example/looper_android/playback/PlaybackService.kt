@@ -25,6 +25,7 @@ import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.repository.EqualizerRepository
 import com.example.looper_android.data.repository.SettingsRepository
 import com.example.looper_android.domain.QueueManager
+import com.example.looper_android.ui.widgets.WidgetStateRepository
 import com.example.looper_android.playback.equalizer.AudioDeviceDetector
 import com.example.looper_android.playback.equalizer.AudioOutputDeviceType
 import com.example.looper_android.playback.equalizer.dsp.CustomEqualizerAudioProcessor
@@ -35,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -62,6 +64,9 @@ class PlaybackService : MediaSessionService() {
 
     @Inject
     lateinit var equalizerAudioProcessor: CustomEqualizerAudioProcessor
+
+    @Inject
+    lateinit var lyricsFetcher: com.example.looper_android.data.repository.LyricsFetcher
 
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main)
@@ -150,13 +155,47 @@ class PlaybackService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // Read Player properties strictly on the Main thread
             val currentMediaId = mediaItem?.mediaId?.toLongOrNull()
-            if (currentMediaId != null) {
-                serviceScope.launch(Dispatchers.IO) {
-                    val song = libraryDao.getSongByIdSync(currentMediaId)
-                    val isFav = song?.isFavorite ?: false
-                    serviceScope.launch(Dispatchers.Main) {
-                        updateNotificationButtons(isFav)
+            val isPlaying = player.isPlaying
+            val position = player.currentPosition
+            val duration = player.duration.coerceAtLeast(0)
+
+            serviceScope.launch(Dispatchers.IO) {
+                val song = if (currentMediaId != null) libraryDao.getSongByIdSync(currentMediaId) else null
+                val isFav = song?.isFavorite ?: false
+                serviceScope.launch(Dispatchers.Main) {
+                    updateNotificationButtons(isFav)
+                }
+                WidgetStateRepository.updateState(
+                    context = this@PlaybackService,
+                    song = song,
+                    isPlaying = isPlaying,
+                    positionMs = position,
+                    durationMs = duration
+                )
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            // Read Player properties strictly on the Main thread
+            val currentMediaId = player.currentMediaItem?.mediaId?.toLongOrNull()
+            val position = player.currentPosition
+            val duration = player.duration.coerceAtLeast(0)
+
+            serviceScope.launch(Dispatchers.IO) {
+                val song = if (currentMediaId != null) libraryDao.getSongByIdSync(currentMediaId) else null
+                WidgetStateRepository.updateState(
+                    context = this@PlaybackService,
+                    song = song,
+                    isPlaying = isPlaying,
+                    positionMs = position,
+                    durationMs = duration
+                )
+                if (song != null && song.lyrics.isNullOrBlank()) {
+                    val fetched = lyricsFetcher.fetchLyrics(song)
+                    if (!fetched.isNullOrBlank()) {
+                        WidgetStateRepository.updateLyrics(this@PlaybackService, song.id, fetched)
                     }
                 }
             }
@@ -305,6 +344,19 @@ class PlaybackService : MediaSessionService() {
                         virtualizerPercent = profile.virtualizer
                     )
                 }
+            }
+        }
+
+        // Real-Time Widget Lyrics Sync Ticker
+        serviceScope.launch(Dispatchers.Main) {
+            while (true) {
+                try {
+                    if (player.isPlaying) {
+                        val position = player.currentPosition
+                        WidgetStateRepository.updatePosition(this@PlaybackService, position)
+                    }
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(350L)
             }
         }
 
