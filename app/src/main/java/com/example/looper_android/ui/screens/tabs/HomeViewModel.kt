@@ -42,7 +42,8 @@ class HomeViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val libraryDao: LibraryDao,
     private val queueManager: QueueManager,
-    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
+    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager,
+    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE)
@@ -60,8 +61,9 @@ class HomeViewModel @Inject constructor(
         combine(
             libraryDao.getAllSongs(),
             libraryDao.getAllAlbums(),
-            libraryDao.getAllArtists()
-        ) { songs, albums, artists ->
+            libraryDao.getAllArtists(),
+            settingsRepository.showUnknownGenre
+        ) { songs, albums, artists, showUnknownGenre ->
             if (songs.isEmpty()) {
                 return@combine HomeUiState(isLoading = false)
             }
@@ -148,17 +150,21 @@ class HomeViewModel @Inject constructor(
                 albumScoreMap[album.name] ?: 0
             }
 
-            // 5. Genres: Group by genre (filtering out unknown/blank) and sort by track count DESC
+            // 5. Genres: Group by genre (filtering out unknown/blank or grouping under "Unknown Genre" if setting enabled) and sort by track count DESC
             val genresMap = mutableMapOf<String, MutableList<SongEntity>>()
             for (song in songs) {
                 val rawGenre = song.genre?.trim()
-                if (!rawGenre.isNullOrBlank() &&
-                    !rawGenre.equals("unknown", ignoreCase = true) &&
-                    !rawGenre.equals("unknown genre", ignoreCase = true) &&
-                    !rawGenre.equals("<unknown>", ignoreCase = true) &&
-                    !rawGenre.equals("null", ignoreCase = true) &&
-                    !rawGenre.equals("undefined", ignoreCase = true)) {
-                    genresMap.getOrPut(rawGenre) { mutableListOf() }.add(song)
+                val isUnknown = rawGenre.isNullOrBlank() ||
+                    rawGenre.equals("unknown", ignoreCase = true) ||
+                    rawGenre.equals("unknown genre", ignoreCase = true) ||
+                    rawGenre.equals("<unknown>", ignoreCase = true) ||
+                    rawGenre.equals("null", ignoreCase = true) ||
+                    rawGenre.equals("undefined", ignoreCase = true)
+
+                if (!isUnknown) {
+                    genresMap.getOrPut(rawGenre!!) { mutableListOf() }.add(song)
+                } else if (showUnknownGenre) {
+                    genresMap.getOrPut("Unknown Genre") { mutableListOf() }.add(song)
                 }
             }
 

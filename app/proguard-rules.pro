@@ -5,17 +5,23 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# jaudiotagger rules (Desktop Java classes not present on Android)
+-dontwarn java.awt.**
+-dontwarn javax.imageio.**
+-dontwarn javax.swing.**
+-keep class org.jaudiotagger.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Media3 / Glance / WorkManager rules
+-keep class androidx.glance.** { *; }
+-keep interface androidx.glance.** { *; }
+-keep class * implements androidx.glance.appwidget.action.ActionCallback {
+    <init>();
+    *;
+}
+-keep class com.example.looper_android.ui.widgets.** { *; }
+-keep class androidx.work.** { *; }
+-keep interface androidx.work.** { *; }
+-keep class * extends androidx.work.Worker { *; }
+-keep class * extends androidx.work.ListenableWorker { *; }
+-keep class * extends androidx.work.InputMerger { *; }
+-keep class androidx.media3.** { *; }

@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -249,9 +252,13 @@ fun SearchScreen(
                 )
             }
         } else {
+            val isMiniPlayerVisible = playbackState.isSongReady && playbackState.currentSong != null
+            val bottomInsets = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val bottomPadding = if (isMiniPlayerVisible) (200.dp + bottomInsets) else (140.dp + bottomInsets)
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 120.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = bottomPadding)
             ) {
                 // Top Result
                 results.topResult?.let { topResult ->

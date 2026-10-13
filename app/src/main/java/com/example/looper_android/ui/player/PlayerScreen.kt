@@ -36,7 +36,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -139,14 +141,57 @@ fun PlayerScreen(
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
 
+    LaunchedEffect(song, state.isSongReady) {
+        if (song == null && state.isSongReady) {
+            onBack()
+        }
+    }
+
     if (song == null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(androidx.compose.material3.MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
-            Text("No song playing", color = Color.White, fontFamily = DmSansFontFamily)
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Lucide.ChevronDown,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
+            }
+
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (!state.isSongReady) {
+                    CircularProgressIndicator(
+                        color = state.accentColor,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Loading player...",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontFamily = DmSansFontFamily
+                    )
+                } else {
+                    Text(
+                        text = "No song playing",
+                        color = Color.White,
+                        fontFamily = DmSansFontFamily
+                    )
+                }
+            }
         }
         return
     }
@@ -864,7 +909,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(0.6f))
 
                 // 2. Large Album Art with Gestures (Morphs from Mini Player album artwork)
                 val currentIdx = remember(state.queue, song.id) {
@@ -1015,7 +1060,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.weight(0.85f))
 
                 // 4. Seek Bar
                 Box(
@@ -1070,7 +1115,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // 5. Main Playback Control Row (Height 80dp, Prev/Next 16dp, Play/Pause 22dp)
                 Row(
@@ -1283,7 +1328,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }

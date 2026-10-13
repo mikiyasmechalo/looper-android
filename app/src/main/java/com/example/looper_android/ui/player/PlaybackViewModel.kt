@@ -172,10 +172,11 @@ class PlaybackViewModel @Inject constructor(
                 )
 
                 val resolvedDuration = player.duration.coerceAtLeast(0)
-                _currentPosition.value = 0L
+                val currentPos = player.currentPosition.coerceAtLeast(0L)
+                _currentPosition.value = currentPos
                 _playbackState.value = _playbackState.value.copy(
                     currentSong = instantSong,
-                    position = 0L,
+                    position = currentPos,
                     // Only overwrite duration when ExoPlayer has actually resolved it.
                     // If it is still TIME_UNSET (coerced to 0), keep the old value so the
                     // slider stays at 0% instead of briefly snapping to 100% (0/0 edge case).
@@ -373,6 +374,62 @@ class PlaybackViewModel @Inject constructor(
         val initialItem = player.currentMediaItem
         if (initialItem != null && player.playbackState != Player.STATE_IDLE) {
             playerListener.onMediaItemTransition(initialItem, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+            val songs = queueManager.workingSongs
+            val currentIdx = player.currentMediaItemIndex.coerceAtLeast(0)
+            val activeSong = if (currentIdx in songs.indices) songs[currentIdx] else songs.firstOrNull()
+            if (activeSong != null) {
+                _playbackState.value = _playbackState.value.copy(
+                    queue = songs,
+                    currentSong = activeSong,
+                    isSongReady = true
+                )
+            }
+        } else {
+            // Cold start or process resurrection: restore last played queue and song
+            viewModelScope.launch {
+                val restored = queueManager.restoreLastQueueAwait()
+                if (restored) {
+                    val currentIdx = player.currentMediaItemIndex.coerceAtLeast(0)
+                    val songs = queueManager.workingSongs
+                    val activeSong = if (currentIdx in songs.indices) songs[currentIdx] else songs.firstOrNull()
+                    val currentPos = player.currentPosition.coerceAtLeast(0L)
+                    val songDur = (activeSong?.duration?.toLong() ?: 0L).coerceAtLeast(player.duration.coerceAtLeast(0L))
+                    _currentPosition.value = currentPos
+                    _playbackState.value = _playbackState.value.copy(
+                        queue = songs,
+                        currentSong = activeSong,
+                        position = currentPos,
+                        duration = songDur,
+                        isSongReady = true,
+                        isPlaying = player.isPlaying,
+                        activeQueueId = queueManager.activeQueueId.value,
+                        activeQueueName = queueManager.activeQueueName.value,
+                        isShuffle = queueManager.isShuffleEnabled.value
+                    )
+                    if (activeSong != null) {
+                        viewModelScope.launch(Dispatchers.Default) {
+                            val dbQualityText = AudioQualityAnalyzer.getQualityString(activeSong.path)
+                            val dynamicTheming = settingsRepository.dynamicTheming.first()
+                            val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
+                            val customAccentColorInt = settingsRepository.customAccentColor.first()
+                            val accent = if (dynamicTheming || dynamicAccentColor) {
+                                extractAccentColor(activeSong)
+                            } else {
+                                Color(customAccentColorInt)
+                            }
+
+                            if (_playbackState.value.currentSong?.id == activeSong.id) {
+                                _playbackState.value = _playbackState.value.copy(
+                                    audioQualityText = dbQualityText,
+                                    accentColor = accent
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    _playbackState.value = _playbackState.value.copy(isSongReady = true)
+                }
+            }
         }
         updatePlaybackState()
 
@@ -602,7 +659,26 @@ class PlaybackViewModel @Inject constructor(
             _currentPosition.value = pos
             _playbackState.value = _playbackState.value.copy(isPlaying = false, position = pos)
         } else {
+            if (player.mediaItemCount == 0) {
+                viewModelScope.launch {
+                    val restored = queueManager.restoreLastQueueAwait()
+                    if (restored) {
+                        com.example.looper_android.playback.PlaybackService.start(context)
+                        (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
+                        player.prepare()
+                        player.play()
+                    }
+                }
+                return
+            }
+            com.example.looper_android.playback.PlaybackService.start(context)
             (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
+            if (player.playbackState == Player.STATE_IDLE) {
+                player.prepare()
+            } else if (player.playbackState == Player.STATE_ENDED) {
+                player.seekTo(0, 0L)
+                player.prepare()
+            }
             player.play()
         }
     }
@@ -612,7 +688,14 @@ class PlaybackViewModel @Inject constructor(
             pendingTransition = true
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
+            com.example.looper_android.playback.PlaybackService.start(context)
+            if (player.playbackState == Player.STATE_IDLE) {
+                player.prepare()
+            }
             player.seekToNextMediaItem()
+            if (!player.playWhenReady) {
+                player.play()
+            }
         } else if (currentRepeatMode == RepeatMode.NEXT_QUEUE) {
             playNextQueue()
         }
@@ -622,10 +705,17 @@ class PlaybackViewModel @Inject constructor(
         pendingTransition = true
         _currentPosition.value = 0L
         _playbackState.value = _playbackState.value.copy(position = 0L)
+        com.example.looper_android.playback.PlaybackService.start(context)
+        if (player.playbackState == Player.STATE_IDLE) {
+            player.prepare()
+        }
         if (player.hasPreviousMediaItem()) {
             player.seekToPreviousMediaItem()
         } else {
             player.seekTo(0L)
+        }
+        if (!player.playWhenReady) {
+            player.play()
         }
     }
 
@@ -633,11 +723,18 @@ class PlaybackViewModel @Inject constructor(
         val target = positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L))
         _currentPosition.value = target
         _playbackState.value = _playbackState.value.copy(position = target)
+        if (player.playbackState == Player.STATE_IDLE) {
+            player.prepare()
+        }
         player.seekTo(target)
     }
 
     fun skipToQueueItem(index: Int) {
         if (index in 0 until player.mediaItemCount) {
+            com.example.looper_android.playback.PlaybackService.start(context)
+            if (player.playbackState == Player.STATE_IDLE) {
+                player.prepare()
+            }
             if (player.currentMediaItemIndex == index && player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
                 if (!player.playWhenReady) {
                     player.play()
@@ -647,6 +744,7 @@ class PlaybackViewModel @Inject constructor(
             _currentPosition.value = 0L
             _playbackState.value = _playbackState.value.copy(position = 0L)
             player.seekToDefaultPosition(index)
+            player.prepare()
             if (!player.playWhenReady) {
                 player.play()
             }

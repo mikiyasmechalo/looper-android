@@ -2843,6 +2843,64 @@ fun FavoritesScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (!isSelectionMode && favoriteSongs.isNotEmpty()) {
+                    item(key = "header_play_shuffle_row") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(playbackState.accentColor)
+                                    .clickable {
+                                        playbackViewModel.setPlaylist(
+                                            favoriteSongs,
+                                            initialIndex = 0,
+                                            disableShuffleMode = true,
+                                            queueName = "Favorites"
+                                        )
+                                    }
+                                    .padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Lucide.Play, contentDescription = null, tint = Color.Black, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Play All", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily, fontSize = 14.sp)
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable {
+                                        playbackViewModel.setPlaylist(
+                                            favoriteSongs.shuffled(),
+                                            initialIndex = 0,
+                                            disableShuffleMode = false,
+                                            queueName = "Favorites (Shuffle)"
+                                        )
+                                    }
+                                    .padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Lucide.Shuffle, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Shuffle", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 itemsIndexed(favoriteSongs, key = { _, song -> song.id }) { index, song ->
                     val isCurrent = playbackState.currentSong?.path == song.path
                     val isSelected = selectedSongIds.contains(song.id)

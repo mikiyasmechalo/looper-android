@@ -70,12 +70,24 @@ class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main)
-    private val bitmapExecutor = Executors.newFixedThreadPool(2)
+    private var bitmapExecutor = Executors.newFixedThreadPool(2)
     private var wasPausedByDisconnect = false
 
     companion object {
         const val ACTION_FAVORITE = "com.example.looper_android.ACTION_FAVORITE"
         const val ACTION_CLOSE = "com.example.looper_android.ACTION_CLOSE"
+
+        fun start(context: Context) {
+            try {
+                val intent = Intent(context, PlaybackService::class.java)
+                context.startService(intent)
+            } catch (_: Exception) {
+                try {
+                    val intent = Intent(context, PlaybackService::class.java)
+                    androidx.core.content.ContextCompat.startForegroundService(context, intent)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     private val favoriteCommand = SessionCommand(ACTION_FAVORITE, Bundle.EMPTY)
@@ -205,6 +217,10 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        if (bitmapExecutor.isShutdown) {
+            bitmapExecutor = Executors.newFixedThreadPool(2)
+        }
+
         val bitmapLoader = object : BitmapLoader {
             override fun supportsMimeType(mimeType: String): Boolean = true
 
@@ -318,7 +334,9 @@ class PlaybackService : MediaSessionService() {
                 (player as? ExoPlayer)?.skipSilenceEnabled = enabled
             }
         }
-        queueManager.restoreLastQueue()
+        if (player.mediaItemCount == 0) {
+            queueManager.restoreLastQueue()
+        }
 
         val filter = IntentFilter().apply {
             addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -421,8 +439,10 @@ class PlaybackService : MediaSessionService() {
         player.removeListener(playerListener)
         bitmapExecutor.shutdown()
         queueManager.saveCurrentStateSync()
+        try {
+            player.pause()
+        } catch (_: Exception) {}
         mediaSession?.run {
-            player.release()
             release()
         }
         mediaSession = null

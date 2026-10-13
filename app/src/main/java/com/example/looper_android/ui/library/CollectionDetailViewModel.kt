@@ -406,8 +406,18 @@ class CollectionDetailViewModel @Inject constructor(
                 }
             }
             "genre" -> allSongs.filter {
-                val effectiveGenre = it.genre?.trim()?.ifBlank { null } ?: "Unknown"
-                effectiveGenre.equals(title, ignoreCase = true)
+                val raw = it.genre?.trim()?.ifBlank { null }
+                val isUnknown = raw == null ||
+                    raw.equals("unknown", ignoreCase = true) ||
+                    raw.equals("unknown genre", ignoreCase = true) ||
+                    raw.equals("<unknown>", ignoreCase = true) ||
+                    raw.equals("null", ignoreCase = true) ||
+                    raw.equals("undefined", ignoreCase = true)
+                if (title.equals("Unknown Genre", ignoreCase = true) || title.equals("Unknown", ignoreCase = true)) {
+                    isUnknown
+                } else {
+                    raw?.equals(title, ignoreCase = true) == true
+                }
             }
             "folder" -> allSongs.filter {
                 val parentName = java.io.File(it.path).parentFile?.name ?: ""

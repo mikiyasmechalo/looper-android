@@ -1139,7 +1139,10 @@ private fun EffectSliderRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
@@ -1147,30 +1150,36 @@ private fun EffectSliderRow(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = title,
                         color = Color.White,
                         fontFamily = JostFontFamily,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.5.sp
+                        fontSize = 14.5.sp,
+                        maxLines = 1
                     )
                     if (subtitle != null) {
                         Text(
                             text = subtitle,
                             color = Color.White.copy(alpha = 0.45f),
                             fontFamily = JostFontFamily,
-                            fontSize = 11.5.sp
+                            fontSize = 11.5.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = valueText,
                 color = if (isEnabled) accentColor else Color.White.copy(alpha = 0.40f),
                 fontFamily = JostFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp
+                fontSize = 13.5.sp,
+                maxLines = 1,
+                softWrap = false
             )
         }
 

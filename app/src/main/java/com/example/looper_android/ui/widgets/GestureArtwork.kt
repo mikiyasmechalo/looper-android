@@ -140,7 +140,13 @@ fun GestureArtwork(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1f),
+            .aspectRatio(1f)
+            .sharedBoundsOrElement(
+                key = "album_art",
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+                clipShape = RoundedCornerShape(24.dp)
+            ),
         contentAlignment = Alignment.Center
     ) {
         HorizontalPager(
@@ -182,16 +188,6 @@ fun GestureArtwork(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(24.dp))
-                        .then(
-                            if (page == safeCurrentIndex) {
-                                Modifier.sharedBoundsOrElement(
-                                    key = "album_art",
-                                    sharedTransitionScope = sharedTransitionScope,
-                                    animatedVisibilityScope = animatedVisibilityScope,
-                                    clipShape = RoundedCornerShape(24.dp)
-                                )
-                            } else Modifier
-                        )
                 ) {
                     OptimizedImage(
                         url = pageSong.artPath,

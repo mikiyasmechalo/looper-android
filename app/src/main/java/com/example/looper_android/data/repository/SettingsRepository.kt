@@ -50,6 +50,7 @@ class SettingsRepository @Inject constructor(
         val SHOW_HOME_ARTISTS = booleanPreferencesKey("show_home_artists")
         val SHOW_HOME_ALBUMS = booleanPreferencesKey("show_home_albums")
         val SHOW_HOME_GENRES = booleanPreferencesKey("show_home_genres")
+        val SHOW_UNKNOWN_GENRE = booleanPreferencesKey("show_unknown_genre")
         val HOME_SECTIONS_ORDER = stringPreferencesKey("home_sections_order")
         val SHOW_CARD_PLAY_BUTTON = booleanPreferencesKey("show_card_play_button")
         val SHOW_CARD_OPTIONS_BUTTON = booleanPreferencesKey("show_card_options_button")
@@ -213,6 +214,7 @@ class SettingsRepository @Inject constructor(
     val showHomeArtists: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ARTISTS] ?: true }
     val showHomeAlbums: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_ALBUMS] ?: true }
     val showHomeGenres: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_HOME_GENRES] ?: true }
+    val showUnknownGenre: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_UNKNOWN_GENRE] ?: false }
     val homeSectionsOrder: Flow<List<String>> = dataStore.data.map { prefs ->
         val raw = prefs[Keys.HOME_SECTIONS_ORDER]
         if (raw.isNullOrBlank()) {
@@ -450,6 +452,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setShowHomeGenres(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.SHOW_HOME_GENRES] = value }
+    }
+
+    suspend fun setShowUnknownGenre(value: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.SHOW_UNKNOWN_GENRE] = value }
     }
 
     suspend fun setHomeSectionsOrder(order: List<String>) {

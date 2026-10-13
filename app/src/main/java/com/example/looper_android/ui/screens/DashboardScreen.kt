@@ -110,7 +110,7 @@ private val categoryPopExitTransition = slideOutHorizontally(
 fun DashboardScreen(
     navController: NavController,
     sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    dashboardAnimatedVisibilityScope: AnimatedVisibilityScope? = null,
     playbackViewModel: com.example.looper_android.ui.player.PlaybackViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -612,7 +612,8 @@ fun DashboardScreen(
                     categoryId = catId,
                     title = title,
                     onBackClick = { childNavController.popBackStack() },
-                    accentColor = playbackState.accentColor
+                    accentColor = playbackState.accentColor,
+                    onNavigateToEqualizer = { navController.navigate("equalizer") }
                 )
             }
         }
@@ -709,7 +710,7 @@ fun DashboardScreen(
                         viewModel = playbackViewModel,
                         onNavigateToPlayer = { navController.navigate("player") },
                         sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = animatedVisibilityScope,
+                        animatedVisibilityScope = dashboardAnimatedVisibilityScope,
                         enableBlur = isBlurEnabled,
                         hazeState = hazeState,
                         darkTheme = effectiveDarkTheme
@@ -738,7 +739,7 @@ fun DashboardScreen(
                 },
                 accentColor = playbackState.accentColor,
                 sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope,
+                animatedVisibilityScope = dashboardAnimatedVisibilityScope,
                 enableBlur = isBlurEnabled,
                 hazeState = hazeState,
                 darkTheme = effectiveDarkTheme

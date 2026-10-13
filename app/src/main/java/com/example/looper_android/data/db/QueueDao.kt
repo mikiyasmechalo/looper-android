@@ -36,6 +36,12 @@ interface QueueDao {
     @Query("DELETE FROM queue_items WHERE queueId = :queueId")
     suspend fun deleteQueueItems(queueId: Long)
 
+    @Query("DELETE FROM queue_items WHERE uri LIKE :pathPrefix || '%' OR uri LIKE 'file://' || :pathPrefix || '%'")
+    suspend fun deleteQueueItemsByPathPrefix(pathPrefix: String): Int
+
+    @Query("DELETE FROM queues WHERE id NOT IN (SELECT DISTINCT queueId FROM queue_items) AND isPermanent = 0")
+    suspend fun deleteEmptyUserQueues(): Int
+
     @Transaction
     suspend fun deleteQueueWithItems(queueId: Long) {
         deleteQueueItems(queueId)

@@ -95,6 +95,7 @@ import com.composables.icons.lucide.ShieldCheck
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.User
+import com.composables.icons.lucide.Tag
 import com.composables.icons.lucide.X
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,7 +110,8 @@ fun SettingsCategoryScreen(
     categoryId: String,
     title: String,
     onBackClick: () -> Unit,
-    accentColor: Color = BrandAccent
+    accentColor: Color = BrandAccent,
+    onNavigateToEqualizer: () -> Unit = {}
 ) {
     var activeSubScreen by remember { mutableStateOf<String?>(null) }
 
@@ -186,7 +188,7 @@ fun SettingsCategoryScreen(
             } else if (categoryId == "playback") {
                 item { LanguageAndServicesSection(accentColor = accentColor) }
             } else if (categoryId == "audio_playback") {
-                item { AudioPlaybackSettingsSection(accentColor = accentColor) }
+                item { AudioPlaybackSettingsSection(accentColor = accentColor, onNavigateToEqualizer = onNavigateToEqualizer) }
             } else if (categoryId == "backup_restore") {
                 item { BackupRestoreSettingsSection(accentColor = accentColor) }
             } else if (categoryId == "library") {
@@ -588,6 +590,7 @@ private fun DashboardSettingsSection(
     val showHomeArtists by viewModel.showHomeArtists.collectAsState()
     val showHomeAlbums by viewModel.showHomeAlbums.collectAsState()
     val showHomeGenres by viewModel.showHomeGenres.collectAsState()
+    val showUnknownGenre by viewModel.showUnknownGenre.collectAsState()
     val homeSectionsOrder by viewModel.homeSectionsOrder.collectAsState()
     var showReorderDialog by remember { mutableStateOf(false) }
 
@@ -629,6 +632,17 @@ private fun DashboardSettingsSection(
         onCheckedChange = { viewModel.setShowHomeGenres(it) },
         accentColor = accentColor
     )
+    if (showHomeGenres) {
+        AboutDivider()
+        SettingsSwitchTile(
+            title = "Show Unknown Genre in Top Genres",
+            subtitle = "Include songs without genre metadata under \"Unknown Genre\"",
+            icon = Lucide.Tag,
+            checked = showUnknownGenre,
+            onCheckedChange = { viewModel.setShowUnknownGenre(it) },
+            accentColor = accentColor
+        )
+    }
     AboutDivider()
     SettingsActionTile(
         title = "Reorder Dashboard Sections",
@@ -857,7 +871,8 @@ private fun LanguageAndServicesSection(
 @Composable
 private fun AudioPlaybackSettingsSection(
     viewModel: SettingsViewModel = hiltViewModel(),
-    accentColor: Color
+    accentColor: Color,
+    onNavigateToEqualizer: () -> Unit = {}
 ) {
     val fadePlayPauseStop by viewModel.fadePlayPauseStop.collectAsState()
     val fadeLengthMs by viewModel.fadeLengthMs.collectAsState()
@@ -878,6 +893,24 @@ private fun AudioPlaybackSettingsSection(
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
 
     Column {
+        // --- 0. EQUALIZER ---
+        SettingsSubHeader(title = "Sound & Equalizer", accentColor = accentColor)
+        PremiumSection(
+            cornerRadius = 24.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            SettingsActionTile(
+                title = "Equalizer",
+                subtitle = "Tune frequencies, bass boost, virtualizer, and manage device audio profiles",
+                icon = LucideIcons.Sliders,
+                onClick = onNavigateToEqualizer,
+                accentColor = accentColor
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
         // --- 1. VOLUME & TRANSITIONS ---
         SettingsSubHeader(title = "Volume & Transitions", accentColor = accentColor)
         PremiumSection(

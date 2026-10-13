@@ -40,6 +40,13 @@ class PlayPauseActionCallback : ActionCallback {
                     if (player.isPlaying) {
                         player.pause()
                     } else {
+                        com.example.looper_android.playback.PlaybackService.start(context)
+                        if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                            player.prepare()
+                        } else if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                            player.seekTo(0, 0L)
+                            player.prepare()
+                        }
                         player.play()
                     }
                 }
@@ -64,6 +71,10 @@ class NextActionCallback : ActionCallback {
         withContext(Dispatchers.Main) {
             try {
                 if (player.mediaItemCount > 0) {
+                    com.example.looper_android.playback.PlaybackService.start(context)
+                    if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                        player.prepare()
+                    }
                     if (player.hasNextMediaItem()) {
                         player.seekToNextMediaItem()
                     } else {
@@ -93,6 +104,10 @@ class PreviousActionCallback : ActionCallback {
         withContext(Dispatchers.Main) {
             try {
                 if (player.mediaItemCount > 0) {
+                    com.example.looper_android.playback.PlaybackService.start(context)
+                    if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                        player.prepare()
+                    }
                     if (player.currentPosition > 3000L) {
                         player.seekTo(0L)
                     } else if (player.hasPreviousMediaItem()) {

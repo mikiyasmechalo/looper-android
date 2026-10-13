@@ -7,6 +7,8 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -57,25 +59,37 @@ fun AppNavGraph(
             // Dashboard hosts main tabs + category & collection detail sub-routes with persistent Mini Player & Navbar!
             composable(
                 route = "dashboard",
-                enterTransition = { fadeIn(animationSpec = tween(400)) },
-                exitTransition = { fadeOut(animationSpec = tween(400)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(400)) },
-                popExitTransition = { fadeOut(animationSpec = tween(400)) }
+                enterTransition = { fadeIn(animationSpec = tween(350)) },
+                exitTransition = {
+                    if (targetState.destination.route == "player") {
+                        androidx.compose.animation.ExitTransition.None
+                    } else {
+                        fadeOut(animationSpec = tween(350))
+                    }
+                },
+                popEnterTransition = {
+                    if (initialState.destination.route == "player") {
+                        androidx.compose.animation.EnterTransition.None
+                    } else {
+                        fadeIn(animationSpec = tween(350))
+                    }
+                },
+                popExitTransition = { fadeOut(animationSpec = tween(350)) }
             ) {
                 DashboardScreen(
                     navController = navController,
                     playbackViewModel = playbackViewModel,
                     sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@composable
+                    dashboardAnimatedVisibilityScope = this@composable
                 )
             }
 
             composable(
                 route = "player",
-                enterTransition = { fadeIn(animationSpec = tween(400)) },
-                exitTransition = { fadeOut(animationSpec = tween(400)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(400)) },
-                popExitTransition = { fadeOut(animationSpec = tween(400)) }
+                enterTransition = { fadeIn(animationSpec = tween(350)) },
+                exitTransition = { fadeOut(animationSpec = tween(350)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(350)) },
+                popExitTransition = { fadeOut(animationSpec = tween(350)) }
             ) {
                 PlayerScreen(
                     viewModel = playbackViewModel,

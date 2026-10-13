@@ -36,8 +36,19 @@ class SettingsViewModel @Inject constructor(
     private val safScanner: SafScanner,
     private val safPermissionRepo: SafPermissionRepository,
     private val libraryDao: LibraryDao,
+    private val queueManager: com.example.looper_android.domain.QueueManager,
     @ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.excludedFolders.collect { excluded ->
+                if (excluded.isNotEmpty()) {
+                    queueManager.purgeExcludedSongs(excluded)
+                }
+            }
+        }
+    }
 
     val libraryFolders: StateFlow<Set<String>> = repository.libraryFolders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
@@ -266,6 +277,9 @@ class SettingsViewModel @Inject constructor(
     val showHomeGenres: StateFlow<Boolean> = repository.showHomeGenres
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val showUnknownGenre: StateFlow<Boolean> = repository.showUnknownGenre
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val homeSectionsOrder: StateFlow<List<String>> = repository.homeSectionsOrder
         .stateIn(viewModelScope, SharingStarted.Eagerly, listOf("quick_picks", "songs", "artists", "albums", "genres"))
 
@@ -356,6 +370,7 @@ class SettingsViewModel @Inject constructor(
     fun setShowHomeArtists(value: Boolean) = viewModelScope.launch { repository.setShowHomeArtists(value) }
     fun setShowHomeAlbums(value: Boolean) = viewModelScope.launch { repository.setShowHomeAlbums(value) }
     fun setShowHomeGenres(value: Boolean) = viewModelScope.launch { repository.setShowHomeGenres(value) }
+    fun setShowUnknownGenre(value: Boolean) = viewModelScope.launch { repository.setShowUnknownGenre(value) }
     fun setHomeSectionsOrder(order: List<String>) = viewModelScope.launch { repository.setHomeSectionsOrder(order) }
     fun moveHomeSection(fromIndex: Int, toIndex: Int) {
         val current = homeSectionsOrder.value.toMutableList()
@@ -385,6 +400,7 @@ class SettingsViewModel @Inject constructor(
         val cleanPath = folderPath.trimEnd('/')
         repository.addExcludedFolder(cleanPath)
         libraryDao.deleteSongsByPathPrefix(cleanPath)
+        queueManager.removeSongsByPathPrefix(cleanPath)
     }
 
     fun restoreExcludedFolder(folderPath: String) = viewModelScope.launch(Dispatchers.IO) {
@@ -408,9 +424,11 @@ class SettingsViewModel @Inject constructor(
         try {
             val uri = android.net.Uri.parse(uriString)
             revokeSafPermission(uri)
+            queueManager.removeSongsByPathPrefix(uriString)
         } catch (_: Exception) {
             repository.removeLibraryFolder(uriString)
             libraryDao.deleteSongsByPathPrefix(uriString)
+            queueManager.removeSongsByPathPrefix(uriString)
         }
     }
 }
