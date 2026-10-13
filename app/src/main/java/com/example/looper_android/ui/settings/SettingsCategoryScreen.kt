@@ -99,6 +99,12 @@ import com.composables.icons.lucide.Tag
 import com.composables.icons.lucide.X
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import com.example.looper_android.data.repository.SafScanner
 import com.example.looper_android.ui.theme.BrandAccent
 import com.example.looper_android.ui.theme.DmSansFontFamily
@@ -1872,6 +1878,19 @@ private fun LibrarySettingsSection(
 // 6. About & Maintainers (EXACT 1-TO-1 FLUTTER PORT)
 @Composable
 private fun AboutSettingsSection(accentColor: Color) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val openUrl: (String) -> Unit = { url ->
+        if (url.isNotBlank()) {
+            try {
+                val fullUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
+    }
+
     Column {
         // Top Section Card
         PremiumSection(
@@ -1881,7 +1900,6 @@ private fun AboutSettingsSection(accentColor: Color) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val context = androidx.compose.ui.platform.LocalContext.current
                 val svgImageLoader = remember {
                     coil.ImageLoader.Builder(context)
                         .components {
@@ -1920,7 +1938,9 @@ private fun AboutSettingsSection(accentColor: Color) {
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable { openUrl("https://github.com/SthrNilshaaa/looper") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(imageVector = LucideIcons.GithubCustom, contentDescription = "GitHub", tint = Color.White, modifier = Modifier.size(24.dp))
@@ -1934,7 +1954,7 @@ private fun AboutSettingsSection(accentColor: Color) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { }
+                .clickable { openUrl("https://github.com/SthrNilshaaa/looper") }
                 .padding(horizontal = 20.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1985,7 +2005,14 @@ private fun AboutSettingsSection(accentColor: Color) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Column {
-                AboutMaintainerRow(initial = "J", name = "Jhon Doe", role = "Creator & Android Lead")
+                AboutMaintainerRow(
+                    initial = "M",
+                    name = "Mikiyas Mechalo",
+                    role = "Android Developer",
+                    assetImageName = "miki.jpg",
+                    githubUrl = "https://github.com/mikiyasmechalo",
+                    telegramUrl = "https://t.me/mikeme2"
+                )
             }
         }
 
@@ -2010,11 +2037,32 @@ private fun AboutSettingsSection(accentColor: Color) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Column {
-                AboutMaintainerRow(initial = "N", name = "Nilesh Suthar", role = "Creator and Maintainer")
+                AboutMaintainerRow(
+                    initial = "N",
+                    name = "Nilesh Suthar",
+                    role = "Creator and Maintainer",
+                    assetImageName = "Nilesh.png",
+                    githubUrl = "https://github.com/SthrNilshaaa",
+                    telegramUrl = "https://t.me/neelshy"
+                )
                 AboutDivider()
-                AboutMaintainerRow(initial = "K", name = "Krn.", role = "Designer and Maintainer")
+                AboutMaintainerRow(
+                    initial = "K",
+                    name = "Krn.",
+                    role = "Designer and Maintainer",
+                    assetImageName = "krn.png",
+                    githubUrl = "https://github.com/sthrkaran",
+                    telegramUrl = "https://t.me/karanwhy"
+                )
                 AboutDivider()
-                AboutMaintainerRow(initial = "M", name = "Madan Suthar", role = "Active Contributor")
+                AboutMaintainerRow(
+                    initial = "M",
+                    name = "Madan Suthar",
+                    role = "Active Contributor",
+                    assetImageName = "madan.png",
+                    githubUrl = "https://github.com/",
+                    telegramUrl = "https://t.me/madansthr"
+                )
             }
         }
 
@@ -2052,7 +2100,21 @@ private fun AboutSettingsSection(accentColor: Color) {
 // 7. Support Us
 @Composable
 private fun SupportUsSettingsSection(accentColor: Color) {
-    SettingsActionTile(title = "Support Development", subtitle = "Help keep Looper Player alive & open-source", icon = Lucide.Coffee, onClick = {}, accentColor = accentColor)
+    val context = LocalContext.current
+    SettingsActionTile(
+        title = "Support Development",
+        subtitle = "Help keep Looper Player alive & open-source",
+        icon = Lucide.Coffee,
+        onClick = {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/sthrnilshaaa")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        },
+        accentColor = accentColor
+    )
 }
 
 // --- EXACT FLUTTER ABOUT COMPONENTS ---
@@ -2061,8 +2123,34 @@ private fun SupportUsSettingsSection(accentColor: Color) {
 private fun AboutMaintainerRow(
     initial: String,
     name: String,
-    role: String
+    role: String,
+    assetImageName: String? = null,
+    githubUrl: String? = null,
+    telegramUrl: String? = null
 ) {
+    val context = LocalContext.current
+    val openUrl: (String) -> Unit = { url ->
+        if (url.isNotBlank()) {
+            try {
+                val fullUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    val imageBitmap = remember(assetImageName) {
+        if (!assetImageName.isNullOrEmpty()) {
+            runCatching {
+                context.assets.open(assetImageName).use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            }.getOrNull()
+        } else null
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2076,7 +2164,22 @@ private fun AboutMaintainerRow(
                 .background(Color.White.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = initial, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = DmSansFontFamily)
+            if (imageBitmap != null) {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    text = initial,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DmSansFontFamily
+                )
+            }
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -2085,9 +2188,39 @@ private fun AboutMaintainerRow(
             Text(text = role, color = Color.White.copy(alpha = 0.54f), fontSize = 12.sp, fontFamily = DmSansFontFamily)
         }
         
-        Icon(imageVector = LucideIcons.GithubCustom, contentDescription = "GitHub", tint = Color.White.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Icon(imageVector = Lucide.Send, contentDescription = "Telegram", tint = Color.White.copy(alpha = 0.54f), modifier = Modifier.size(20.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(enabled = !githubUrl.isNullOrEmpty()) {
+                    openUrl(githubUrl ?: "")
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = LucideIcons.GithubCustom,
+                contentDescription = "GitHub",
+                tint = if (!githubUrl.isNullOrEmpty()) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.25f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(enabled = !telegramUrl.isNullOrEmpty()) {
+                    openUrl(telegramUrl ?: "")
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Lucide.Send,
+                contentDescription = "Telegram",
+                tint = if (!telegramUrl.isNullOrEmpty()) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.25f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 

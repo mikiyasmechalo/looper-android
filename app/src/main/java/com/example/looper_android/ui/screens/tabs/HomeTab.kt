@@ -3,6 +3,7 @@ import com.composables.icons.lucide.Sparkles
 
 import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -104,6 +105,14 @@ fun HomeTab(
     val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
+    val context = LocalContext.current
+    val svgImageLoader = remember(context) {
+        coil.ImageLoader.Builder(context)
+            .components {
+                add(coil.decode.SvgDecoder.Factory())
+            }
+            .build()
+    }
 
     Column(
         modifier = Modifier
@@ -118,12 +127,12 @@ fun HomeTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Looper",
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = DmSansFontFamily
+            coil.compose.AsyncImage(
+                model = "file:///android_asset/main_logo_transparent.svg",
+                contentDescription = "Looper",
+                imageLoader = svgImageLoader,
+                modifier = Modifier.height(38.dp),
+                contentScale = ContentScale.Fit
             )
 
             Row(
