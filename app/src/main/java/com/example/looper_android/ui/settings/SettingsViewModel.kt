@@ -125,6 +125,15 @@ class SettingsViewModel @Inject constructor(
     val autoFallbackLyricsProviders: StateFlow<Boolean> = repository.autoFallbackLyricsProviders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val lyricsSyncStyle: StateFlow<String> = repository.lyricsSyncStyle
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "char")
+
+    val lyricsProviderOrder: StateFlow<List<String>> = repository.lyricsProviderOrder
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.looper_android.data.lyrics.providers.LyricsProviderInfo.ALL.map { it.id })
+
+    val lyricsProvidersOff: StateFlow<Set<String>> = repository.lyricsProvidersOff
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     val disableSquiggle: StateFlow<Boolean> = repository.disableSquiggle
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -309,6 +318,10 @@ class SettingsViewModel @Inject constructor(
     fun setLyricsScreenDarkness(value: Float) = viewModelScope.launch { repository.setLyricsScreenDarkness(value) }
     fun setPrimaryLyricsProvider(value: String) = viewModelScope.launch { repository.setPrimaryLyricsProvider(value) }
     fun setAutoFallbackLyricsProviders(value: Boolean) = viewModelScope.launch { repository.setAutoFallbackLyricsProviders(value) }
+    fun setLyricsSyncStyle(style: String) = viewModelScope.launch { repository.setLyricsSyncStyle(style) }
+    fun setLyricsProviderOrder(order: List<String>) = viewModelScope.launch { repository.setLyricsProviderOrder(order) }
+    fun setLyricsProviderEnabled(id: String, enabled: Boolean) = viewModelScope.launch { repository.setLyricsProviderEnabled(id, enabled) }
+    fun toggleLyricsProvider(id: String, enabled: Boolean) = setLyricsProviderEnabled(id, enabled)
     fun setDisableSquiggle(value: Boolean) = viewModelScope.launch { repository.setDisableSquiggle(value) }
     fun setDisableAnimatedDuration(value: Boolean) = viewModelScope.launch { repository.setDisableAnimatedDuration(value) }
     fun setShowQualityBadge(value: Boolean) = viewModelScope.launch { repository.setShowQualityBadge(value) }

@@ -5,6 +5,14 @@ import android.util.Base64
 import android.util.Log
 import com.example.looper_android.data.db.LibraryDao
 import com.example.looper_android.data.db.SongEntity
+import com.example.looper_android.data.lyrics.providers.AmllClient
+import com.example.looper_android.data.lyrics.providers.KuGouClient
+import com.example.looper_android.data.lyrics.providers.LrcRedClient
+import com.example.looper_android.data.lyrics.providers.LyricifyClient
+import com.example.looper_android.data.lyrics.providers.LyricsPlusClient
+import com.example.looper_android.data.lyrics.providers.LyricsProviderInfo
+import com.example.looper_android.data.lyrics.providers.MusixmatchClient
+import com.example.looper_android.data.lyrics.providers.NetEaseClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -15,6 +23,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,65 +32,99 @@ import javax.inject.Singleton
 class LyricsFetcher @Inject constructor(
     private val libraryDao: LibraryDao,
     private val audioTagReader: AudioTagReader,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val lyricsCache: LyricsCache
 ) {
     companion object {
         private const val TAG = "LyricsFetcher"
 
-        val ALL_PROVIDERS = listOf(
-            "LRCLIB",
-            "Genius",
-            "LyricFind",
-            "Musixmatch",
-            "AZLyrics",
-            "LyricsMINT",
+        val ALL_ONLINE_PROVIDERS = LyricsProviderInfo.ALL.map { it.id }
+
+        val ALL_PROVIDERS = ALL_ONLINE_PROVIDERS + listOf(
             "Local",
             "Embedded"
-        )
-
-        val ALL_ONLINE_PROVIDERS = listOf(
-            "LRCLIB",
-            "Genius",
-            "LyricFind",
-            "Musixmatch",
-            "AZLyrics",
-            "LyricsMINT"
         )
     }
 
     // In-memory per-song source cache (songId -> Map of normalized provider names -> lyrics)
-    private val sessionLyricsCache = java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.ConcurrentHashMap<String, String>>()
+    private val sessionLyricsCache = ConcurrentHashMap<Long, ConcurrentHashMap<String, String>>()
+    private val upgradingSongs = ConcurrentHashMap<Long, Boolean>()
 
     fun isLyricsSynced(raw: String?): Boolean {
         if (raw.isNullOrBlank()) return false
         return Regex("""\[\d{1,3}\s*:\s*\d{1,2}""").containsMatchIn(raw)
     }
 
+    fun hasWordTiming(raw: String?): Boolean {
+        if (raw.isNullOrBlank()) return false
+        return raw.contains("\n[w:") || Regex("""<\d{1,3}\s*:\s*\d{1,2}""").containsMatchIn(raw)
+    }
+
+    fun levelOf(raw: String?): Int {
+        if (raw.isNullOrBlank() || raw.contains("[source:not_found]")) return 0
+        if (!isLyricsSynced(raw)) return 1
+        if (!hasWordTiming(raw)) return 2
+        return 3
+    }
+
+    fun canUpgrade(raw: String?): Boolean {
+        if (raw.isNullOrBlank()) return false
+        if (raw.contains("[picked:user]")) return false
+        if (raw.contains("[source:custom]", ignoreCase = true)) return false
+        val level = levelOf(raw)
+        return level == 1 || level == 2
+    }
+
     fun getCachedLyricsSync(song: SongEntity): String? {
         val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
         if (!inMem.isNullOrBlank()) return inMem
+
+        val disk = lyricsCache.get(song.artist, song.title)
+        if (!disk.isNullOrBlank()) {
+            val src = extractLyricsSource(disk).uppercase()
+            cacheInMemory(song.id, src, disk)
+            return disk
+        }
+
         if (!song.lyrics.isNullOrBlank()) {
-            cacheInMemory(song.id, extractLyricsSource(song.lyrics).uppercase(), song.lyrics)
+            val src = extractLyricsSource(song.lyrics).uppercase()
+            cacheInMemory(song.id, src, song.lyrics)
+            lyricsCache.save(song.artist, song.title, song.lyrics)
             return song.lyrics
         }
         return null
     }
 
     private fun cacheInMemory(songId: Long, provider: String, lyrics: String) {
-        sessionLyricsCache.computeIfAbsent(songId) { java.util.concurrent.ConcurrentHashMap() }[provider.uppercase()] = lyrics
+        sessionLyricsCache.computeIfAbsent(songId) { ConcurrentHashMap() }[provider.uppercase()] = lyrics
     }
 
-    private suspend fun cacheInMemoryAndDb(songId: Long, provider: String, lyrics: String) {
-        cacheInMemory(songId, provider, lyrics)
-        libraryDao.updateSongLyrics(songId, lyrics)
+    private suspend fun cacheInMemoryAndDb(song: SongEntity, provider: String, lyrics: String) {
+        cacheInMemory(song.id, provider, lyrics)
+        lyricsCache.saveProvider(song.artist, song.title, provider, lyrics)
+        lyricsCache.save(song.artist, song.title, lyrics)
+        if (song.id > 0L) {
+            libraryDao.updateSongLyrics(song.id, lyrics)
+        }
+        if (song.path.isNotBlank()) {
+            libraryDao.updateSongLyricsByPath(song.path, lyrics)
+        }
     }
 
-    private fun getFromMemoryOrFetch(song: SongEntity, provider: String): String? {
+    private suspend fun getFromMemoryOrFetch(song: SongEntity, provider: String): String? {
         val cached = sessionLyricsCache[song.id]?.get(provider.uppercase())
         if (!cached.isNullOrEmpty()) return cached
+
+        val disk = lyricsCache.getProvider(song.artist, song.title, provider)
+        if (!disk.isNullOrEmpty()) {
+            cacheInMemory(song.id, provider.uppercase(), disk)
+            return disk
+        }
+
         val fetched = fetchFromOnlineProvider(song, provider.uppercase())
         if (fetched != null) {
             cacheInMemory(song.id, provider.uppercase(), fetched)
+            lyricsCache.saveProvider(song.artist, song.title, provider, fetched)
         }
         return fetched
     }
@@ -103,8 +146,6 @@ class LyricsFetcher @Inject constructor(
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            val code = response.code
-            Log.d(TAG, "httpGet() url=$url, code=$code")
             if (response.isSuccessful) {
                 response.body?.string()
             } else {
@@ -147,7 +188,6 @@ class LyricsFetcher @Inject constructor(
             var url = raw.replace("&amp;", "&")
             if (url.startsWith("//")) url = "https:$url"
 
-            // 1. DuckDuckGo uddg parameter
             if (url.contains("uddg=")) {
                 val uddg = Uri.parse(url).getQueryParameter("uddg")
                 if (uddg != null) {
@@ -156,21 +196,18 @@ class LyricsFetcher @Inject constructor(
                 }
             }
 
-            // 2. Yahoo RU parameter
             if (url.contains("/RU=")) {
                 val ru = url.substringAfter("/RU=").substringBefore("/RK=").substringBefore("\"").substringBefore("'")
                 val decodedRu = try { URLDecoder.decode(ru, "UTF-8") } catch (_: Exception) { null }
                 if (decodedRu != null) url = decodedRu
             }
 
-            // 3. Google /url?q= parameter
             if (url.contains("/url?q=")) {
                 val gq = url.substringAfter("/url?q=").substringBefore("&")
                 val decodedGq = try { URLDecoder.decode(gq, "UTF-8") } catch (_: Exception) { null }
                 if (decodedGq != null) url = decodedGq
             }
 
-            // 4. Bing base64 u=a1 parameter
             if (url.contains("u=a1")) {
                 val b64 = url.substringAfter("u=a1").substringBefore("&").substringBefore("\"").substringBefore("'")
                 val decodedB64 = try { String(Base64.decode(b64, Base64.DEFAULT)) } catch (_: Exception) { null }
@@ -201,14 +238,10 @@ class LyricsFetcher @Inject constructor(
 
         for (searchEngineUrl in searchEngines) {
             try {
-                Log.d(TAG, "searchUrlOnWeb() trying: $searchEngineUrl")
                 val response = httpGet(searchEngineUrl) ?: continue
                 for (match in hrefRegex.findAll(response)) {
                     val candidate = extractCandidate(match.groupValues[1])
-                    if (candidate != null) {
-                        Log.d(TAG, "searchUrlOnWeb() matched target URL: $candidate")
-                        return candidate
-                    }
+                    if (candidate != null) return candidate
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "searchUrlOnWeb engine error for $searchEngineUrl", e)
@@ -223,19 +256,14 @@ class LyricsFetcher @Inject constructor(
     fun extractLyricsSource(rawLyrics: String?): String {
         if (rawLyrics.isNullOrBlank()) return "None"
         val firstLine = rawLyrics.trim().lines().firstOrNull() ?: ""
-        val sourceMatch = Regex("^\\[source:([a-zA-Z0-9_-]+)\\]", RegexOption.IGNORE_CASE).find(firstLine)
+        val sourceMatch = Regex("^\\[source:([a-zA-Z0-9_.-]+)\\]", RegexOption.IGNORE_CASE).find(firstLine)
         return if (sourceMatch != null) {
-            when (sourceMatch.groupValues[1].lowercase()) {
-                "lrclib" -> "LRCLIB"
-                "genius" -> "Genius"
-                "musixmatch" -> "Musixmatch"
-                "azlyrics" -> "AZLyrics"
-                "lyricsmint" -> "LyricsMINT"
-                "lyricfind" -> "LyricFind"
-                "embedded" -> "Embedded"
-                "local", "sidecar" -> "Local"
-                "custom" -> "Custom LRC"
-                else -> sourceMatch.groupValues[1].replaceFirstChar { it.uppercase() }
+            val src = sourceMatch.groupValues[1].uppercase()
+            LyricsProviderInfo.of(src)?.label ?: when (src) {
+                "EMBEDDED" -> "Embedded"
+                "LOCAL", "SIDECAR" -> "Local"
+                "CUSTOM" -> "Custom LRC"
+                else -> src.lowercase().replaceFirstChar { it.uppercase() }
             }
         } else {
             val hasTimestamps = Regex("""\[\d{1,3}\s*:\s*\d{1,2}""").containsMatchIn(rawLyrics)
@@ -244,85 +272,138 @@ class LyricsFetcher @Inject constructor(
     }
 
     suspend fun fetchLyrics(song: SongEntity): String? = withContext(Dispatchers.IO) {
-        // Fast Check: If in-memory cache already has lyrics, return immediately
+        // Fast Check 1: In-memory session cache
         val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
         if (!inMem.isNullOrBlank()) return@withContext inMem
 
-        // Check DB Cache
-        val dbCached = libraryDao.getSongLyricsById(song.id) ?: libraryDao.getSongLyricsByPath(song.path)
+        // Fast Check 2: Persistent disk cache
+        val diskCached = lyricsCache.get(song.artist, song.title)
+        if (!diskCached.isNullOrBlank()) {
+            val src = extractLyricsSource(diskCached).uppercase()
+            cacheInMemory(song.id, src, diskCached)
+            return@withContext diskCached
+        }
+
+        // Fast Check 3: Database cache
+        val dbCached = (if (song.id > 0L) libraryDao.getSongLyricsById(song.id) else null)
+            ?: libraryDao.getSongLyricsByPath(song.path)
         if (!dbCached.isNullOrEmpty()) {
             val src = extractLyricsSource(dbCached).uppercase()
             cacheInMemory(song.id, src, dbCached)
+            lyricsCache.save(song.artist, song.title, dbCached)
             return@withContext dbCached
         }
 
         // 1. Check Embedded Metadata
         val embedded = tryEmbeddedLyrics(song)
-        val isEmbeddedSynced = isLyricsSynced(embedded)
-
-        // Rule 1: Embedded SYNCED lyrics have highest priority
-        if (isEmbeddedSynced && embedded != null) {
-            cacheInMemoryAndDb(song.id, "EMBEDDED", embedded)
+        if (isLyricsSynced(embedded) && embedded != null) {
+            cacheInMemoryAndDb(song, "EMBEDDED", embedded)
             return@withContext embedded
         }
 
         // 2. Check Local Sidecar (.lrc / .txt)
         val sidecar = tryLocalSidecarLyrics(song)
-        val isSidecarSynced = isLyricsSynced(sidecar)
-
-        // Rule 2: Local Sidecar (.lrc) SYNCED lyrics
-        if (isSidecarSynced && sidecar != null) {
-            cacheInMemoryAndDb(song.id, "LOCAL", sidecar)
+        if (isLyricsSynced(sidecar) && sidecar != null) {
+            cacheInMemoryAndDb(song, "LOCAL", sidecar)
             return@withContext sidecar
         }
 
-        // 3. Online Providers (Primary + Fallbacks) - Search for SYNCED lyrics first
-        var onlineUnsynced: String? = null
+        // 3. Online Providers (Iterating user's prioritized order)
+        var lineSyncedFallback: String? = null
+        var unsyncedFallback: String? = null
+
         val enableInternet = settingsRepository.enableInternet.first()
         if (enableInternet) {
-            val primaryProvider = settingsRepository.primaryLyricsProvider.first().uppercase()
+            val order = settingsRepository.lyricsProviderOrder.first()
+            val off = settingsRepository.lyricsProvidersOff.first()
             val autoFallback = settingsRepository.autoFallbackLyricsProviders.first()
 
-            val primaryLyrics = getFromMemoryOrFetch(song, primaryProvider)
-            if (isLyricsSynced(primaryLyrics) && primaryLyrics != null) {
-                cacheInMemoryAndDb(song.id, extractLyricsSource(primaryLyrics).uppercase(), primaryLyrics)
-                return@withContext primaryLyrics
-            } else if (primaryLyrics != null && onlineUnsynced == null) {
-                onlineUnsynced = primaryLyrics
-            }
+            val enabledProviders = order.filter { !off.contains(it) }
 
-            if (autoFallback) {
-                val remainingProviders = ALL_ONLINE_PROVIDERS.filter { !it.equals(primaryProvider, ignoreCase = true) }
-                for (fallback in remainingProviders) {
-                    val fallbackLyrics = getFromMemoryOrFetch(song, fallback)
-                    if (isLyricsSynced(fallbackLyrics) && fallbackLyrics != null) {
-                        cacheInMemoryAndDb(song.id, extractLyricsSource(fallbackLyrics).uppercase(), fallbackLyrics)
-                        return@withContext fallbackLyrics
-                    } else if (fallbackLyrics != null && onlineUnsynced == null) {
-                        onlineUnsynced = fallbackLyrics
+            for (provider in enabledProviders) {
+                val lyrics = getFromMemoryOrFetch(song, provider)
+                if (lyrics != null) {
+                    val level = levelOf(lyrics)
+                    if (level >= 3) {
+                        // Word- or letter-synced lyrics: best possible level, return immediately!
+                        val src = extractLyricsSource(lyrics).uppercase()
+                        cacheInMemoryAndDb(song, src, lyrics)
+                        return@withContext lyrics
+                    } else if (level == 2 && lineSyncedFallback == null) {
+                        lineSyncedFallback = lyrics
+                    } else if (level == 1 && unsyncedFallback == null) {
+                        unsyncedFallback = lyrics
                     }
                 }
+
+                if (!autoFallback) break
             }
         }
 
-        // Rule 4: Embedded UNSYNCED lyrics (if available)
+        // If we found line-synced lyrics online, save and return
+        if (lineSyncedFallback != null) {
+            val src = extractLyricsSource(lineSyncedFallback).uppercase()
+            cacheInMemoryAndDb(song, src, lineSyncedFallback)
+            return@withContext lineSyncedFallback
+        }
+
+        // 4. Embedded UNSYNCED lyrics (if available)
         if (!embedded.isNullOrEmpty()) {
-            cacheInMemoryAndDb(song.id, "EMBEDDED", embedded)
+            cacheInMemoryAndDb(song, "EMBEDDED", embedded)
             return@withContext embedded
         }
 
-        // Rule 5: Local Sidecar UNSYNCED lyrics (if available)
+        // 5. Local Sidecar UNSYNCED lyrics (if available)
         if (!sidecar.isNullOrEmpty()) {
-            cacheInMemoryAndDb(song.id, "LOCAL", sidecar)
+            cacheInMemoryAndDb(song, "LOCAL", sidecar)
             return@withContext sidecar
         }
 
-        // Rule 6: Online UNSYNCED lyrics (if available)
-        if (onlineUnsynced != null) {
-            cacheInMemoryAndDb(song.id, extractLyricsSource(onlineUnsynced).uppercase(), onlineUnsynced)
-            return@withContext onlineUnsynced
+        // 6. Online UNSYNCED lyrics (if available)
+        if (unsyncedFallback != null) {
+            val src = extractLyricsSource(unsyncedFallback).uppercase()
+            cacheInMemoryAndDb(song, src, unsyncedFallback)
+            return@withContext unsyncedFallback
         }
 
+        return@withContext null
+    }
+
+    /**
+     * Checks in the background if higher-level (word/letter-synced) lyrics exist
+     * for a song that currently only has line-synced or plain-text lyrics.
+     */
+    suspend fun upgradeLyrics(song: SongEntity, current: String): String? = withContext(Dispatchers.IO) {
+        if (!canUpgrade(current)) return@withContext null
+        if (upgradingSongs.putIfAbsent(song.id, true) != null) return@withContext null
+
+        try {
+            val enableInternet = settingsRepository.enableInternet.first()
+            if (!enableInternet) return@withContext null
+
+            val currentLevel = levelOf(current)
+            val order = settingsRepository.lyricsProviderOrder.first()
+            val off = settingsRepository.lyricsProvidersOff.first()
+            val candidates = order.filter { id ->
+                !off.contains(id) && (LyricsProviderInfo.of(id)?.bestLevel ?: 2) > currentLevel
+            }
+
+            for (provider in candidates) {
+                val candidateLyrics = getFromMemoryOrFetch(song, provider) ?: continue
+                val candidateLevel = levelOf(candidateLyrics)
+                if (candidateLevel > currentLevel) {
+                    val dbSongLyrics = if (song.id > 0L) libraryDao.getSongLyricsById(song.id) else libraryDao.getSongLyricsByPath(song.path)
+                    // If user manually edited or changed it in the meantime, do not overwrite
+                    if (dbSongLyrics != null && dbSongLyrics != current) return@withContext null
+
+                    val src = extractLyricsSource(candidateLyrics).uppercase()
+                    cacheInMemoryAndDb(song, src, candidateLyrics)
+                    return@withContext candidateLyrics
+                }
+            }
+        } finally {
+            upgradingSongs.remove(song.id)
+        }
         return@withContext null
     }
 
@@ -331,11 +412,12 @@ class LyricsFetcher @Inject constructor(
      */
     suspend fun fetchFromSpecificProvider(song: SongEntity, provider: String): String? = withContext(Dispatchers.IO) {
         val norm = provider.uppercase()
-        // Check in-memory cache first for instant switching
         val cached = sessionLyricsCache[song.id]?.get(norm)
+            ?: lyricsCache.getProvider(song.artist, song.title, norm)
         if (!cached.isNullOrEmpty()) {
-            libraryDao.updateSongLyrics(song.id, cached)
-            return@withContext cached
+            val pinned = if (cached.contains("[picked:user]")) cached else "$cached\n[picked:user]"
+            cacheInMemoryAndDb(song, norm, pinned)
+            return@withContext pinned
         }
 
         val result = when (norm) {
@@ -350,9 +432,11 @@ class LyricsFetcher @Inject constructor(
         }
 
         if (result != null) {
-            cacheInMemoryAndDb(song.id, norm, result)
+            val pinned = if (result.contains("[picked:user]")) result else "$result\n[picked:user]"
+            cacheInMemoryAndDb(song, norm, pinned)
+            return@withContext pinned
         }
-        result
+        null
     }
 
     private suspend fun tryEmbeddedLyrics(song: SongEntity): String? {
@@ -407,17 +491,24 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
-    private fun fetchFromOnlineProvider(song: SongEntity, provider: String): String? {
+    private suspend fun fetchFromOnlineProvider(song: SongEntity, provider: String): String? {
         val title = song.title.trim()
         val artist = (song.artist ?: "Unknown Artist").trim()
+        val durationSeconds = ((song.duration ?: 0) / 1000).toInt()
 
         return when (provider.uppercase()) {
+            "LRC.RED" -> LrcRedClient.fetch(title, artist, durationSeconds)?.let { "[source:LRC.RED]\n$it" }
+            "LYRICSPLUS" -> LyricsPlusClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICSPLUS]\n$it" }
+            "AMLL" -> AmllClient.fetch(title, artist, durationSeconds)?.let { "[source:AMLL]\n$it" }
+            "NETEASE" -> NetEaseClient.fetch(title, artist, durationSeconds)?.let { "[source:NETEASE]\n$it" }
+            "KUGOU" -> KuGouClient.fetch(title, artist, durationSeconds)?.let { "[source:KUGOU]\n$it" }
+            "MUSIXMATCH" -> MusixmatchClient.fetch(title, artist, durationSeconds)?.let { "[source:MUSIXMATCH]\n$it" }
+            "LYRICIFY" -> LyricifyClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICIFY]\n$it" }
+            "LRCLIB" -> fetchFromLrcLib(song)
             "GENIUS" -> fetchFromGenius(title, artist)
-            "LYRICFIND" -> fetchFromLyricFind(title, artist)
-            "MUSIXMATCH" -> fetchFromMusixmatch(title, artist)
             "AZLYRICS" -> fetchFromAZLyrics(title, artist)
             "LYRICSMINT" -> fetchFromLyricsMint(title, artist)
-            "LRCLIB" -> fetchFromLrcLib(song)
+            "LYRICFIND" -> fetchFromLyricFind(title, artist)
             else -> fetchFromLrcLib(song)
         }
     }
@@ -428,7 +519,7 @@ class LyricsFetcher @Inject constructor(
         return if (v.isEmpty() || v.equals("null", ignoreCase = true)) null else v
     }
 
-    // --- 1. LRCLIB (Direct port of Flutter) ---
+    // --- LRCLIB ---
     private fun fetchFromLrcLib(song: SongEntity): String? {
         val trackName = song.title.trim()
         val artistName = (song.artist ?: "").trim()
@@ -440,7 +531,6 @@ class LyricsFetcher @Inject constructor(
         var fallbackPlain: String? = null
 
         try {
-            // 1. Try /api/get with sanitized track/artist
             val getUriBuilder = Uri.parse("https://lrclib.net/api/get").buildUpon()
                 .appendQueryParameter("track_name", cleanTrack)
                 .appendQueryParameter("artist_name", cleanArtist)
@@ -457,7 +547,6 @@ class LyricsFetcher @Inject constructor(
                 if (!plain.isNullOrBlank() && fallbackPlain == null) fallbackPlain = plain
             }
 
-            // 2. Try with raw track/artist if sanitized differed
             if (cleanTrack != trackName || cleanArtist != artistName) {
                 val rawUriBuilder = Uri.parse("https://lrclib.net/api/get").buildUpon()
                     .appendQueryParameter("track_name", trackName)
@@ -475,7 +564,6 @@ class LyricsFetcher @Inject constructor(
                 }
             }
 
-            // 3. Fallback search queries to find synced lyrics
             val searchQueries = mutableListOf(
                 "$cleanArtist - $cleanTrack",
                 "$cleanTrack $cleanArtist",
@@ -496,12 +584,9 @@ class LyricsFetcher @Inject constructor(
                     .toString()
 
                 responseBody = httpGet(searchUri)
-                Log.d(TAG, "queryLrcLibSearch() q='$q', body preview: ${responseBody?.take(200)}")
                 if (responseBody != null) {
                     val results = JSONArray(responseBody)
-                    Log.d(TAG, "queryLrcLibSearch() results count=${results.length()}")
                     if (results.length() > 0) {
-                        // 3a. First search for exact synced match by duration
                         if (durationSeconds > 0) {
                             for (i in 0 until results.length()) {
                                 val item = results.getJSONObject(i)
@@ -509,24 +594,20 @@ class LyricsFetcher @Inject constructor(
                                 if (!synced.isNullOrBlank()) {
                                     val itemDur = item.optInt("duration", 0)
                                     if (Math.abs(itemDur - durationSeconds) < 15) {
-                                        Log.d(TAG, "queryLrcLibSearch() matched synced by duration: $itemDur")
                                         return "[source:lrclib]\n$synced"
                                     }
                                 }
                             }
                         }
 
-                        // 3b. Then any synced match
                         for (i in 0 until results.length()) {
                             val item = results.getJSONObject(i)
                             val synced = item.getNullableString("syncedLyrics")
                             if (!synced.isNullOrBlank()) {
-                                Log.d(TAG, "queryLrcLibSearch() matched any synced lyrics")
                                 return "[source:lrclib]\n$synced"
                             }
                         }
 
-                        // 3c. Capture plain lyrics if no fallback yet
                         if (fallbackPlain == null) {
                             for (i in 0 until results.length()) {
                                 val item = results.getJSONObject(i)
@@ -542,7 +623,6 @@ class LyricsFetcher @Inject constructor(
             }
 
             if (!fallbackPlain.isNullOrBlank()) {
-                Log.d(TAG, "fetchFromLrcLib() returning fallback plain lyrics")
                 return "[source:lrclib]\n$fallbackPlain"
             }
         } catch (e: Exception) {
@@ -551,7 +631,7 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
-    // --- 2. GENIUS (Direct API + Port of Flutter) ---
+    // --- GENIUS ---
     private fun fetchFromGenius(trackName: String, artistName: String): String? {
         try {
             val cleanT = sanitize(trackName)
@@ -565,7 +645,6 @@ class LyricsFetcher @Inject constructor(
             var pageUrl: String? = null
 
             for (q in queries) {
-                // 1. Direct Genius API search
                 try {
                     val apiQuery = URLEncoder.encode(q, "UTF-8")
                     val apiSearchUrl = "https://genius.com/api/search/multi?q=$apiQuery"
@@ -593,18 +672,11 @@ class LyricsFetcher @Inject constructor(
                 } catch (_: Exception) {}
 
                 if (pageUrl != null) break
-
-                // 2. Web Search Fallback
                 pageUrl = searchUrlOnWeb("genius.com", q)
                 if (pageUrl != null) break
             }
 
-            if (pageUrl == null) {
-                Log.d(TAG, "Genius page not found on search")
-                return null
-            }
-
-            Log.d(TAG, "Fetching Genius page: $pageUrl")
+            if (pageUrl == null) return null
             val responseBody = httpGet(pageUrl) ?: return null
 
             val regex = Regex("""<div[^>]*data-lyrics-container="true"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL)
@@ -628,188 +700,24 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
-    // --- 3. MUSIXMATCH (Synced Lyrics + Plain Text Fallback) ---
-    private fun fetchFromMusixmatch(trackName: String, artistName: String): String? {
-        try {
-            val cleanT = sanitize(trackName)
-            val cleanA = sanitize(artistName)
-            val queries = listOf(
-                "$cleanA $cleanT",
-                "$artistName $trackName",
-                cleanT
-            ).distinct()
-
-            var pageUrl: String? = null
-            for (q in queries) {
-                pageUrl = searchUrlOnWeb("musixmatch.com", q)
-                if (pageUrl != null) break
-            }
-
-            if (pageUrl == null) {
-                Log.d(TAG, "Musixmatch page not found on search")
-                return null
-            }
-
-            Log.d(TAG, "Fetching Musixmatch page: $pageUrl")
-            val responseBody = httpGet(pageUrl) ?: return null
-
-            val nextDataRegex = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
-            val match = nextDataRegex.find(responseBody)
-            if (match != null) {
-                val rootJson = JSONObject(match.groupValues[1])
-                val trackInfoData = rootJson.optJSONObject("props")
-                    ?.optJSONObject("pageProps")
-                    ?.optJSONObject("data")
-                    ?.optJSONObject("trackInfo")
-                    ?.optJSONObject("data")
-
-                Log.d(TAG, "Musixmatch raw subtitle field: ${trackInfoData?.opt("subtitle")}")
-                Log.d(TAG, "Musixmatch raw lyrics field: ${trackInfoData?.opt("lyrics")}")
-
-                val syncedLyrics = extractMusixmatchSyncedLyrics(rootJson)
-                if (!syncedLyrics.isNullOrBlank()) {
-                    Log.d(TAG, "fetchFromMusixmatch() successfully extracted synced lyrics (${syncedLyrics.length} chars)")
-                    return "[source:musixmatch]\n$syncedLyrics"
-                }
-
-                // Plain text fallback
-                val lyricsObj = trackInfoData?.optJSONObject("lyrics")?.optJSONObject("data") ?: trackInfoData?.optJSONObject("lyrics")
-                val lyricsBody = lyricsObj?.optString("body", "")
-                if (!lyricsBody.isNullOrBlank()) {
-                    Log.d(TAG, "fetchFromMusixmatch() plain text fallback (${lyricsBody.length} chars)")
-                    return "[source:musixmatch]\n${lyricsBody.trim()}"
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Musixmatch error", e)
-        }
-        return null
-    }
-
-    private fun extractMusixmatchSyncedLyrics(root: JSONObject): String? {
-        fun checkSubtitleBody(obj: JSONObject?): String? {
-            if (obj == null) return null
-            val unwrapped = obj.optJSONObject("data") ?: obj
-            val subBody = unwrapped.optString("subtitle_body", unwrapped.optString("body", ""))
-            if (subBody.isNotBlank() && subBody.contains("[")) return subBody.trim()
-            
-            val lines = unwrapped.optJSONArray("lines") ?: unwrapped.optJSONArray("subtitles")
-            if (lines != null && lines.length() > 0) {
-                val parsed = parseLinesArray(lines)
-                if (parsed != null) return parsed
-            }
-            return null
-        }
-
-        val pageProps = root.optJSONObject("props")?.optJSONObject("pageProps")
-        val data = pageProps?.optJSONObject("data")
-        val trackInfoData = data?.optJSONObject("trackInfo")?.optJSONObject("data")
-
-        if (trackInfoData != null) {
-            // 1. Check subtitle object inside trackInfo
-            val subObj = trackInfoData.optJSONObject("subtitle") ?: trackInfoData.optJSONObject("subtitles")
-            val subResult = checkSubtitleBody(subObj)
-            if (subResult != null) return subResult
-
-            // 2. Check lyrics object inside trackInfo
-            val lyricsObj = trackInfoData.optJSONObject("lyrics")
-            val lyricsSubResult = checkSubtitleBody(lyricsObj?.optJSONObject("subtitle") ?: lyricsObj?.optJSONObject("subtitles"))
-            if (lyricsSubResult != null) return lyricsSubResult
-            val lyricsDirectResult = checkSubtitleBody(lyricsObj)
-            if (lyricsDirectResult != null) return lyricsDirectResult
-        }
-
-        // 3. Deep search fallback across whole JSON
-        fun deepSearchLyrics(obj: Any?): String? {
-            when (obj) {
-                is JSONObject -> {
-                    val unwrapped = obj.optJSONObject("data") ?: obj
-                    val subBody = unwrapped.optString("subtitle_body", unwrapped.optString("body", ""))
-                    if (subBody.isNotBlank() && subBody.contains("[")) return subBody.trim()
-
-                    val lines = unwrapped.optJSONArray("lines") ?: unwrapped.optJSONArray("subtitles")
-                    if (lines != null && lines.length() > 0) {
-                        val parsed = parseLinesArray(lines)
-                        if (parsed != null) return parsed
-                    }
-
-                    for (key in obj.keys()) {
-                        val child = obj.opt(key)
-                        val res = deepSearchLyrics(child)
-                        if (res != null) return res
-                    }
-                }
-                is JSONArray -> {
-                    val parsed = parseLinesArray(obj)
-                    if (parsed != null) return parsed
-                    for (i in 0 until obj.length()) {
-                        val res = deepSearchLyrics(obj.opt(i))
-                        if (res != null) return res
-                    }
-                }
-                is String -> {
-                    if (obj.contains("[00:") || obj.contains("[01:") || obj.contains("[02:")) {
-                        if (obj.length > 50) return obj.trim()
-                    }
-                }
-            }
-            return null
-        }
-
-        return deepSearchLyrics(root)
-    }
-
-    private fun parseLinesArray(linesArray: JSONArray): String? {
-        if (linesArray.length() == 0) return null
-        val lrcBuilder = StringBuilder()
-        var hasValidTimestamp = false
-        for (i in 0 until linesArray.length()) {
-            val lineObj = linesArray.optJSONObject(i) ?: continue
-            val text = lineObj.optString("text", lineObj.optString("body", lineObj.optString("val", ""))).trim()
-            val timeObj = lineObj.optJSONObject("time")
-            val totalSecs = if (timeObj != null) {
-                timeObj.optDouble("total", 0.0)
-            } else {
-                val directTime = lineObj.optDouble("time", lineObj.optDouble("startTime", lineObj.optDouble("start", -1.0)))
-                if (directTime > 1000) directTime / 1000.0 else directTime
-            }
-            if (totalSecs >= 0) {
-                hasValidTimestamp = true
-                val mins = (totalSecs / 60).toInt()
-                val secs = totalSecs % 60
-                val timestamp = String.format(java.util.Locale.US, "[%02d:%05.2f]", mins, secs)
-                lrcBuilder.append(timestamp).append(" ").append(text).append("\n")
-            } else if (text.isNotEmpty()) {
-                lrcBuilder.append(text).append("\n")
-            }
-        }
-        val synced = lrcBuilder.toString().trim()
-        return if (hasValidTimestamp && synced.contains("[")) synced else null
-    }
-
-    // --- 4. AZLYRICS ---
+    // --- AZLYRICS ---
     private fun fetchFromAZLyrics(trackName: String, artistName: String): String? {
         try {
             val cleanArtist = artistName.lowercase().replace(Regex("[^a-z0-9]"), "")
             val cleanTrack = trackName.lowercase().replace(Regex("[^a-z0-9]"), "")
-            
-            var pageUrl: String? = "https://www.azlyrics.com/lyrics/$cleanArtist/$cleanTrack.html"
-            Log.d(TAG, "Trying direct AZLyrics URL: $pageUrl")
 
+            var pageUrl: String? = "https://www.azlyrics.com/lyrics/$cleanArtist/$cleanTrack.html"
             var responseBody = if (pageUrl != null) httpGet(pageUrl) else null
-            Log.d(TAG, "Direct AZLyrics response length=${responseBody?.length}, text=${responseBody?.take(1000)}")
+
             if (responseBody == null || !responseBody.contains("<!-- Usage of azlyrics.com content")) {
                 if (cleanTrack.length > 4 && cleanTrack.last().isDigit()) {
                     val trimmed = cleanTrack.dropLast(1)
                     pageUrl = "https://www.azlyrics.com/lyrics/$cleanArtist/$trimmed.html"
-                    Log.d(TAG, "Trying trimmed direct AZLyrics URL: $pageUrl")
                     responseBody = httpGet(pageUrl)
-                    Log.d(TAG, "Trimmed AZLyrics response length=${responseBody?.length}, text=${responseBody?.take(1000)}")
                 }
             }
 
             if (responseBody == null || !responseBody.contains("<!-- Usage of azlyrics.com content")) {
-                Log.d(TAG, "Direct AZLyrics failed, searching via DuckDuckGo")
                 val cleanT = sanitize(trackName)
                 val cleanA = sanitize(artistName)
                 val queries = listOf(
@@ -828,10 +736,8 @@ class LyricsFetcher @Inject constructor(
             }
 
             if (responseBody != null) {
-                Log.d(TAG, "AZLyrics full HTML response: ${responseBody.take(1500)}")
                 val startTag = "<!-- Usage of azlyrics.com content by any third-party lyrics provider is prohibited by our licensing agreement. Sorry about that. -->"
                 val startIdx = responseBody.indexOf(startTag)
-                Log.d(TAG, "AZLyrics startIdx=$startIdx, contains startTag=${responseBody.contains("Usage of azlyrics")}")
                 if (startIdx != -1) {
                     val endIdx = responseBody.indexOf("</div>", startIdx + startTag.length)
                     if (endIdx != -1) {
@@ -846,7 +752,7 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
-    // --- 5. LYRICSMINT (Direct port of Flutter) ---
+    // --- LYRICSMINT ---
     private fun fetchFromLyricsMint(trackName: String, artistName: String): String? {
         try {
             val cleanT = sanitize(trackName)
@@ -864,8 +770,6 @@ class LyricsFetcher @Inject constructor(
             }
 
             if (pageUrl == null) return null
-
-            Log.d(TAG, "Fetching LyricsMINT page: $pageUrl")
             val responseBody = httpGet(pageUrl) ?: return null
 
             val lyricRegex = Regex("""<div[^>]*class="[^"]*text-base[^"]*lg:text-lg[^"]*"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL)
@@ -883,7 +787,7 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
-    // --- 6. LYRICFIND (Schema.org JSON-LD + HTML Fallback) ---
+    // --- LYRICFIND ---
     private fun fetchFromLyricFind(trackName: String, artistName: String): String? {
         try {
             val cleanT = sanitize(trackName)
@@ -901,11 +805,8 @@ class LyricsFetcher @Inject constructor(
             }
 
             if (pageUrl == null) return null
-
-            Log.d(TAG, "Fetching LyricFind page: $pageUrl")
             val html = httpGet(pageUrl) ?: return null
 
-            // 1. JSON-LD
             val jsonLdRegex = Regex("""<script[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
             for (match in jsonLdRegex.findAll(html)) {
                 val jsonStr = match.groupValues[1].trim()
@@ -929,7 +830,6 @@ class LyricsFetcher @Inject constructor(
                 } catch (_: Exception) {}
             }
 
-            // 2. HTML Fallback
             val containerPatterns = listOf(
                 Regex("""<div[^>]*class="[^"]*lyrics-text[^"]*"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL),
                 Regex("""<div[^>]*class="[^"]*lyrics[^"]*"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL),
@@ -966,7 +866,6 @@ class LyricsFetcher @Inject constructor(
 
     suspend fun prefetchAllMissingLyrics() = withContext(Dispatchers.IO) {
         val songsToFetch = libraryDao.getSongsWithMissingLyrics()
-        Log.d(TAG, "Prefetching offline lyrics for ${songsToFetch.size} songs")
         for (song in songsToFetch) {
             fetchLyrics(song)
             val internetEnabled = settingsRepository.enableInternet.first()

@@ -13,6 +13,7 @@ import com.example.looper_android.data.db.SongEntity
 import com.example.looper_android.data.models.LyricLine
 import com.example.looper_android.data.repository.AudioTagReader
 import com.example.looper_android.data.repository.AudioTagWriter
+import com.example.looper_android.data.repository.LyricsCache
 import com.example.looper_android.data.repository.LyricsFetcher
 import com.example.looper_android.data.repository.LyricsParser
 import com.example.looper_android.data.repository.SettingsRepository
@@ -47,6 +48,7 @@ data class LyricsUiState(
 class LyricsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val lyricsFetcher: LyricsFetcher,
+    private val lyricsCache: LyricsCache,
     private val audioTagReader: AudioTagReader,
     private val tagWriter: AudioTagWriter,
     private val libraryDao: LibraryDao,
@@ -60,6 +62,12 @@ class LyricsViewModel @Inject constructor(
     val pendingPermission: StateFlow<PendingWritePermission?> = _pendingPermission.asStateFlow()
 
     private var currentSongId: Long = -1L
+    private var currentSongKey: String? = null
+    private var loadLyricsJob: kotlinx.coroutines.Job? = null
+
+    private fun songKey(song: SongEntity): String {
+        return if (song.id > 0L) "id_${song.id}" else "path_${song.path}_${song.title}"
+    }
 
     private fun getTimingOffset(songId: Long, source: String): Long {
         val prefs = context.getSharedPreferences("lyrics_offsets", Context.MODE_PRIVATE)
@@ -79,12 +87,21 @@ class LyricsViewModel @Inject constructor(
 
     fun loadLyricsForSong(song: SongEntity?, forceReload: Boolean = false) {
         if (song == null) {
-            _uiState.value = LyricsUiState(isLoading = false, rawLyrics = null)
+            loadLyricsJob?.cancel()
+            currentSongKey = null
             currentSongId = -1L
+            _uiState.value = LyricsUiState(isLoading = false, rawLyrics = null)
             return
         }
 
-        if (song.id == currentSongId && !forceReload && _uiState.value.rawLyrics != null) return
+        val newKey = songKey(song)
+        if (newKey == currentSongKey && !forceReload && _uiState.value.rawLyrics != null) {
+            return
+        }
+
+        // Immediately cancel any ongoing fetch for the previous song
+        loadLyricsJob?.cancel()
+        currentSongKey = newKey
         currentSongId = song.id
 
         // Immediate Cache Check - If available, display instantly without showing a loading screen!
@@ -102,14 +119,40 @@ class LyricsViewModel @Inject constructor(
                 parsedLines = parsed.timedLines,
                 plainLines = parsed.plainLines
             )
+
+            if (lyricsFetcher.canUpgrade(cached)) {
+                loadLyricsJob = viewModelScope.launch {
+                    val upgraded = lyricsFetcher.upgradeLyrics(song, cached)
+                    if (upgraded != null && currentSongKey == newKey) {
+                        val upParsed = LyricsParser.parseLyrics(upgraded, (song.duration ?: 180000).toLong())
+                        val upSource = lyricsFetcher.extractLyricsSource(upgraded)
+                        _uiState.value = _uiState.value.copy(
+                            rawLyrics = upgraded,
+                            isSynced = upParsed.isSynced,
+                            source = upSource,
+                            parsedLines = upParsed.timedLines,
+                            plainLines = upParsed.plainLines
+                        )
+                    }
+                }
+            }
             return
         }
 
-        // Only show loading indicator if there are currently no lyrics displayed
-        _uiState.value = _uiState.value.copy(isLoading = _uiState.value.rawLyrics == null)
+        // Never keep previous song's lyrics on screen when switching songs!
+        _uiState.value = LyricsUiState(
+            isLoading = true,
+            rawLyrics = null,
+            isSynced = false,
+            source = "None",
+            parsedLines = emptyList(),
+            plainLines = emptyList()
+        )
 
-        viewModelScope.launch {
+        loadLyricsJob = viewModelScope.launch {
             val raw = lyricsFetcher.fetchLyrics(song)
+            if (currentSongKey != newKey) return@launch
+
             if (raw != null) {
                 val parsed = LyricsParser.parseLyrics(raw, (song.duration ?: 180000).toLong())
                 val source = lyricsFetcher.extractLyricsSource(raw)
@@ -123,6 +166,21 @@ class LyricsViewModel @Inject constructor(
                     parsedLines = parsed.timedLines,
                     plainLines = parsed.plainLines
                 )
+
+                if (lyricsFetcher.canUpgrade(raw)) {
+                    val upgraded = lyricsFetcher.upgradeLyrics(song, raw)
+                    if (upgraded != null && currentSongKey == newKey) {
+                        val upParsed = LyricsParser.parseLyrics(upgraded, (song.duration ?: 180000).toLong())
+                        val upSource = lyricsFetcher.extractLyricsSource(upgraded)
+                        _uiState.value = _uiState.value.copy(
+                            rawLyrics = upgraded,
+                            isSynced = upParsed.isSynced,
+                            source = upSource,
+                            parsedLines = upParsed.timedLines,
+                            plainLines = upParsed.plainLines
+                        )
+                    }
+                }
             } else {
                 _uiState.value = LyricsUiState(
                     isLoading = false,
@@ -187,7 +245,14 @@ class LyricsViewModel @Inject constructor(
 
         viewModelScope.launch(Dispatchers.IO) {
             val tagged = if (customText.startsWith("[source:")) customText else "[source:custom]\n$customText"
-            libraryDao.updateSongLyrics(song.id, tagged)
+            lyricsCache.save(song.artist, song.title, tagged)
+            lyricsCache.saveProvider(song.artist, song.title, "Custom", tagged)
+            if (song.id > 0L) {
+                libraryDao.updateSongLyrics(song.id, tagged)
+            }
+            if (song.path.isNotBlank()) {
+                libraryDao.updateSongLyricsByPath(song.path, tagged)
+            }
             val parsed = LyricsParser.parseLyrics(tagged, (song.duration ?: 180000).toLong())
 
             _uiState.value = _uiState.value.copy(

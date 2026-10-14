@@ -97,6 +97,8 @@ import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.User
 import com.composables.icons.lucide.Tag
 import com.composables.icons.lucide.X
+import com.example.looper_android.data.lyrics.providers.LyricsProviderInfo
+import com.example.looper_android.ui.player.LyricsServicesSheet
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
@@ -245,6 +247,16 @@ private fun ThemeSettingsSection(
     val lyricsScreenDarkness by viewModel.lyricsScreenDarkness.collectAsState()
     val primaryLyricsProvider by viewModel.primaryLyricsProvider.collectAsState()
     val autoFallbackLyricsProviders by viewModel.autoFallbackLyricsProviders.collectAsState()
+    val lyricsSyncStyle by viewModel.lyricsSyncStyle.collectAsState()
+    val lyricsProviderOrder by viewModel.lyricsProviderOrder.collectAsState()
+    val lyricsProvidersOff by viewModel.lyricsProvidersOff.collectAsState()
+    var showLyricsServicesSheet by remember { mutableStateOf(false) }
+
+    val enabledChainSummary = remember(lyricsProviderOrder, lyricsProvidersOff) {
+        lyricsProviderOrder.filter { !lyricsProvidersOff.contains(it) }
+            .map { LyricsProviderInfo.of(it)?.label ?: it }
+            .joinToString(" > ")
+    }
     val disableSquiggle by viewModel.disableSquiggle.collectAsState()
     val disableAnimatedDuration by viewModel.disableAnimatedDuration.collectAsState()
     val showQualityBadge by viewModel.showQualityBadge.collectAsState()
@@ -419,19 +431,26 @@ private fun ThemeSettingsSection(
 
                 AboutDivider()
                 SettingsDropdownTile(
-                    title = "Online Lyrics Provider",
-                    subtitle = "Choose primary online service for fetching synchronized lyrics",
-                    icon = Lucide.Globe,
+                    title = "Lyrics Sync Mode",
+                    subtitle = "Syllable and word timing animation style",
+                    icon = Lucide.Sparkles,
                     options = listOf(
-                        "LRCLIB" to "LRCLIB",
-                        "Genius" to "Genius",
-                        "LyricFind" to "LyricFind",
-                        "Musixmatch" to "Musixmatch",
-                        "AZLyrics" to "AZLyrics",
-                        "LyricsMINT" to "LyricsMINT"
+                        "Character (Smooth Wipe)" to "char",
+                        "Word-by-word" to "word",
+                        "Line-by-line" to "line"
                     ),
-                    selectedOption = primaryLyricsProvider,
-                    onOptionSelected = { viewModel.setPrimaryLyricsProvider(it) },
+                    selectedOption = lyricsSyncStyle,
+                    onOptionSelected = { viewModel.setLyricsSyncStyle(it) },
+                    accentColor = accentColor
+                )
+
+                AboutDivider()
+                SettingsOptionTile(
+                    title = "Lyrics Services",
+                    subtitle = "Reorder search priority and toggle providers",
+                    selectedValue = enabledChainSummary.ifEmpty { "None" },
+                    icon = Lucide.List,
+                    onClick = { showLyricsServicesSheet = true },
                     accentColor = accentColor
                 )
 
@@ -582,6 +601,21 @@ private fun ThemeSettingsSection(
                     )
                 }
             }
+        }
+
+        if (showLyricsServicesSheet) {
+            LyricsServicesSheet(
+                providerOrder = lyricsProviderOrder,
+                providersOff = lyricsProvidersOff,
+                accentColor = accentColor,
+                onDismiss = { showLyricsServicesSheet = false },
+                onReorder = { newOrder ->
+                    viewModel.setLyricsProviderOrder(newOrder)
+                },
+                onToggleProvider = { providerId, enabled ->
+                    viewModel.toggleLyricsProvider(providerId, enabled)
+                }
+            )
         }
     }
 }

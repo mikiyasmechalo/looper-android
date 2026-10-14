@@ -33,6 +33,9 @@ class SettingsRepository @Inject constructor(
         val LYRICS_SCREEN_DARKNESS = floatPreferencesKey("lyrics_screen_darkness")
         val PRIMARY_LYRICS_PROVIDER = stringPreferencesKey("primary_lyrics_provider")
         val AUTO_FALLBACK_LYRICS_PROVIDERS = booleanPreferencesKey("auto_fallback_lyrics_providers")
+        val LYRICS_SYNC_STYLE = stringPreferencesKey("lyrics_sync_style")
+        val LYRICS_PROVIDER_ORDER = stringPreferencesKey("lyrics_provider_order")
+        val LYRICS_PROVIDERS_OFF = stringSetPreferencesKey("lyrics_providers_off")
         val DISABLE_SQUIGGLE = booleanPreferencesKey("disable_squiggle")
         val DISABLE_ANIMATED_DURATION = booleanPreferencesKey("disable_animated_duration")
         val SHOW_QUALITY_BADGE = booleanPreferencesKey("show_quality_badge")
@@ -194,6 +197,16 @@ class SettingsRepository @Inject constructor(
         dataStore.data.map { prefs -> prefs[Keys.PRIMARY_LYRICS_PROVIDER] ?: "lrclib" }
     val autoFallbackLyricsProviders: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.AUTO_FALLBACK_LYRICS_PROVIDERS] ?: true }
+    val lyricsSyncStyle: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.LYRICS_SYNC_STYLE] ?: "char" }
+    val lyricsProviderOrder: Flow<List<String>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.LYRICS_PROVIDER_ORDER]
+        val stored = if (!raw.isNullOrBlank()) raw.split(",").map { it.trim().uppercase() } else emptyList()
+        val legacy = prefs[Keys.PRIMARY_LYRICS_PROVIDER]
+        com.example.looper_android.data.lyrics.providers.LyricsProviderInfo.order(stored, legacy)
+    }
+    val lyricsProvidersOff: Flow<Set<String>> = dataStore.data.map { prefs ->
+        prefs[Keys.LYRICS_PROVIDERS_OFF]?.map { it.uppercase() }?.toSet() ?: emptySet()
+    }
     val disableSquiggle: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_SQUIGGLE] ?: false }
     val disableAnimatedDuration: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[Keys.DISABLE_ANIMATED_DURATION] ?: false }
@@ -325,6 +338,27 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setAutoFallbackLyricsProviders(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.AUTO_FALLBACK_LYRICS_PROVIDERS] = value }
+    }
+
+    suspend fun setLyricsSyncStyle(style: String) {
+        dataStore.edit { prefs -> prefs[Keys.LYRICS_SYNC_STYLE] = style }
+    }
+
+    suspend fun setLyricsProviderOrder(order: List<String>) {
+        dataStore.edit { prefs -> prefs[Keys.LYRICS_PROVIDER_ORDER] = order.joinToString(",") }
+    }
+
+    suspend fun setLyricsProviderEnabled(providerId: String, enabled: Boolean) {
+        dataStore.edit { prefs ->
+            val currentOff = (prefs[Keys.LYRICS_PROVIDERS_OFF] ?: emptySet()).toMutableSet()
+            val norm = providerId.uppercase()
+            if (enabled) {
+                currentOff.remove(norm)
+            } else {
+                currentOff.add(norm)
+            }
+            prefs[Keys.LYRICS_PROVIDERS_OFF] = currentOff
+        }
     }
 
     suspend fun setDisableSquiggle(value: Boolean) {

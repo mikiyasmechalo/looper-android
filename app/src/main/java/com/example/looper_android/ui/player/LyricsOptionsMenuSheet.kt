@@ -6,21 +6,26 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -32,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -41,19 +47,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.FileDown
 import com.composables.icons.lucide.FileText
-import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.WifiOff
+import com.composables.icons.lucide.X
 import com.example.looper_android.data.db.SongEntity
+import com.example.looper_android.data.lyrics.providers.LyricsProviderInfo
 import com.example.looper_android.data.repository.LyricsFetcher
 import com.example.looper_android.ui.theme.DmSansFontFamily
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsOptionsMenuSheet(
     song: SongEntity,
@@ -62,8 +69,14 @@ fun LyricsOptionsMenuSheet(
     isInternetEnabled: Boolean,
     isFetchingProvider: String?,
     accentColor: Color,
+    syncStyle: String = "char",
+    isWordSynced: Boolean = false,
+    isSynced: Boolean = true,
+    hasLyrics: Boolean = true,
     onDismiss: () -> Unit,
     onSelectProvider: (String) -> Unit,
+    onSelectSyncStyle: (String) -> Unit = {},
+    onOpenServicesSheetClick: () -> Unit = {},
     onToggleAutoFallback: (Boolean) -> Unit,
     onEnableInternetClick: () -> Unit,
     onExportLrcClick: () -> Unit,
@@ -72,19 +85,6 @@ fun LyricsOptionsMenuSheet(
 ) {
     val haptics = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val sourceBadgeColor = when (lyricsSource.uppercase()) {
-        "LRCLIB" -> Color(0xFF00E5FF)
-        "GENIUS" -> Color(0xFFFFD600)
-        "LYRICFIND" -> Color(0xFFBA68C8)
-        "MUSIXMATCH" -> Color(0xFFFF6D00)
-        "AZLYRICS" -> Color(0xFF29B6F6)
-        "LYRICSMINT" -> Color(0xFF66BB6A)
-        "EMBEDDED" -> Color(0xFF26A69A)
-        "LOCAL", "LOCAL SIDECAR" -> Color(0xFF7E57C2)
-        "CUSTOM LRC" -> Color(0xFFEC407A)
-        else -> Color.White.copy(alpha = 0.6f)
-    }
 
     val durationText = song.duration?.let {
         val totalSecs = it / 1000
@@ -96,7 +96,7 @@ fun LyricsOptionsMenuSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = Color.White,
         dragHandle = {
             Box(
@@ -112,13 +112,14 @@ fun LyricsOptionsMenuSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 4.dp)
         ) {
-            // --- 1. Song Header & Source Chip ---
+            // --- 1. Song Header (Art + Title/Artist + Close Button) ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 10.dp),
+                    .padding(bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncImage(
@@ -158,23 +159,96 @@ fun LyricsOptionsMenuSheet(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Source Badge Chip
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(sourceBadgeColor.copy(alpha = 0.15f))
-                        .border(0.8.dp, sourceBadgeColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = lyricsSource,
-                        color = sourceBadgeColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = DmSansFontFamily
+                    Icon(
+                        imageVector = Lucide.X,
+                        contentDescription = "Close",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
+
+            // --- 2. Source & Sync Type Badges (Slimmer, using normal dynamic accent color) ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Source Badge Pill
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(accentColor.copy(alpha = 0.14f))
+                        .border(0.8.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 9.dp, vertical = 2.5.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Lucide.Disc,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = "Source: $lyricsSource",
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+                }
+
+                // Sync Type Badge Pill
+                if (hasLyrics) {
+                    val (syncIcon, syncText, syncColor) = when {
+                        isWordSynced -> Triple(Lucide.Sparkles, "Word-synced", accentColor)
+                        isSynced -> Triple(Lucide.List, "Line-synced", Color.White.copy(alpha = 0.85f))
+                        else -> Triple(Lucide.FileText, "Plain text", Color.White.copy(alpha = 0.6f))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(syncColor.copy(alpha = 0.10f))
+                            .border(0.8.dp, syncColor.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 9.dp, vertical = 2.5.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = syncIcon,
+                                contentDescription = null,
+                                tint = syncColor,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = syncText,
+                                color = syncColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = DmSansFontFamily
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.8.dp)
 
@@ -237,23 +311,100 @@ fun LyricsOptionsMenuSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // --- 2. Option 1: Change Lyrics Provider ---
+            // --- 3. Slimmer Sync Highlight Style Selector ---
             Text(
-                text = "Change Lyrics Provider for this Song",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                text = "Highlight Style",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
                 fontFamily = DmSansFontFamily
             )
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(0.8.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(17.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val modes = listOf(
+                    "char" to "Character",
+                    "word" to "Word",
+                    "line" to "Line"
+                )
+                modes.forEach { (modeKey, title) ->
+                    val isSelected = syncStyle.equals(modeKey, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isSelected) accentColor.copy(alpha = 0.22f)
+                                else Color.Transparent
+                            )
+                            .border(
+                                width = if (isSelected) 1.dp else 0.dp,
+                                color = if (isSelected) accentColor.copy(alpha = 0.55f) else Color.Transparent,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSelectSyncStyle(modeKey)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.8.dp)
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // --- 4. Horizontal Scrolling Source Selector: Individual Pills ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Lyrics Provider",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = DmSansFontFamily
+                )
+                Text(
+                    text = "${LyricsFetcher.ALL_PROVIDERS.size} sources",
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 11.sp,
+                    fontFamily = DmSansFontFamily
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            FlowRow(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp)
             ) {
-                LyricsFetcher.ALL_PROVIDERS.forEach { provider ->
+                items(LyricsFetcher.ALL_PROVIDERS) { provider ->
                     val isCurrent = when (provider.uppercase()) {
                         "LOCAL", "LOCAL SIDECAR" -> lyricsSource.equals("Local Sidecar", ignoreCase = true) ||
                                 lyricsSource.equals("Local", ignoreCase = true) ||
@@ -266,24 +417,27 @@ fun LyricsOptionsMenuSheet(
                     }
                     val isLoading = isFetchingProvider.equals(provider, ignoreCase = true)
                     val isClickable = !isCurrent && !isLoading
+                    val providerInfo = LyricsProviderInfo.of(provider)
+                    val providerLabel = providerInfo?.label ?: provider
 
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(CircleShape)
                             .background(
-                                if (isCurrent) accentColor.copy(alpha = 0.20f)
+                                if (isCurrent) accentColor.copy(alpha = 0.22f)
                                 else Color.White.copy(alpha = 0.06f)
                             )
                             .border(
-                                width = 1.dp,
-                                color = if (isCurrent) accentColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.10f),
-                                shape = RoundedCornerShape(12.dp)
+                                width = if (isCurrent) 1.dp else 0.8.dp,
+                                color = if (isCurrent) accentColor else Color.White.copy(alpha = 0.12f),
+                                shape = CircleShape
                             )
                             .clickable(enabled = isClickable) {
-                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onSelectProvider(provider)
                             }
-                            .padding(horizontal = 11.dp, vertical = 6.dp)
+                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -292,34 +446,14 @@ fun LyricsOptionsMenuSheet(
                             if (isLoading) {
                                 CircularProgressIndicator(
                                     color = accentColor,
-                                    strokeWidth = 2.dp,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                            } else if (isCurrent) {
-                                Icon(
-                                    imageVector = Lucide.Check,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                            } else {
-                                val providerIcon = when (provider.uppercase()) {
-                                    "LOCAL", "LOCAL SIDECAR" -> Lucide.FileText
-                                    "EMBEDDED" -> Lucide.FileDown
-                                    else -> Lucide.Globe
-                                }
-                                Icon(
-                                    imageVector = providerIcon,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(12.dp)
+                                    strokeWidth = 1.5.dp,
+                                    modifier = Modifier.size(11.dp)
                                 )
                             }
-
                             Text(
-                                text = provider,
-                                color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.75f),
-                                fontSize = 12.sp,
+                                text = providerLabel,
+                                color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.70f),
+                                fontSize = 11.5.sp,
                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                                 fontFamily = DmSansFontFamily
                             )
@@ -328,13 +462,20 @@ fun LyricsOptionsMenuSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.8.dp)
+            LyricsActionTile(
+                icon = Lucide.List,
+                title = "Configure Lyrics Providers Order",
+                subtitle = "Reorder and enable/disable services",
+                onClick = {
+                    onOpenServicesSheetClick()
+                }
+            )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // --- 3. Option 2: Auto Fallback Providers Toggle ---
+            // --- 5. Option 2: Auto Fallback Providers Toggle ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -369,7 +510,7 @@ fun LyricsOptionsMenuSheet(
                         fontFamily = DmSansFontFamily
                     )
                     Text(
-                        text = "Cycle all providers if primary yields no lyrics",
+                        text = "Cycle all providers if the primary fails",
                         color = Color.White.copy(alpha = 0.45f),
                         fontSize = 11.sp,
                         fontFamily = DmSansFontFamily
@@ -390,7 +531,11 @@ fun LyricsOptionsMenuSheet(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // --- 4. Embed Lyrics into Audio File (if not already embedded) ---
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.8.dp)
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // --- 6. Embed Lyrics into Audio File (if not already embedded) ---
             if (!lyricsSource.equals("Embedded", ignoreCase = true) && !lyricsSource.equals("None", ignoreCase = true)) {
                 LyricsActionTile(
                     icon = Lucide.Disc,
@@ -402,7 +547,7 @@ fun LyricsOptionsMenuSheet(
                 )
             }
 
-            // --- 5. Export Lyrics into LRC File ---
+            // --- 7. Export Lyrics into LRC File ---
             LyricsActionTile(
                 icon = Lucide.FileDown,
                 title = "Export Lyrics into LRC File",
@@ -412,7 +557,7 @@ fun LyricsOptionsMenuSheet(
                 }
             )
 
-            // --- 6. Use Custom Lyrics (LRC File) ---
+            // --- 8. Use Custom Lyrics (LRC File) ---
             LyricsActionTile(
                 icon = Lucide.FileText,
                 title = "Use Custom Lyrics (LRC File)",

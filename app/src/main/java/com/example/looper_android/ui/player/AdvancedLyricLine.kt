@@ -1,26 +1,35 @@
 package com.example.looper_android.ui.player
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import com.example.looper_android.data.models.LyricLine
-
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
+import com.example.looper_android.data.models.LyricLine
+import com.example.looper_android.data.models.LyricsSyncMode
+import com.example.looper_android.ui.theme.LocalLyricsFontFamily
 
 @Composable
 fun AdvancedLyricLine(
@@ -30,10 +39,14 @@ fun AdvancedLyricLine(
     disableFontScaling: Boolean = true,
     alignment: String = "center",
     activeColor: Color = Color.White,
+    positionMs: Long = 0L,
+    isPlaying: Boolean = false,
+    syncMode: LyricsSyncMode = LyricsSyncMode.CHAR,
     onTap: () -> Unit
 ) {
+    val unsungColor = Color.White.copy(alpha = 0.38f)
     val animatedColor by animateColorAsState(
-        targetValue = if (isActive) activeColor else Color.White.copy(alpha = 0.40f),
+        targetValue = if (isActive) activeColor else unsungColor,
         animationSpec = tween(durationMillis = 280),
         label = "lyricTextColor"
     )
@@ -45,16 +58,29 @@ fun AdvancedLyricLine(
     }
     val fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
 
-    val textAlignment = when (alignment.lowercase()) {
-        "left" -> androidx.compose.ui.text.style.TextAlign.Left
-        "right" -> androidx.compose.ui.text.style.TextAlign.Right
-        else -> androidx.compose.ui.text.style.TextAlign.Center
+    // Duet partner lines sit on the opposite edge
+    val effectiveAlignment = when {
+        line.isOppositeSide && alignment.equals("left", ignoreCase = true) -> "right"
+        line.isOppositeSide && alignment.equals("right", ignoreCase = true) -> "left"
+        else -> alignment
     }
 
-    val boxAlignment = when (alignment.lowercase()) {
-        "left" -> androidx.compose.ui.Alignment.CenterStart
-        "right" -> androidx.compose.ui.Alignment.CenterEnd
-        else -> androidx.compose.ui.Alignment.Center
+    val textAlignment = when (effectiveAlignment.lowercase()) {
+        "left" -> TextAlign.Left
+        "right" -> TextAlign.Right
+        else -> TextAlign.Center
+    }
+
+    val boxAlignment = when (effectiveAlignment.lowercase()) {
+        "left" -> Alignment.CenterStart
+        "right" -> Alignment.CenterEnd
+        else -> Alignment.Center
+    }
+
+    val columnAlignment = when (effectiveAlignment.lowercase()) {
+        "left" -> Alignment.Start
+        "right" -> Alignment.End
+        else -> Alignment.CenterHorizontally
     }
 
     val isInstrumental = line.text.isEmpty() ||
@@ -62,6 +88,8 @@ fun AdvancedLyricLine(
             line.text.contains("instrumental", ignoreCase = true) ||
             line.text.contains("[music]", ignoreCase = true) ||
             line.text.contains("♪")
+
+    val usesWordTiming = line.hasWordTiming && syncMode != LyricsSyncMode.LINE
 
     Box(
         modifier = Modifier
@@ -73,7 +101,7 @@ fun AdvancedLyricLine(
             if (line.text == "...") {
                 Text(
                     text = "...",
-                    fontFamily = com.example.looper_android.ui.theme.LocalLyricsFontFamily.current,
+                    fontFamily = LocalLyricsFontFamily.current,
                     color = animatedColor,
                     fontSize = fontSize.sp,
                     fontWeight = fontWeight,
@@ -81,23 +109,64 @@ fun AdvancedLyricLine(
                     lineHeight = (fontSize * 1.5f).sp
                 )
             } else {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulseInstrumental")
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 0.92f,
+                    targetValue = 1.08f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulseScale"
+                )
+
                 Icon(
                     imageVector = Lucide.Music,
                     contentDescription = "Instrumental",
                     tint = animatedColor,
-                    modifier = Modifier.size((fontSize * 1.2f).dp)
+                    modifier = Modifier
+                        .size((fontSize * 1.25f).dp)
+                        .scale(if (isActive) pulseScale else 1f)
                 )
             }
-        } else {
-            Text(
-                text = line.text,
-                fontFamily = com.example.looper_android.ui.theme.LocalLyricsFontFamily.current,
-                color = animatedColor,
+        } else if (usesWordTiming) {
+            WordSyncedLyricText(
+                line = line,
+                positionMs = positionMs,
+                isPlaying = isPlaying,
+                activeColor = activeColor,
+                unsungColor = unsungColor,
                 fontSize = fontSize.sp,
                 fontWeight = fontWeight,
-                textAlign = textAlignment,
-                lineHeight = (fontSize * 1.5f).sp
+                alignment = effectiveAlignment,
+                mode = syncMode,
+                isActive = isActive
             )
+        } else {
+            Column(horizontalAlignment = columnAlignment) {
+                Text(
+                    text = line.text,
+                    fontFamily = LocalLyricsFontFamily.current,
+                    color = animatedColor,
+                    fontSize = fontSize.sp,
+                    fontWeight = fontWeight,
+                    textAlign = textAlignment,
+                    lineHeight = (fontSize * 1.4f).sp
+                )
+
+                if (line.effectiveBackgroundText.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = line.effectiveBackgroundText,
+                        fontFamily = LocalLyricsFontFamily.current,
+                        color = animatedColor.copy(alpha = animatedColor.alpha * 0.7f),
+                        fontSize = (fontSize * 0.62f).sp,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = textAlignment,
+                        lineHeight = (fontSize * 0.9f).sp
+                    )
+                }
+            }
         }
     }
 }

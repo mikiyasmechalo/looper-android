@@ -67,6 +67,8 @@ fun AdvancedLyricRenderer(
     disableFontScaling: Boolean = true,
     alignment: String = "center",
     activeColor: Color = Color.White,
+    isPlaying: Boolean = false,
+    syncMode: com.example.looper_android.data.models.LyricsSyncMode = com.example.looper_android.data.models.LyricsSyncMode.CHAR,
     onUserScroll: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
@@ -144,6 +146,9 @@ fun AdvancedLyricRenderer(
                         disableFontScaling = disableFontScaling,
                         alignment = alignment,
                         activeColor = activeColor,
+                        positionMs = effectivePositionMs,
+                        isPlaying = isPlaying,
+                        syncMode = syncMode,
                         onTap = { onSeek(line.startTimeMs) }
                     )
                 }

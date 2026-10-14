@@ -85,6 +85,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.composables.icons.lucide.EllipsisVertical
+import com.example.looper_android.data.models.LyricsSyncMode
 
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.mutableFloatStateOf
@@ -115,6 +116,9 @@ fun LyricsScreen(
     val blurredArtworkForLyrics by settingsViewModel.blurredArtworkForLyrics.collectAsState()
     val autoFallback by settingsViewModel.autoFallbackLyricsProviders.collectAsState()
     val enableInternet by settingsViewModel.enableInternet.collectAsState()
+    val lyricsSyncStyle by settingsViewModel.lyricsSyncStyle.collectAsState()
+    val lyricsProviderOrder by settingsViewModel.lyricsProviderOrder.collectAsState()
+    val lyricsProvidersOff by settingsViewModel.lyricsProvidersOff.collectAsState()
     val effectiveDarkTheme = darkTheme && !dynamicTheming
     val dynamicColorActiveLyrics by settingsViewModel.dynamicColorActiveLyrics.collectAsState()
     val dynamicAccentColor by settingsViewModel.dynamicAccentColor.collectAsState()
@@ -143,6 +147,7 @@ fun LyricsScreen(
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
     var showLyricsMenuSheet by remember { mutableStateOf(false) }
+    var showLyricsServicesSheet by remember { mutableStateOf(false) }
 
     val customLrcPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -168,7 +173,7 @@ fun LyricsScreen(
         }
     }
 
-    LaunchedEffect(state.currentSong) {
+    LaunchedEffect(state.currentSong?.id, state.currentSong?.path) {
         lyricsViewModel.loadLyricsForSong(state.currentSong)
     }
 
@@ -349,14 +354,8 @@ fun LyricsScreen(
                             maxLines = 1
                         )
                         val artistName = state.currentSong?.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                        val albumName = state.currentSong?.album?.trim()?.ifBlank { null }
-                        val subtitleText = if (!albumName.isNullOrEmpty() && albumName != "Unknown Album") {
-                            "$artistName • $albumName"
-                        } else {
-                            artistName
-                        }
                         Text(
-                            text = subtitleText,
+                            text = artistName,
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 13.sp,
                             fontFamily = DmSansFontFamily,
@@ -492,6 +491,8 @@ fun LyricsScreen(
                         disableFontScaling = disableLyricFontScaling,
                         alignment = lyricsAlignment,
                         activeColor = if (dynamicColorActiveLyrics) state.accentColor else Color.White,
+                        isPlaying = state.isPlaying,
+                        syncMode = LyricsSyncMode.fromSetting(lyricsSyncStyle),
                         modifier = Modifier.fillMaxSize(),
                         onUserScroll = { resetHideTimer() }
                     )
@@ -695,6 +696,7 @@ fun LyricsScreen(
         }
 
         if (showLyricsMenuSheet && state.currentSong != null) {
+            val hasWordTiming = lyricsState.parsedLines.any { it.hasWordTiming }
             LyricsOptionsMenuSheet(
                 song = state.currentSong!!,
                 lyricsSource = lyricsState.source,
@@ -702,9 +704,20 @@ fun LyricsScreen(
                 isInternetEnabled = enableInternet,
                 isFetchingProvider = lyricsState.isFetchingProvider,
                 accentColor = animatedAccentColor,
+                syncStyle = lyricsSyncStyle,
+                isWordSynced = hasWordTiming,
+                isSynced = lyricsState.isSynced,
+                hasLyrics = lyricsState.parsedLines.isNotEmpty() || !lyricsState.rawLyrics.isNullOrBlank(),
                 onDismiss = { showLyricsMenuSheet = false },
                 onSelectProvider = { provider ->
                     lyricsViewModel.refetchWithProvider(state.currentSong!!, provider)
+                },
+                onSelectSyncStyle = { style ->
+                    settingsViewModel.setLyricsSyncStyle(style)
+                },
+                onOpenServicesSheetClick = {
+                    showLyricsMenuSheet = false
+                    showLyricsServicesSheet = true
                 },
                 onToggleAutoFallback = { enabled ->
                     settingsViewModel.setAutoFallbackLyricsProviders(enabled)
@@ -721,6 +734,21 @@ fun LyricsScreen(
                 onPickCustomLrcClick = {
                     showLyricsMenuSheet = false
                     customLrcPicker.launch(arrayOf("text/*", "application/octet-stream", "*/*"))
+                }
+            )
+        }
+
+        if (showLyricsServicesSheet) {
+            LyricsServicesSheet(
+                providerOrder = lyricsProviderOrder,
+                providersOff = lyricsProvidersOff,
+                accentColor = animatedAccentColor,
+                onDismiss = { showLyricsServicesSheet = false },
+                onReorder = { newOrder ->
+                    settingsViewModel.setLyricsProviderOrder(newOrder)
+                },
+                onToggleProvider = { providerId, enabled ->
+                    settingsViewModel.toggleLyricsProvider(providerId, enabled)
                 }
             )
         }
