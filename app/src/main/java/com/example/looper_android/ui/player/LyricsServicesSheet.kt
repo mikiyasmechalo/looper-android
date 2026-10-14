@@ -20,12 +20,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import com.example.looper_android.ui.widgets.FrostedBottomSheet
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,7 +58,6 @@ fun LyricsServicesSheet(
     onReorder: (List<String>) -> Unit,
     onToggleProvider: (String, Boolean) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptics = rememberHapticFeedbackHelper()
 
     var localOrder by remember(providerOrder) { mutableStateOf(providerOrder) }
@@ -74,21 +72,9 @@ fun LyricsServicesSheet(
         .map { LyricsProviderInfo.of(it)?.label ?: it }
         .joinToString(" > ")
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = Color.White,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 8.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-            )
-        }
+    FrostedBottomSheet(
+        onDismiss = onDismiss,
+        showDragHandle = true
     ) {
         Column(
             modifier = Modifier

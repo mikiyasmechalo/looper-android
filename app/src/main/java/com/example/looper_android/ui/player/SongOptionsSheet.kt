@@ -38,17 +38,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import com.example.looper_android.ui.widgets.FrostedBottomSheet
+import com.example.looper_android.ui.widgets.LocalFrostedSheetDragModifier
+import com.example.looper_android.ui.widgets.LocalFrostedSheetOverlay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -107,9 +108,79 @@ enum class ActiveSheet {
     OPTIONS, EDIT, DELETE, DETAILS, TECH_INFO, PLAYLISTS, SLEEP_TIMER
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongOptionsSheet(
+    song: SongEntity,
+    onDismiss: () -> Unit,
+    accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
+    useBlur: Boolean = false,
+    isPureBlack: Boolean = false,
+    playlist: com.example.looper_android.data.db.PlaylistEntity? = null,
+    isCurrentlyPlaying: Boolean = false,
+    isFromQueue: Boolean = false,
+    queueIndex: Int? = null,
+    showSleepTimer: Boolean = false,
+    showEqualizer: Boolean = false,
+    showGoToArtist: Boolean = true,
+    showGoToAlbum: Boolean = true,
+    onArtistClick: ((String) -> Unit)? = null,
+    onAlbumClick: ((String) -> Unit)? = null,
+    onNavigateToEqualizer: (() -> Unit)? = null,
+) {
+    val overlaySlot = LocalFrostedSheetOverlay.current
+    if (overlaySlot != null) {
+        DisposableEffect(song, playlist, isCurrentlyPlaying, isFromQueue, queueIndex, showSleepTimer, showEqualizer, showGoToArtist, showGoToAlbum) {
+            overlaySlot.value = {
+                SongOptionsSheetContent(
+                    song = song,
+                    onDismiss = {
+                        overlaySlot.value = null
+                        onDismiss()
+                    },
+                    accentColor = accentColor,
+                    useBlur = useBlur,
+                    isPureBlack = isPureBlack,
+                    playlist = playlist,
+                    isCurrentlyPlaying = isCurrentlyPlaying,
+                    isFromQueue = isFromQueue,
+                    queueIndex = queueIndex,
+                    showSleepTimer = showSleepTimer,
+                    showEqualizer = showEqualizer,
+                    showGoToArtist = showGoToArtist,
+                    showGoToAlbum = showGoToAlbum,
+                    onArtistClick = onArtistClick,
+                    onAlbumClick = onAlbumClick,
+                    onNavigateToEqualizer = onNavigateToEqualizer
+                )
+            }
+            onDispose {
+                overlaySlot.value = null
+            }
+        }
+    } else {
+        SongOptionsSheetContent(
+            song = song,
+            onDismiss = onDismiss,
+            accentColor = accentColor,
+            useBlur = useBlur,
+            isPureBlack = isPureBlack,
+            playlist = playlist,
+            isCurrentlyPlaying = isCurrentlyPlaying,
+            isFromQueue = isFromQueue,
+            queueIndex = queueIndex,
+            showSleepTimer = showSleepTimer,
+            showEqualizer = showEqualizer,
+            showGoToArtist = showGoToArtist,
+            showGoToAlbum = showGoToAlbum,
+            onArtistClick = onArtistClick,
+            onAlbumClick = onAlbumClick,
+            onNavigateToEqualizer = onNavigateToEqualizer
+        )
+    }
+}
+
+@Composable
+fun SongOptionsSheetContent(
     song: SongEntity,
     onDismiss: () -> Unit,
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current,
@@ -201,44 +272,20 @@ fun SongOptionsSheet(
         androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
     when (activeSheet) {
         ActiveSheet.OPTIONS -> {
-            ModalBottomSheet(
-                onDismissRequest = onDismiss,
-                sheetState = sheetState,
-                containerColor = sheetBg,
-                contentColor = Color.White,
-                scrimColor = Color.Black.copy(alpha = 0.54f),
-                dragHandle = {
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 12.dp, bottom = 4.dp)
-                            .width(40.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.24f))
-                    )
-                },
-                properties = ModalBottomSheetProperties(
-                    shouldDismissOnBackPress = true,
-//            isFocusable = true
-                )
+            FrostedBottomSheet(
+                onDismiss = onDismiss,
+                showDragHandle = true
             ) {
-                val content: @Composable () -> Unit = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                color = sheetBg,
-                                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                            )
-                    ) {
-                        // ── Header ───────────────────────────────────────────────
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // ── Header ───────────────────────────────────────────────
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(LocalFrostedSheetDragModifier.current)
                                 .padding(start = 24.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -512,7 +559,7 @@ fun SongOptionsSheet(
                                         .fillMaxWidth()
                                         .padding(horizontal = 8.dp),
                                     shape = RoundedCornerShape(20.dp),
-                                    backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                                    backgroundColor = Color.White.copy(alpha = 0.04f),
                                     onClick = null
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -573,24 +620,6 @@ fun SongOptionsSheet(
                             }
                         }
                     }
-                }
-
-                // Blur wrapper (matches Flutter BackdropFilter)
-                if (useBlur && !isPureBlack && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                renderEffect = android.graphics.RenderEffect
-                                    .createBlurEffect(16f, 16f, android.graphics.Shader.TileMode.CLAMP)
-                                    .asComposeRenderEffect()
-                            }
-                    ) {
-                        content()
-                    }
-                } else {
-                    content()
-                }
             }
         }
 
@@ -757,51 +786,15 @@ fun EditSongSheet(
         }
     }
 
-    val sheetBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = sheetBg,
-        scrimColor = Color.Black.copy(alpha = 0.54f),
-        dragHandle = { }
+    FrostedBottomSheet(
+        onDismiss = onDismiss,
+        showDragHandle = true
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    color = sheetBg,
-                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
-                )
+                .padding(bottom = 16.dp)
         ) {
-            if (useBlur && !isPureBlack && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .graphicsLayer {
-                            renderEffect = android.graphics.RenderEffect
-                                .createBlurEffect(16f, 16f, android.graphics.Shader.TileMode.CLAMP)
-                                .asComposeRenderEffect()
-                        }
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                // Drag handle
-                Box(
-                    modifier = Modifier
-                        .padding(top = 16.dp, bottom = 16.dp)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.24f))
-                        .align(Alignment.CenterHorizontally)
-                )
 
                 // Header
                 Row(
@@ -946,7 +939,7 @@ fun EditSongSheet(
                                 .background(accentColor)
                                 .border(
                                     width = 2.dp,
-                                    color = sheetBg,
+                                    color = Color(0xFF141414),
                                     shape = RoundedCornerShape(18.dp)
                                 ),
                             contentAlignment = Alignment.Center
@@ -1143,7 +1136,6 @@ fun EditSongSheet(
             }
         }
     }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Delete Confirmation Dialog

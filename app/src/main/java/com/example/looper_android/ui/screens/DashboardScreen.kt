@@ -20,6 +20,10 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -217,6 +221,7 @@ fun DashboardScreen(
 
     val hazeState = remember { dev.chrisbanes.haze.HazeState() }
     val selectionBottomBarState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
+    val frostedSheetOverlayState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
 
     val isBlurEnabled = dynamicTheming && !disableBlur
 
@@ -224,7 +229,8 @@ fun DashboardScreen(
         com.example.looper_android.ui.theme.LocalAccentColor provides playbackState.accentColor,
         com.example.looper_android.ui.components.LocalSelectionBottomBar provides selectionBottomBarState,
         com.example.looper_android.ui.widgets.LocalHazeState provides hazeState,
-        com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides isBlurEnabled
+        com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides isBlurEnabled,
+        com.example.looper_android.ui.widgets.LocalFrostedSheetOverlay provides frostedSheetOverlayState
     ) {
         Box(
             modifier = Modifier
@@ -674,77 +680,105 @@ fun DashboardScreen(
         }
 
         // PERSISTENT MINI PLAYER & NAVBAR (Always on top across all library items)
-        Column(
+        Box(
             modifier = if (isLandscape) {
                 Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth(0.50f)
                     .widthIn(max = 480.dp)
-                    .navigationBarsPadding()
-                    .padding(start = 12.dp, bottom = 12.dp, top = 2.dp)
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp, top = 2.dp)
             }
         ) {
-            val isBlurEnabled = dynamicTheming && !disableBlur
-
-            AnimatedContent(
-                targetState = isSelectionActive,
-                transitionSpec = {
-                    if (targetState) {
-                        (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
-                            .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
-                    } else {
-                        (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
-                            .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
-                    }
-                },
-                label = "BottomBarSelectionTransition"
-            ) { selectionActive ->
-                if (!selectionActive) {
-                    com.example.looper_android.ui.widgets.PremiumMusicBar(
-                        viewModel = playbackViewModel,
-                        onNavigateToPlayer = { navController.navigate("player") },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = dashboardAnimatedVisibilityScope,
-                        enableBlur = isBlurEnabled,
-                        hazeState = hazeState,
-                        darkTheme = effectiveDarkTheme
-                    )
-                } else {
-                    selectionBottomBarState.value?.invoke()
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(6.dp))
-
-            PremiumNavbar(
-                currentIndex = selectedTabIndex,
-                onTap = { index ->
-                    if (index == 1 && selectedTabIndex == 1 && (currentRoute == "tabs" || currentRoute == null)) {
-                        coroutineScope.launch {
-                            allSongsListState.animateScrollToItem(0)
-                        }
-                    }
-                    if (childNavController.previousBackStackEntry != null) {
-                        childNavController.popBackStack("tabs", inclusive = false)
-                    }
-                    coroutineScope.launch {
-                        pagerState.animateScrollToPage(index)
-                    }
-                },
-                accentColor = playbackState.accentColor,
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = dashboardAnimatedVisibilityScope,
-                enableBlur = isBlurEnabled,
-                hazeState = hazeState,
-                darkTheme = effectiveDarkTheme
+            // Touch blocker backdrop: absorbs all clicks in the gaps between mini player and navbar,
+            // and under the navbar, preventing clicks from leaking to underlying list items
+            // WITHOUT wrapping or consuming pointer events of the children.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { }
             )
+
+            Column(
+                modifier = if (isLandscape) {
+                    Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(start = 12.dp, bottom = 12.dp, top = 2.dp)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp, top = 2.dp)
+                }
+            ) {
+                val isBlurEnabled = dynamicTheming && !disableBlur
+
+                AnimatedContent(
+                    targetState = isSelectionActive,
+                    transitionSpec = {
+                        if (targetState) {
+                            (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
+                                .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
+                        } else {
+                            (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(280)))
+                                .togetherWith(slideOutVertically(animationSpec = tween(240, easing = FastOutLinearInEasing)) { it } + fadeOut(tween(240)))
+                        }
+                    },
+                    label = "BottomBarSelectionTransition"
+                ) { selectionActive ->
+                    if (!selectionActive) {
+                        com.example.looper_android.ui.widgets.PremiumMusicBar(
+                            viewModel = playbackViewModel,
+                            onNavigateToPlayer = {
+                                navController.navigate("player") {
+                                    launchSingleTop = true
+                                }
+                            },
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = dashboardAnimatedVisibilityScope,
+                            enableBlur = isBlurEnabled,
+                            hazeState = hazeState,
+                            darkTheme = effectiveDarkTheme
+                        )
+                    } else {
+                        selectionBottomBarState.value?.invoke()
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(6.dp))
+
+                PremiumNavbar(
+                    currentIndex = selectedTabIndex,
+                    onTap = { index ->
+                        if (index == 1 && selectedTabIndex == 1 && (currentRoute == "tabs" || currentRoute == null)) {
+                            coroutineScope.launch {
+                                allSongsListState.animateScrollToItem(0)
+                            }
+                        }
+                        if (childNavController.previousBackStackEntry != null) {
+                            childNavController.popBackStack("tabs", inclusive = false)
+                        }
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
+                    },
+                    accentColor = playbackState.accentColor,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = dashboardAnimatedVisibilityScope,
+                    enableBlur = isBlurEnabled,
+                    hazeState = hazeState,
+                    darkTheme = effectiveDarkTheme
+                )
+            }
         }
+
+        frostedSheetOverlayState.value?.invoke()
     }
 }
 }

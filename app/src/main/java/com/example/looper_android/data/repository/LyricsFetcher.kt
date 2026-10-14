@@ -67,30 +67,52 @@ class LyricsFetcher @Inject constructor(
         return 3
     }
 
+    fun lyricsPriorityScore(lyrics: String?): Int {
+        if (lyrics.isNullOrBlank() || lyrics.contains("[source:not_found]")) return 0
+        val isUserPicked = lyrics.contains("[picked:user]")
+        val isSynced = isLyricsSynced(lyrics)
+        val hasWord = hasWordTiming(lyrics)
+
+        return when {
+            isUserPicked && hasWord -> 100
+            isUserPicked && isSynced -> 90
+            isUserPicked -> 80
+            hasWord -> 50
+            isSynced -> 40
+            else -> 10
+        }
+    }
+
+    fun selectBestLyrics(candidates: Iterable<String?>): String? {
+        return candidates
+            .filterNotNull()
+            .filter { it.isNotBlank() && !it.contains("[source:not_found]") }
+            .maxByOrNull { lyricsPriorityScore(it) }
+    }
+
     fun canUpgrade(raw: String?): Boolean {
         if (raw.isNullOrBlank()) return false
         if (raw.contains("[picked:user]")) return false
         if (raw.contains("[source:custom]", ignoreCase = true)) return false
+        if (raw.contains("[source:embedded]", ignoreCase = true)) return false
+        if (raw.contains("[source:local", ignoreCase = true)) return false
         val level = levelOf(raw)
-        return level == 1 || level == 2
+        return level == 1
     }
 
     fun getCachedLyricsSync(song: SongEntity): String? {
-        val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
-        if (!inMem.isNullOrBlank()) return inMem
+        val candidates = mutableListOf<String>()
 
-        val disk = lyricsCache.get(song.artist, song.title)
-        if (!disk.isNullOrBlank()) {
-            val src = extractLyricsSource(disk).uppercase()
-            cacheInMemory(song.id, src, disk)
-            return disk
-        }
+        sessionLyricsCache[song.id]?.values?.let { candidates.addAll(it) }
+        candidates.addAll(lyricsCache.getAllProviderLyrics(song.id, song.artist, song.title))
+        lyricsCache.get(song.id, song.artist, song.title)?.let { candidates.add(it) }
+        song.lyrics?.let { if (it.isNotBlank()) candidates.add(it) }
 
-        if (!song.lyrics.isNullOrBlank()) {
-            val src = extractLyricsSource(song.lyrics).uppercase()
-            cacheInMemory(song.id, src, song.lyrics)
-            lyricsCache.save(song.artist, song.title, song.lyrics)
-            return song.lyrics
+        val best = selectBestLyrics(candidates)
+        if (best != null) {
+            val src = extractLyricsSource(best).uppercase()
+            cacheInMemory(song.id, src, best)
+            return best
         }
         return null
     }
@@ -101,8 +123,8 @@ class LyricsFetcher @Inject constructor(
 
     private suspend fun cacheInMemoryAndDb(song: SongEntity, provider: String, lyrics: String) {
         cacheInMemory(song.id, provider, lyrics)
-        lyricsCache.saveProvider(song.artist, song.title, provider, lyrics)
-        lyricsCache.save(song.artist, song.title, lyrics)
+        lyricsCache.saveProvider(song.id, song.artist, song.title, provider, lyrics)
+        lyricsCache.save(song.id, song.artist, song.title, lyrics)
         if (song.id > 0L) {
             libraryDao.updateSongLyrics(song.id, lyrics)
         }
@@ -115,7 +137,7 @@ class LyricsFetcher @Inject constructor(
         val cached = sessionLyricsCache[song.id]?.get(provider.uppercase())
         if (!cached.isNullOrEmpty()) return cached
 
-        val disk = lyricsCache.getProvider(song.artist, song.title, provider)
+        val disk = lyricsCache.getProvider(song.id, song.artist, song.title, provider)
         if (!disk.isNullOrEmpty()) {
             cacheInMemory(song.id, provider.uppercase(), disk)
             return disk
@@ -124,7 +146,7 @@ class LyricsFetcher @Inject constructor(
         val fetched = fetchFromOnlineProvider(song, provider.uppercase())
         if (fetched != null) {
             cacheInMemory(song.id, provider.uppercase(), fetched)
-            lyricsCache.saveProvider(song.artist, song.title, provider, fetched)
+            lyricsCache.saveProvider(song.id, song.artist, song.title, provider, fetched)
         }
         return fetched
     }
@@ -272,45 +294,48 @@ class LyricsFetcher @Inject constructor(
     }
 
     suspend fun fetchLyrics(song: SongEntity): String? = withContext(Dispatchers.IO) {
-        // Fast Check 1: In-memory session cache
-        val inMem = sessionLyricsCache[song.id]?.values?.firstOrNull { it.isNotBlank() }
-        if (!inMem.isNullOrBlank()) return@withContext inMem
-
-        // Fast Check 2: Persistent disk cache
-        val diskCached = lyricsCache.get(song.artist, song.title)
-        if (!diskCached.isNullOrBlank()) {
-            val src = extractLyricsSource(diskCached).uppercase()
-            cacheInMemory(song.id, src, diskCached)
-            return@withContext diskCached
-        }
-
-        // Fast Check 3: Database cache
-        val dbCached = (if (song.id > 0L) libraryDao.getSongLyricsById(song.id) else null)
-            ?: libraryDao.getSongLyricsByPath(song.path)
-        if (!dbCached.isNullOrEmpty()) {
-            val src = extractLyricsSource(dbCached).uppercase()
-            cacheInMemory(song.id, src, dbCached)
-            lyricsCache.save(song.artist, song.title, dbCached)
-            return@withContext dbCached
-        }
-
-        // 1. Check Embedded Metadata
+        // Priority 1: Check Local Synced Lyrics FIRST.
+        // Rule: "make sure we only fetch lyrics from online if the local isn't synced."
         val embedded = tryEmbeddedLyrics(song)
         if (isLyricsSynced(embedded) && embedded != null) {
             cacheInMemoryAndDb(song, "EMBEDDED", embedded)
             return@withContext embedded
         }
 
-        // 2. Check Local Sidecar (.lrc / .txt)
         val sidecar = tryLocalSidecarLyrics(song)
         if (isLyricsSynced(sidecar) && sidecar != null) {
             cacheInMemoryAndDb(song, "LOCAL", sidecar)
             return@withContext sidecar
         }
 
-        // 3. Online Providers (Iterating user's prioritized order)
+        // Fast Check 1: In-memory session cache for USER-PICKED or SYNCED lyrics
+        val inMemBest = selectBestLyrics(sessionLyricsCache[song.id]?.values ?: emptyList())
+        if (inMemBest != null && (inMemBest.contains("[picked:user]") || isLyricsSynced(inMemBest))) {
+            return@withContext inMemBest
+        }
+
+        // Fast Check 2: Persistent disk cache for USER-PICKED or SYNCED lyrics
+        val diskCandidates = lyricsCache.getAllProviderLyrics(song.id, song.artist, song.title)
+        val diskBest = selectBestLyrics(diskCandidates)
+        if (diskBest != null && (diskBest.contains("[picked:user]") || isLyricsSynced(diskBest))) {
+            val src = extractLyricsSource(diskBest).uppercase()
+            cacheInMemory(song.id, src, diskBest)
+            return@withContext diskBest
+        }
+
+        // Fast Check 3: Database cache for USER-PICKED or SYNCED lyrics
+        val dbCached = (if (song.id > 0L) libraryDao.getSongLyricsById(song.id) else null)
+            ?: libraryDao.getSongLyricsByPath(song.path)
+        if (!dbCached.isNullOrEmpty() && (dbCached.contains("[picked:user]") || isLyricsSynced(dbCached))) {
+            val src = extractLyricsSource(dbCached).uppercase()
+            cacheInMemory(song.id, src, dbCached)
+            lyricsCache.save(song.id, song.artist, song.title, dbCached)
+            return@withContext dbCached
+        }
+
+        // Priority 2: Online Providers for SYNCED lyrics (Iterating user's prioritized order)
         var lineSyncedFallback: String? = null
-        var unsyncedFallback: String? = null
+        var onlineUnsyncedFallback: String? = null
 
         val enableInternet = settingsRepository.enableInternet.first()
         if (enableInternet) {
@@ -321,7 +346,12 @@ class LyricsFetcher @Inject constructor(
             val enabledProviders = order.filter { !off.contains(it) }
 
             for (provider in enabledProviders) {
-                val lyrics = getFromMemoryOrFetch(song, provider)
+                val lyrics = try {
+                    getFromMemoryOrFetch(song, provider)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Provider $provider failed in fetchLyrics loop", e)
+                    null
+                }
                 if (lyrics != null) {
                     val level = levelOf(lyrics)
                     if (level >= 3) {
@@ -331,39 +361,37 @@ class LyricsFetcher @Inject constructor(
                         return@withContext lyrics
                     } else if (level == 2 && lineSyncedFallback == null) {
                         lineSyncedFallback = lyrics
-                    } else if (level == 1 && unsyncedFallback == null) {
-                        unsyncedFallback = lyrics
+                    } else if (level == 1 && onlineUnsyncedFallback == null) {
+                        onlineUnsyncedFallback = lyrics
                     }
                 }
 
-                if (!autoFallback) break
+                if (!autoFallback && (lineSyncedFallback != null || onlineUnsyncedFallback != null)) break
             }
         }
 
-        // If we found line-synced lyrics online, save and return
+        // If we found line-synced lyrics online, save and return immediately
         if (lineSyncedFallback != null) {
             val src = extractLyricsSource(lineSyncedFallback).uppercase()
             cacheInMemoryAndDb(song, src, lineSyncedFallback)
             return@withContext lineSyncedFallback
         }
 
-        // 4. Embedded UNSYNCED lyrics (if available)
-        if (!embedded.isNullOrEmpty()) {
-            cacheInMemoryAndDb(song, "EMBEDDED", embedded)
-            return@withContext embedded
-        }
+        // 4. Fallback to UNSYNCED lyrics if no synced lyrics could be found anywhere
+        val unsyncedCandidate = selectBestLyrics(listOf(
+            embedded,
+            sidecar,
+            dbCached,
+            song.lyrics,
+            onlineUnsyncedFallback,
+            inMemBest,
+            diskBest
+        ))
 
-        // 5. Local Sidecar UNSYNCED lyrics (if available)
-        if (!sidecar.isNullOrEmpty()) {
-            cacheInMemoryAndDb(song, "LOCAL", sidecar)
-            return@withContext sidecar
-        }
-
-        // 6. Online UNSYNCED lyrics (if available)
-        if (unsyncedFallback != null) {
-            val src = extractLyricsSource(unsyncedFallback).uppercase()
-            cacheInMemoryAndDb(song, src, unsyncedFallback)
-            return@withContext unsyncedFallback
+        if (unsyncedCandidate != null) {
+            val src = extractLyricsSource(unsyncedCandidate).uppercase()
+            cacheInMemory(song.id, src, unsyncedCandidate)
+            return@withContext unsyncedCandidate
         }
 
         return@withContext null
@@ -389,13 +417,14 @@ class LyricsFetcher @Inject constructor(
             }
 
             for (provider in candidates) {
-                val candidateLyrics = getFromMemoryOrFetch(song, provider) ?: continue
+                val candidateLyrics = try {
+                    getFromMemoryOrFetch(song, provider)
+                } catch (e: Exception) {
+                    null
+                } ?: continue
+
                 val candidateLevel = levelOf(candidateLyrics)
                 if (candidateLevel > currentLevel) {
-                    val dbSongLyrics = if (song.id > 0L) libraryDao.getSongLyricsById(song.id) else libraryDao.getSongLyricsByPath(song.path)
-                    // If user manually edited or changed it in the meantime, do not overwrite
-                    if (dbSongLyrics != null && dbSongLyrics != current) return@withContext null
-
                     val src = extractLyricsSource(candidateLyrics).uppercase()
                     cacheInMemoryAndDb(song, src, candidateLyrics)
                     return@withContext candidateLyrics
@@ -413,22 +442,27 @@ class LyricsFetcher @Inject constructor(
     suspend fun fetchFromSpecificProvider(song: SongEntity, provider: String): String? = withContext(Dispatchers.IO) {
         val norm = provider.uppercase()
         val cached = sessionLyricsCache[song.id]?.get(norm)
-            ?: lyricsCache.getProvider(song.artist, song.title, norm)
+            ?: lyricsCache.getProvider(song.id, song.artist, song.title, norm)
         if (!cached.isNullOrEmpty()) {
             val pinned = if (cached.contains("[picked:user]")) cached else "$cached\n[picked:user]"
             cacheInMemoryAndDb(song, norm, pinned)
             return@withContext pinned
         }
 
-        val result = when (norm) {
-            "EMBEDDED" -> tryEmbeddedLyrics(song)
-            "LOCAL", "LOCAL SIDECAR" -> tryLocalSidecarLyrics(song)
-            else -> {
-                val enableInternet = settingsRepository.enableInternet.first()
-                if (enableInternet) {
-                    fetchFromOnlineProvider(song, norm)
-                } else null
+        val result = try {
+            when (norm) {
+                "EMBEDDED" -> tryEmbeddedLyrics(song)
+                "LOCAL", "LOCAL SIDECAR" -> tryLocalSidecarLyrics(song)
+                else -> {
+                    val enableInternet = settingsRepository.enableInternet.first()
+                    if (enableInternet) {
+                        fetchFromOnlineProvider(song, norm)
+                    } else null
+                }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in fetchFromSpecificProvider for $provider", e)
+            null
         }
 
         if (result != null) {
@@ -492,24 +526,29 @@ class LyricsFetcher @Inject constructor(
     }
 
     private suspend fun fetchFromOnlineProvider(song: SongEntity, provider: String): String? {
-        val title = song.title.trim()
-        val artist = (song.artist ?: "Unknown Artist").trim()
-        val durationSeconds = ((song.duration ?: 0) / 1000).toInt()
+        return try {
+            val title = song.title.trim()
+            val artist = (song.artist ?: "Unknown Artist").trim()
+            val durationSeconds = ((song.duration ?: 0) / 1000).toInt()
 
-        return when (provider.uppercase()) {
-            "LRC.RED" -> LrcRedClient.fetch(title, artist, durationSeconds)?.let { "[source:LRC.RED]\n$it" }
-            "LYRICSPLUS" -> LyricsPlusClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICSPLUS]\n$it" }
-            "AMLL" -> AmllClient.fetch(title, artist, durationSeconds)?.let { "[source:AMLL]\n$it" }
-            "NETEASE" -> NetEaseClient.fetch(title, artist, durationSeconds)?.let { "[source:NETEASE]\n$it" }
-            "KUGOU" -> KuGouClient.fetch(title, artist, durationSeconds)?.let { "[source:KUGOU]\n$it" }
-            "MUSIXMATCH" -> MusixmatchClient.fetch(title, artist, durationSeconds)?.let { "[source:MUSIXMATCH]\n$it" }
-            "LYRICIFY" -> LyricifyClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICIFY]\n$it" }
-            "LRCLIB" -> fetchFromLrcLib(song)
-            "GENIUS" -> fetchFromGenius(title, artist)
-            "AZLYRICS" -> fetchFromAZLyrics(title, artist)
-            "LYRICSMINT" -> fetchFromLyricsMint(title, artist)
-            "LYRICFIND" -> fetchFromLyricFind(title, artist)
-            else -> fetchFromLrcLib(song)
+            when (provider.uppercase()) {
+                "LRC.RED" -> LrcRedClient.fetch(title, artist, durationSeconds)?.let { "[source:LRC.RED]\n$it" }
+                "LYRICSPLUS" -> LyricsPlusClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICSPLUS]\n$it" }
+                "AMLL" -> AmllClient.fetch(title, artist, durationSeconds)?.let { "[source:AMLL]\n$it" }
+                "NETEASE" -> NetEaseClient.fetch(title, artist, durationSeconds)?.let { "[source:NETEASE]\n$it" }
+                "KUGOU" -> KuGouClient.fetch(title, artist, durationSeconds)?.let { "[source:KUGOU]\n$it" }
+                "MUSIXMATCH" -> MusixmatchClient.fetch(title, artist, durationSeconds)?.let { "[source:MUSIXMATCH]\n$it" }
+                "LYRICIFY" -> LyricifyClient.fetch(title, artist, durationSeconds)?.let { "[source:LYRICIFY]\n$it" }
+                "LRCLIB" -> fetchFromLrcLib(song)
+                "GENIUS" -> fetchFromGenius(title, artist)
+                "AZLYRICS" -> fetchFromAZLyrics(title, artist)
+                "LYRICSMINT" -> fetchFromLyricsMint(title, artist)
+                "LYRICFIND" -> fetchFromLyricFind(title, artist)
+                else -> fetchFromLrcLib(song)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchFromOnlineProvider failed for $provider", e)
+            null
         }
     }
 

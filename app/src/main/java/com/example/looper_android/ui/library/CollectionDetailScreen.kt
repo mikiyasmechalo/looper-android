@@ -1627,7 +1627,7 @@ private fun HeroActionBar(
                 Icon(
                     imageVector = Lucide.Star,
                     contentDescription = "Favorite",
-                    tint = if (isFavorite) Color(0xFFFFD54F) else Color.White,
+                    tint = if (isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
                     modifier = Modifier.size(16.dp)
                 )
             }

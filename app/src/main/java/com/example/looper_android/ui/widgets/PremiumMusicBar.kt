@@ -5,7 +5,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -18,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +95,17 @@ fun PremiumMusicBar(
 
             val subtitleText = song.artist ?: "Unknown Artist"
 
+            val localDensity = LocalDensity.current
+            val upwardThresholdPx = with(localDensity) { 14.dp.toPx() }
+            val swipeThresholdPx = with(localDensity) { 32.dp.toPx() }
+            var isPressedPlayPause by remember { mutableStateOf(false) }
+
+            val playPauseScale by animateFloatAsState(
+                targetValue = if (isPressedPlayPause) 0.88f else 1f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                label = "playPauseScale"
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -100,20 +117,76 @@ fun PremiumMusicBar(
                         cameraDistance = 12f * density
                     }
                     .pointerInput(song.id) {
-                        detectDragGestures(
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragOffset += dragAmount
-                            },
-                            onDragEnd = {
-                                val dx = dragOffset.x
-                                val dy = dragOffset.y
+                        val touchSlop = viewConfiguration.touchSlop
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var isDrag = false
+                            val startPos = down.position
+                            var currentOffset = Offset.Zero
+                            var isCancelled = false
 
-                                if (dy > 70f && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                            if (startPos.x > size.width * 0.78f) {
+                                isPressedPlayPause = true
+                            }
+
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                if (change == null) {
+                                    isCancelled = true
+                                    break
+                                }
+
+                                if (change.changedToUp()) {
+                                    change.consume()
+                                    break
+                                }
+
+                                val totalDx = change.position.x - startPos.x
+                                val totalDy = change.position.y - startPos.y
+                                val distance = kotlin.math.hypot(totalDx, totalDy)
+
+                                if (!isDrag && distance > touchSlop) {
+                                    isDrag = true
+                                    isPressedPlayPause = false
+                                }
+
+                                if (isDrag) {
+                                    change.consume()
+                                    currentOffset = Offset(totalDx, totalDy)
+                                    dragOffset = currentOffset
+                                }
+                            }
+
+                            isPressedPlayPause = false
+
+                            if (isCancelled) {
+                                coroutineScope.launch {
+                                    animate(
+                                        typeConverter = Offset.VectorConverter,
+                                        initialValue = dragOffset,
+                                        targetValue = Offset.Zero,
+                                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                    ) { value, _ -> dragOffset = value }
+                                }
+                            } else if (!isDrag) {
+                                // Tap anywhere on the mini player
+                                if (startPos.x > size.width * 0.78f) {
                                     haptics.mediumImpact()
-                                    viewModel.clearQueue()
-                                    dragOffset = Offset.Zero
-                                } else if (dy < -70f && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                                    viewModel.togglePlayPause()
+                                } else {
+                                    haptics.lightImpact()
+                                    onNavigateToPlayer()
+                                }
+                                dragOffset = Offset.Zero
+                            } else {
+                                val dx = currentOffset.x
+                                val dy = currentOffset.y
+                                val absDx = kotlin.math.abs(dx)
+                                val absDy = kotlin.math.abs(dy)
+
+                                if (dy < -upwardThresholdPx && absDy > absDx * 0.35f) {
+                                    // UPWARD SLIDE -> Expand to player!
                                     haptics.lightImpact()
                                     onNavigateToPlayer()
                                     val startOffset = dragOffset
@@ -130,21 +203,65 @@ fun PremiumMusicBar(
                                             dragOffset = value
                                         }
                                     }
-                                } else if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
-                                    if (dx > 70f) {
+                                } else if (dy > swipeThresholdPx && absDy > absDx) {
+                                    // DOWNWARD DRAG -> Clear queue
+                                    haptics.mediumImpact()
+                                    viewModel.clearQueue()
+                                    coroutineScope.launch {
+                                        animate(
+                                            typeConverter = Offset.VectorConverter,
+                                            initialValue = dragOffset,
+                                            targetValue = Offset.Zero,
+                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        ) { value, _ -> dragOffset = value }
+                                    }
+                                } else if (absDx > absDy && absDx > swipeThresholdPx) {
+                                    // HORIZONTAL SWIPE -> Next / Previous
+                                    if (dx > 0) {
                                         haptics.lightImpact()
                                         viewModel.skipToPrevious()
-                                    } else if (dx < -70f) {
+                                    } else {
                                         haptics.lightImpact()
                                         viewModel.skipToNext()
                                     }
-                                    dragOffset = Offset.Zero
+                                    coroutineScope.launch {
+                                        animate(
+                                            typeConverter = Offset.VectorConverter,
+                                            initialValue = dragOffset,
+                                            targetValue = Offset.Zero,
+                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        ) { value, _ -> dragOffset = value }
+                                    }
+                                } else if (dy < -6.dp.toPx() && startPos.x < size.width * 0.78f) {
+                                    // Micro-slide upward on Song Info -> expand to player!
+                                    haptics.lightImpact()
+                                    onNavigateToPlayer()
+                                    val startOffset = dragOffset
+                                    coroutineScope.launch {
+                                        animate(
+                                            typeConverter = Offset.VectorConverter,
+                                            initialValue = startOffset,
+                                            targetValue = Offset(0f, startOffset.y * 2.5f),
+                                            animationSpec = tween(
+                                                durationMillis = 400,
+                                                easing = FastOutSlowInEasing
+                                            )
+                                        ) { value, _ ->
+                                            dragOffset = value
+                                        }
+                                    }
                                 } else {
-                                    dragOffset = Offset.Zero
+                                    coroutineScope.launch {
+                                        animate(
+                                            typeConverter = Offset.VectorConverter,
+                                            initialValue = dragOffset,
+                                            targetValue = Offset.Zero,
+                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        ) { value, _ -> dragOffset = value }
+                                    }
                                 }
-                            },
-                            onDragCancel = { dragOffset = Offset.Zero }
-                        )
+                            }
+                        }
                     }
             ) {
                 Row(
@@ -160,10 +277,7 @@ fun PremiumMusicBar(
                         backgroundColor = containerColor,
                         enableBlur = enableBlur,
                         hazeState = hazeState,
-                        onClick = {
-                            haptics.lightImpact()
-                            onNavigateToPlayer()
-                        }
+                        onClick = null
                     ) {
                         Row(
                             modifier = Modifier
@@ -188,8 +302,8 @@ fun PremiumMusicBar(
                                 if (miniPlayerState.isPlaying) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.4f)),
+                                           .fillMaxSize()
+                                           .background(Color.Black.copy(alpha = 0.4f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         coil.compose.AsyncImage(
@@ -252,6 +366,10 @@ fun PremiumMusicBar(
                         modifier = Modifier
                             .weight(2f)
                             .fillMaxHeight()
+                            .graphicsLayer {
+                                scaleX = playPauseScale
+                                scaleY = playPauseScale
+                            }
                             .sharedBoundsOrElement(
                                 key = "player_play_pause_btn",
                                 sharedTransitionScope = sharedTransitionScope,
@@ -262,10 +380,7 @@ fun PremiumMusicBar(
                         backgroundColor = containerColor,
                         enableBlur = enableBlur,
                         hazeState = hazeState,
-                        onClick = {
-                            haptics.mediumImpact()
-                            viewModel.togglePlayPause()
-                        }
+                        onClick = null
                     ) {
                         AnimatedPlayPauseIcon(
                             isPlaying = miniPlayerState.isPlaying,

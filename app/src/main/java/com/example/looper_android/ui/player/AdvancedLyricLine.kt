@@ -20,7 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -151,7 +154,14 @@ fun AdvancedLyricLine(
                     fontSize = fontSize.sp,
                     fontWeight = fontWeight,
                     textAlign = textAlignment,
-                    lineHeight = (fontSize * 1.4f).sp
+                    lineHeight = (fontSize * 1.4f).sp,
+                    style = TextStyle(
+                        shadow = if (isActive) Shadow(
+                            color = activeColor.copy(alpha = 0.55f),
+                            blurRadius = 18f,
+                            offset = Offset(0f, 2f)
+                        ) else null
+                    )
                 )
 
                 if (line.effectiveBackgroundText.isNotEmpty()) {

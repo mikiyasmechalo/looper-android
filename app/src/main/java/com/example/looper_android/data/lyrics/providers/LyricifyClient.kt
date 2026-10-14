@@ -73,7 +73,7 @@ object LyricifyClient {
             .header("Accept", "application/json")
             .build()
 
-        val response = httpClient.newCall(request).execute()
+        val response = try { httpClient.newCall(request).execute() } catch (_: Exception) { return null }
         if (!response.isSuccessful) return null
 
         val body = response.body?.string() ?: return null

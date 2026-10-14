@@ -120,10 +120,14 @@ object KuGouClient {
             .header("Accept", "application/json")
             .build()
 
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful) return null
+        return try {
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
 
-        val body = response.body?.string() ?: return null
-        return try { JSONObject(body) } catch (_: Exception) { null }
+            val body = response.body?.string() ?: return null
+            JSONObject(body)
+        } catch (_: Exception) {
+            null
+        }
     }
 }

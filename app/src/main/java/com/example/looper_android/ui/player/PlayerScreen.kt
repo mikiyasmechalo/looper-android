@@ -242,11 +242,17 @@ fun PlayerScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (enableSlideGesture && !showQueueSheet) {
+    val isBlurEnabled = dynamicTheming && !disableBlur
+
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.looper_android.ui.widgets.LocalHazeState provides playerHazeState,
+        com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides isBlurEnabled
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (enableSlideGesture && !showQueueSheet && !showOptionsSheet) {
                     Modifier.pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragStart = {
@@ -554,7 +560,7 @@ fun PlayerScreen(
                                 Icon(
                                     imageVector = CustomIcons.LikedIcon,
                                     contentDescription = "Favorite",
-                                    tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.40f),
+                                    tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.20f),
                                     modifier = Modifier
                                         .size(20.dp)
                                         .graphicsLayer {
@@ -566,7 +572,15 @@ fun PlayerScreen(
                         }
 
                         // 2. Seek Bar
-                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sharedBoundsOrElement(
+                                    "player_seek_bar",
+                                    sharedTransitionScope,
+                                    animatedVisibilityScope
+                                )
+                        ) {
                             if (disableSquiggle) {
                                 com.example.looper_android.ui.widgets.FlatSlider(
                                     positionMs = state.position,
@@ -1020,7 +1034,7 @@ fun PlayerScreen(
                         Icon(
                             imageVector = CustomIcons.LikedIcon,
                             contentDescription = "Favorite",
-                            tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.40f),
+                            tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.20f),
                             modifier = Modifier
                                 .size(24.dp)
                                 .graphicsLayer {
@@ -1035,7 +1049,14 @@ fun PlayerScreen(
 
                 // 4. Seek Bar
                 Box(
-                    modifier = Modifier.padding(horizontal = 28.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .sharedBoundsOrElement(
+                            "player_seek_bar",
+                            sharedTransitionScope,
+                            animatedVisibilityScope
+                        )
                 ) {
                     if (disableSquiggle) {
                         com.example.looper_android.ui.widgets.FlatSlider(
@@ -1317,29 +1338,29 @@ fun PlayerScreen(
                 onAlbumClick(album)
             }
         )
-    }
 
-    if (showOptionsSheet) {
-        SongOptionsSheet(
-            song = song,
-            onDismiss = { showOptionsSheet = false },
-            accentColor = state.accentColor,
-            isCurrentlyPlaying = true,
-            showSleepTimer = true,
-            showEqualizer = true,
-            onArtistClick = { artist ->
-                onArtistClick(artist)
-            },
-            onAlbumClick = { album ->
-                onAlbumClick(album)
-            },
-            onNavigateToEqualizer = {
-                showOptionsSheet = false
-                onNavigateToEqualizer()
-            }
-        )
+        if (showOptionsSheet) {
+            SongOptionsSheet(
+                song = song,
+                onDismiss = { showOptionsSheet = false },
+                accentColor = state.accentColor,
+                isCurrentlyPlaying = true,
+                showSleepTimer = true,
+                showEqualizer = true,
+                onArtistClick = { artist ->
+                    onArtistClick(artist)
+                },
+                onAlbumClick = { album ->
+                    onAlbumClick(album)
+                },
+                onNavigateToEqualizer = {
+                    showOptionsSheet = false
+                    onNavigateToEqualizer()
+                }
+            )
+        }
     }
-
+}
 }
 
 @Composable

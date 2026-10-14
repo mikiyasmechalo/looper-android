@@ -40,6 +40,7 @@ fun PremiumSection(
     onClick: (() -> Unit)? = null,
     showLeftBorder: Boolean = true,
     showRightBorder: Boolean = true,
+    showBorder: Boolean = true,
     enableBlur: Boolean = false,
     hazeState: HazeState? = null,
     content: @Composable BoxScope.() -> Unit
@@ -52,9 +53,9 @@ fun PremiumSection(
 
     val actualBgColor = if (enableBlur) {
         if (backgroundColor == Color(0xFF2A2A2A) || backgroundColor == Color(0xFF1A1A1A) || backgroundColor == Color(0xFF1E1E1E) || backgroundColor == Color(0xFF0A0A0A)) {
-            Color.White.copy(alpha = 0.08f)
-        } else if (backgroundColor == androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant || backgroundColor == Color.White.copy(alpha = 0.05f)) {
-            Color.White.copy(alpha = 0.05f) // Matches Flutter app's 5% white glass tint
+            Color.Black.copy(alpha = 0.25f)
+        } else if (backgroundColor == androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant || backgroundColor == Color.White.copy(alpha = 0.05f) || backgroundColor == Color.White.copy(alpha = 0.06f)) {
+            Color.Black.copy(alpha = 0.18f)
         } else {
             backgroundColor
         }
@@ -78,23 +79,27 @@ fun PremiumSection(
     
     boxModifier = boxModifier
         .background(actualBgColor)
-        .drawWithCache {
-            val desiredWidth = 1.2.dp.toPx()
-            val strokeWidth = desiredWidth * 2 
-            val strokeColor = Color.White.copy(alpha = 0.05f) // Matches Flutter app exactly
-            val outline = finalShape.createOutline(size, layoutDirection, this)
-            onDrawWithContent {
-                drawContent()
-                clipRect(
-                    left = if (showLeftBorder) -100f else desiredWidth,
-                    top = -100f,
-                    right = size.width + (if (showRightBorder) 100f else -desiredWidth),
-                    bottom = size.height + 100f
-                ) {
-                    drawOutline(outline, strokeColor, style = Stroke(strokeWidth))
+
+    if (showBorder) {
+        boxModifier = boxModifier
+            .drawWithCache {
+                val desiredWidth = 1.2.dp.toPx()
+                val strokeWidth = desiredWidth * 2 
+                val strokeColor = Color.White.copy(alpha = 0.05f) // Matches Flutter app exactly
+                val outline = finalShape.createOutline(size, layoutDirection, this)
+                onDrawWithContent {
+                    drawContent()
+                    clipRect(
+                        left = if (showLeftBorder) -100f else desiredWidth,
+                        top = -100f,
+                        right = size.width + (if (showRightBorder) 100f else -desiredWidth),
+                        bottom = size.height + 100f
+                    ) {
+                        drawOutline(outline, strokeColor, style = Stroke(strokeWidth))
+                    }
                 }
             }
-        }
+    }
 
     if (width != null) boxModifier = boxModifier.width(width)
     if (height != null) boxModifier = boxModifier.height(height)

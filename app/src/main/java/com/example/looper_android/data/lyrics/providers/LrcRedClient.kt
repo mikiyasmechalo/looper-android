@@ -38,13 +38,23 @@ object LrcRedClient {
         val artists = LyricsQuery.artistVariants(artist)
         val tried = mutableSetOf<String>()
 
-        suspend fun fromIsrcs(isrcs: Iterable<String>): String? {
+        suspend fun fromIsrcs(isrcs: Iterable<String>): String? = kotlinx.coroutines.supervisorScope {
             val batch = isrcs.filter { tried.add(it) }.take(3)
             val deferreds = batch.map { candidate ->
-                async { fetchTtml(candidate) }
+                async {
+                    try {
+                        fetchTtml(candidate)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
             }
-            val results = deferreds.awaitAll()
-            return results.firstOrNull { it != null }
+            try {
+                val results = deferreds.awaitAll()
+                results.firstOrNull { it != null }
+            } catch (_: Throwable) {
+                null
+            }
         }
 
         if (!isrc.isNullOrBlank()) {
@@ -128,41 +138,49 @@ object LrcRedClient {
     }
 
     private fun queryHits(path: String, params: Map<String, String>): List<JSONObject> {
-        val builder = Uri.parse("$API_BASE$path").buildUpon()
-        for ((k, v) in params) builder.appendQueryParameter(k, v)
+        return try {
+            val builder = Uri.parse("$API_BASE$path").buildUpon()
+            for ((k, v) in params) builder.appendQueryParameter(k, v)
 
-        val request = Request.Builder()
-            .url(builder.build().toString())
-            .header("User-Agent", "Mozilla/5.0")
-            .header("Accept", "application/json")
-            .build()
+            val request = Request.Builder()
+                .url(builder.build().toString())
+                .header("User-Agent", "Mozilla/5.0")
+                .header("Accept", "application/json")
+                .build()
 
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful) return emptyList()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return emptyList()
 
-        val body = response.body?.string() ?: return emptyList()
-        val json = JSONObject(body)
-        val hits = json.optJSONArray("hits") ?: return emptyList()
+            val body = response.body?.string() ?: return emptyList()
+            val json = JSONObject(body)
+            val hits = json.optJSONArray("hits") ?: return emptyList()
 
-        val out = mutableListOf<JSONObject>()
-        for (i in 0 until hits.length()) {
-            val obj = hits.optJSONObject(i) ?: continue
-            out.add(obj)
+            val out = mutableListOf<JSONObject>()
+            for (i in 0 until hits.length()) {
+                val obj = hits.optJSONObject(i) ?: continue
+                out.add(obj)
+            }
+            out
+        } catch (_: Exception) {
+            emptyList()
         }
-        return out
     }
 
     private fun fetchTtml(isrc: String): String? {
-        val url = "$API_BASE/s/${Uri.encode(isrc)}.ttml"
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "Mozilla/5.0")
-            .build()
+        return try {
+            val url = "$API_BASE/s/${Uri.encode(isrc)}.ttml"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0")
+                .build()
 
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful) return null
-        val ttml = response.body?.string() ?: return null
-        val lines = TtmlLyricsParser.parse(ttml) ?: return null
-        return TimedLrcWriter.write(lines)
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val ttml = response.body?.string() ?: return null
+            val lines = TtmlLyricsParser.parse(ttml) ?: return null
+            TimedLrcWriter.write(lines)
+        } catch (_: Exception) {
+            null
+        }
     }
 }

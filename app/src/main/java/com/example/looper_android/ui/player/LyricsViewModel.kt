@@ -120,7 +120,25 @@ class LyricsViewModel @Inject constructor(
                 plainLines = parsed.plainLines
             )
 
-            if (lyricsFetcher.canUpgrade(cached)) {
+            // If cached lyrics are NOT synced (and not user-picked), fetch online synced lyrics!
+            if (!parsed.isSynced && !cached.contains("[picked:user]")) {
+                loadLyricsJob = viewModelScope.launch {
+                    val fetched = lyricsFetcher.fetchLyrics(song)
+                    if (fetched != null && fetched != cached && currentSongKey == newKey) {
+                        val newParsed = LyricsParser.parseLyrics(fetched, (song.duration ?: 180000).toLong())
+                        val newSource = lyricsFetcher.extractLyricsSource(fetched)
+                        val newOffset = getTimingOffset(song.id, newSource)
+                        _uiState.value = _uiState.value.copy(
+                            rawLyrics = fetched,
+                            isSynced = newParsed.isSynced,
+                            source = newSource,
+                            timingOffsetMs = newOffset,
+                            parsedLines = newParsed.timedLines,
+                            plainLines = newParsed.plainLines
+                        )
+                    }
+                }
+            } else if (lyricsFetcher.canUpgrade(cached)) {
                 loadLyricsJob = viewModelScope.launch {
                     val upgraded = lyricsFetcher.upgradeLyrics(song, cached)
                     if (upgraded != null && currentSongKey == newKey) {

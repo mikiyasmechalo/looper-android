@@ -84,6 +84,7 @@ import com.example.looper_android.ui.components.OptimizedImage
 import com.example.looper_android.ui.settings.SettingsViewModel
 import com.example.looper_android.ui.theme.JostFontFamily
 import com.example.looper_android.ui.widgets.QueueSwitcher
+import com.example.looper_android.ui.widgets.frostedGlass
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeChild
@@ -463,9 +464,13 @@ fun QueueBottomSheet(
     val transition = updateTransition(targetState = visible, label = "QueueSheetTransition")
 
     if (transition.currentState || transition.targetState) {
-        BackHandler(enabled = visible) {
-            onDismiss()
-        }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.example.looper_android.ui.widgets.LocalHazeState provides hazeState,
+            com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides isBlurEnabled
+        ) {
+            BackHandler(enabled = visible) {
+                onDismiss()
+            }
 
         val scrimAlpha by transition.animateFloat(
             transitionSpec = {
@@ -473,7 +478,7 @@ fun QueueBottomSheet(
             },
             label = "queue_scrim_alpha"
         ) { isVis ->
-            if (isVis) 0.50f else 0f
+            if (isVis) 0.38f else 0f
         }
 
         val sheetProgress by transition.animateFloat(
@@ -578,7 +583,7 @@ fun QueueBottomSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = scrimAlpha * 0.4f))
+                        .background(Color.Black.copy(alpha = scrimAlpha))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -595,29 +600,13 @@ fun QueueBottomSheet(
                     .fillMaxWidth()
                     .height(sheetHeight)
                     .offset { IntOffset(0, currentOffsetY.toInt()) }
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .then(
-                        if (isBlurEnabled && hazeState != null) {
-                            Modifier.hazeChild(
-                                state = hazeState,
-                                style = HazeStyle(
-                                    backgroundColor = Color.Transparent,
-                                    tints = emptyList(),
-                                    blurRadius = 20.dp
-                                )
-                            )
-                        } else Modifier
-                    )
-                    .background(
-                        if (isBlurEnabled) Color.Black.copy(alpha = 0.18f)
-                        else if (effectiveDarkTheme) Color.Black
-                        else Color(0xFF141414)
-                    )
-                    .background(if (isBlurEnabled) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                        Modifier.frostedGlass(
+                            hazeState = hazeState,
+                            isBlurEnabled = isBlurEnabled,
+                            effectiveDarkTheme = effectiveDarkTheme,
+                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                        )
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -840,7 +829,7 @@ fun QueueBottomSheet(
                                     .padding(bottom = 12.dp)
                                     .clip(RoundedCornerShape(32.dp))
                                     .background(
-                                        if (isBlurEnabled) Color.White.copy(alpha = 0.12f)
+                                        if (isBlurEnabled) Color.Black.copy(alpha = 0.40f)
                                         else Color(0xFF2A2A2A).copy(alpha = 0.90f)
                                     )
                                     .border(
@@ -911,4 +900,5 @@ fun QueueBottomSheet(
             )
         }
     }
+}
 }

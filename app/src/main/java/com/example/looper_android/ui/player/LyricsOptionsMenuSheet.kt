@@ -26,13 +26,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import com.example.looper_android.ui.widgets.FrostedBottomSheet
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -84,8 +83,6 @@ fun LyricsOptionsMenuSheet(
     onPickCustomLrcClick: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
     val durationText = song.duration?.let {
         val totalSecs = it / 1000
         val mins = totalSecs / 60
@@ -93,21 +90,9 @@ fun LyricsOptionsMenuSheet(
         String.format("%d:%02d", mins, secs)
     } ?: ""
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = Color.White,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 8.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-            )
-        }
+    FrostedBottomSheet(
+        onDismiss = onDismiss,
+        showDragHandle = true
     ) {
         Column(
             modifier = Modifier

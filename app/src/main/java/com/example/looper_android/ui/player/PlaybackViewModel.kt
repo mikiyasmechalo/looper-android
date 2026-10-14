@@ -1,6 +1,7 @@
 package com.example.looper_android.ui.player
 import com.example.looper_android.ui.widgets.WidgetStateRepository
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
 
 import android.content.Context
 import android.net.Uri
@@ -262,7 +263,14 @@ class PlaybackViewModel @Inject constructor(
                         val fetched = lyricsFetcher.fetchLyrics(targetSong)
                         if (!fetched.isNullOrBlank()) {
                             WidgetStateRepository.updateLyrics(context, targetSong.id, fetched)
+                            if (_playbackState.value.currentSong?.id == targetSong.id) {
+                                _playbackState.value = _playbackState.value.copy(
+                                    currentSong = _playbackState.value.currentSong?.copy(lyrics = fetched)
+                                )
+                            }
                         }
+                        // Pre-fetch next song's lyrics ahead of time
+                        prefetchNextSongLyrics()
                     }
 
                     // Calculate quality and accent color in background
@@ -608,9 +616,16 @@ class PlaybackViewModel @Inject constructor(
             hsl
         )
 
-        // Only boost saturation if there is some subtle color, preserving the exact hue
-        if (hsl[1] < 0.25f && hsl[1] > 0.05f) {
-            hsl[1] = 0.45f
+        // If the extracted color is monochromatic / grayish / near-white / near-black (saturation < 0.12),
+        // fallback to the custom accent color so we never produce dull gray accents that blend into grayish backgrounds!
+        if (hsl[1] < 0.12f) {
+            val fallbackInt = settingsRepository.getInitialAccentColor()
+            return Color(fallbackInt)
+        }
+
+        // Boost saturation if too subtle, preserving hue
+        if (hsl[1] < 0.35f) {
+            hsl[1] = 0.50f
         }
 
         // Ensure proper contrast and brightness for dark theme UI
@@ -618,10 +633,35 @@ class PlaybackViewModel @Inject constructor(
         if (newLightness < 0.55f) {
             newLightness = (newLightness + 0.20f).coerceAtLeast(0.55f)
         }
-        hsl[2] = newLightness.coerceIn(0.55f, 0.88f)
+        hsl[2] = newLightness.coerceIn(0.55f, 0.85f)
 
         val intColor = androidx.core.graphics.ColorUtils.HSLToColor(hsl)
         return Color(intColor)
+    }
+
+    private var prefetchLyricsJob: Job? = null
+
+    fun prefetchNextSongLyrics() {
+        prefetchLyricsJob?.cancel()
+        prefetchLyricsJob = viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(400L)
+            try {
+                val nextIndex = withContext(Dispatchers.Main) {
+                    if (player.mediaItemCount > 0) player.nextMediaItemIndex else -1
+                }
+                if (nextIndex in 0 until (withContext(Dispatchers.Main) { player.mediaItemCount })) {
+                    val nextMediaItem = withContext(Dispatchers.Main) { player.getMediaItemAt(nextIndex) }
+                    val nextSongId = nextMediaItem.mediaId.toLongOrNull()
+                    if (nextSongId != null && nextSongId > 0L) {
+                        val nextSong = libraryDao.getSongById(nextSongId).firstOrNull()
+                            ?: queueManager.activeQueueSongs.value.find { it.id == nextSongId }
+                        if (nextSong != null) {
+                            lyricsFetcher.fetchLyrics(nextSong)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun updatePlaybackState() {
@@ -755,6 +795,15 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
+    fun updateCurrentSongLyrics(songId: Long, newLyrics: String) {
+        val curr = _playbackState.value.currentSong
+        if (curr != null && curr.id == songId) {
+            _playbackState.value = _playbackState.value.copy(
+                currentSong = curr.copy(lyrics = newLyrics)
+            )
+        }
+    }
+
     fun seekRelative(offsetMs: Long) {
         val target = (player.currentPosition + offsetMs).coerceIn(0L, player.duration.coerceAtLeast(0L))
         player.seekTo(target)
@@ -829,18 +878,22 @@ class PlaybackViewModel @Inject constructor(
 
     fun addNext(song: SongEntity) {
         queueManager.addNext(song)
+        prefetchNextSongLyrics()
     }
 
     fun addNext(songs: List<SongEntity>) {
         queueManager.addNext(songs)
+        prefetchNextSongLyrics()
     }
 
     fun addToQueue(song: SongEntity) {
         queueManager.addToQueue(song)
+        prefetchNextSongLyrics()
     }
 
     fun addToQueue(songs: List<SongEntity>) {
         queueManager.addToQueue(songs)
+        prefetchNextSongLyrics()
     }
 
     fun setPlaylist(songs: List<SongEntity>, initialIndex: Int = 0, disableShuffleMode: Boolean = false, queueName: String = "All Songs") {
@@ -851,6 +904,7 @@ class PlaybackViewModel @Inject constructor(
             startIndex = initialIndex,
             forceShuffleOriginal = !disableShuffleMode
         )
+        prefetchNextSongLyrics()
     }
 
     fun shuffleAll(songs: List<SongEntity>, queueName: String = "All Songs") {

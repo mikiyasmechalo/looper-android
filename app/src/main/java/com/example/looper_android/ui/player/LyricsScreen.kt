@@ -123,6 +123,33 @@ fun LyricsScreen(
     val dynamicColorActiveLyrics by settingsViewModel.dynamicColorActiveLyrics.collectAsState()
     val dynamicAccentColor by settingsViewModel.dynamicAccentColor.collectAsState()
     val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+    val disableSquiggle by settingsViewModel.disableSquiggle.collectAsState()
+    val customAccentColorInt by settingsViewModel.customAccentColor.collectAsState()
+
+    val resolvedActiveColor = remember(state.accentColor, dynamicColorActiveLyrics, customAccentColorInt) {
+        if (!dynamicColorActiveLyrics) {
+            Color.White
+        } else {
+            val color = state.accentColor
+            val hsl = FloatArray(3)
+            androidx.core.graphics.ColorUtils.colorToHSL(
+                android.graphics.Color.rgb(
+                    (color.red * 255).toInt(),
+                    (color.green * 255).toInt(),
+                    (color.blue * 255).toInt()
+                ),
+                hsl
+            )
+            // If the accent is monochromatic / grayish / near-white (saturation < 0.16),
+            // it will be indistinguishable from inactive white/gray lyrics and background.
+            // Fall back to the vibrant custom accent color!
+            if (hsl[1] < 0.16f) {
+                Color(customAccentColorInt)
+            } else {
+                color
+            }
+        }
+    }
 
     val containerColor = when {
         !disableBlur -> {
@@ -177,6 +204,14 @@ fun LyricsScreen(
         lyricsViewModel.loadLyricsForSong(state.currentSong)
     }
 
+    LaunchedEffect(lyricsState.rawLyrics) {
+        val lyrics = lyricsState.rawLyrics
+        val song = state.currentSong
+        if (lyrics != null && song != null && song.lyrics != lyrics) {
+            viewModel.updateCurrentSongLyrics(song.id, lyrics)
+        }
+    }
+
     var showControls by remember { mutableStateOf(true) }
     var hideTimerJob by remember { mutableStateOf<Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -207,12 +242,16 @@ fun LyricsScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.looper_android.ui.widgets.LocalHazeState provides lyricsHazeState,
+        com.example.looper_android.ui.widgets.LocalIsBlurEnabled provides (!disableBlur)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 if (state.isPlaying) {
@@ -277,15 +316,14 @@ fun LyricsScreen(
                         }
                 )
             }
-        }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                )
-        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                    )
+            ) {
             if (!isLandscape) {
                 Row(
                     modifier = Modifier
@@ -371,7 +409,8 @@ fun LyricsScreen(
                         PremiumSection(
                             width = 44.dp,
                             height = 44.dp,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
+                            showBorder = false,
                             shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 8.dp, bottomEnd = 8.dp),
                             onClick = {
                                 haptics.lightImpact()
@@ -389,7 +428,8 @@ fun LyricsScreen(
                         PremiumSection(
                             width = 44.dp,
                             height = 44.dp,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
+                            showBorder = false,
                             shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 24.dp, bottomEnd = 24.dp),
                             onClick = {
                                 haptics.lightImpact()
@@ -426,7 +466,8 @@ fun LyricsScreen(
                         PremiumSection(
                             width = 38.dp,
                             height = 38.dp,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
+                            showBorder = false,
                             shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 6.dp, bottomEnd = 6.dp),
                             onClick = {
                                 haptics.lightImpact()
@@ -444,7 +485,8 @@ fun LyricsScreen(
                         PremiumSection(
                             width = 38.dp,
                             height = 38.dp,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
+                            showBorder = false,
                             shape = RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 20.dp, bottomEnd = 20.dp),
                             onClick = {
                                 haptics.lightImpact()
@@ -490,7 +532,7 @@ fun LyricsScreen(
                         },
                         disableFontScaling = disableLyricFontScaling,
                         alignment = lyricsAlignment,
-                        activeColor = if (dynamicColorActiveLyrics) state.accentColor else Color.White,
+                        activeColor = resolvedActiveColor,
                         isPlaying = state.isPlaying,
                         syncMode = LyricsSyncMode.fromSetting(lyricsSyncStyle),
                         modifier = Modifier.fillMaxSize(),
@@ -528,7 +570,7 @@ fun LyricsScreen(
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(tween(300)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            val controlHeight = if (isLandscape) 135.dp else 205.dp
+            val controlHeight = if (isLandscape) 150.dp else 235.dp
             val btnHeight = if (isLandscape) 52.dp else 80.dp
 
             Box(
@@ -538,16 +580,16 @@ fun LyricsScreen(
                     .background(
                         Brush.verticalGradient(
                             0.0f to Color.Transparent,
-                            0.2f to Color.Black.copy(alpha = 0.8f),
-                            0.75f to Color.Black.copy(alpha = 0.95f),
-                            1.0f to Color.Black
+                            0.20f to Color.Black.copy(alpha = 0.25f),
+                            0.70f to Color.Black.copy(alpha = 0.65f),
+                            1.0f to Color.Black.copy(alpha = 0.85f)
                         )
                     )
                     .padding(
                         start = 24.dp,
                         end = 24.dp,
                         top = if (isLandscape) 6.dp else 10.dp,
-                        bottom = navBottomPadding + if (isLandscape) 8.dp else 14.dp
+                        bottom = navBottomPadding + if (isLandscape) 14.dp else 28.dp
                     ),
                 contentAlignment = Alignment.BottomCenter
             ) {
@@ -555,22 +597,39 @@ fun LyricsScreen(
                     modifier = if (isLandscape) Modifier.widthIn(max = 440.dp) else Modifier.fillMaxWidth()
                 ) {
                     Box(
-                        modifier = Modifier.sharedBoundsOrElement(
-                            "player_seek_bar",
-                            sharedTransitionScope,
-                            animatedVisibilityScope
-                        )
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .sharedBoundsOrElement(
+                                "player_seek_bar",
+                                sharedTransitionScope,
+                                animatedVisibilityScope
+                            )
                     ) {
-                        ExpressiveSlider(
-                            positionMs = state.position,
-                            durationMs = state.duration,
-                            isPlaying = state.isPlaying,
-                            onSeek = { pos ->
-                                viewModel.seekTo(pos)
-                                resetHideTimer()
-                            },
-                            activeColor = state.accentColor
-                        )
+                        if (disableSquiggle) {
+                            com.example.looper_android.ui.widgets.FlatSlider(
+                                positionMs = state.position,
+                                durationMs = state.duration,
+                                songId = state.currentSong?.id ?: 0L,
+                                isPlaying = state.isPlaying,
+                                onSeek = { pos ->
+                                    viewModel.seekTo(pos)
+                                    resetHideTimer()
+                                },
+                                activeColor = state.accentColor
+                            )
+                        } else {
+                            ExpressiveSlider(
+                                positionMs = state.position,
+                                durationMs = state.duration,
+                                songId = state.currentSong?.id ?: 0L,
+                                isPlaying = state.isPlaying,
+                                onSeek = { pos ->
+                                    viewModel.seekTo(pos)
+                                    resetHideTimer()
+                                },
+                                activeColor = state.accentColor
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 14.dp))
@@ -590,7 +649,8 @@ fun LyricsScreen(
                                     animatedVisibilityScope
                                 ),
                             height = btnHeight,
-                            enableBlur = !disableBlur,
+                            enableBlur = false,
+                            showBorder = false,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
                                 topStart = if (isLandscape) 26.dp else 40.dp,
@@ -598,7 +658,7 @@ fun LyricsScreen(
                                 topEnd = if (isLandscape) 10.dp else 12.dp,
                                 bottomEnd = if (isLandscape) 10.dp else 12.dp
                             ),
-                            backgroundColor = containerColor,
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
                             onClick = {
                                 haptics.lightImpact()
                                 viewModel.skipToPrevious()
@@ -641,9 +701,10 @@ fun LyricsScreen(
                                 ),
                             height = btnHeight,
                             shape = RoundedCornerShape(if (isLandscape) 10.dp else 12.dp),
-                            enableBlur = if (state.isPlaying) !disableBlur else false,
+                            enableBlur = false,
+                            showBorder = false,
                             hazeState = lyricsHazeState,
-                            backgroundColor = if (!state.isPlaying) state.accentColor else containerColor,
+                            backgroundColor = if (!state.isPlaying) state.accentColor else Color.White.copy(alpha = 0.04f),
                             onClick = {
                                 haptics.mediumImpact()
                                 viewModel.togglePlayPause()
@@ -668,7 +729,8 @@ fun LyricsScreen(
                                     animatedVisibilityScope
                                 ),
                             height = btnHeight,
-                            enableBlur = !disableBlur,
+                            enableBlur = false,
+                            showBorder = false,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
                                 topStart = if (isLandscape) 10.dp else 12.dp,
@@ -676,7 +738,7 @@ fun LyricsScreen(
                                 topEnd = if (isLandscape) 26.dp else 40.dp,
                                 bottomEnd = if (isLandscape) 26.dp else 40.dp
                             ),
-                            backgroundColor = containerColor,
+                            backgroundColor = Color.White.copy(alpha = 0.04f),
                             onClick = {
                                 haptics.lightImpact()
                                 viewModel.skipToNext()
@@ -694,6 +756,7 @@ fun LyricsScreen(
                 }
             }
         }
+    }
 
         if (showLyricsMenuSheet && state.currentSong != null) {
             val hasWordTiming = lyricsState.parsedLines.any { it.hasWordTiming }
@@ -803,4 +866,5 @@ fun LyricsScreen(
             )
         }
     }
+}
 }

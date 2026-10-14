@@ -23,11 +23,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import com.example.looper_android.ui.widgets.FrostedBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,7 +57,6 @@ fun SleepTimerBottomSheet(
     accentColor: Color = com.example.looper_android.ui.theme.LocalAccentColor.current
 ) {
     val playbackState by playbackViewModel.playbackState.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val view = LocalView.current
 
     fun hapticLight() {
@@ -77,23 +74,9 @@ fun SleepTimerBottomSheet(
     var customMinutes by remember { mutableIntStateOf(15) }
     var customSongs by remember { mutableIntStateOf(3) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color(0xFF1E1E1E),
-        contentColor = Color.White,
-        scrimColor = Color.Black.copy(alpha = 0.54f),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.24f))
-            )
-        },
-        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true)
+    FrostedBottomSheet(
+        onDismiss = onDismiss,
+        showDragHandle = true
     ) {
         Column(
             modifier = Modifier

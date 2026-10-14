@@ -68,7 +68,7 @@ fun PlainLyricsRenderer(
             },
         contentPadding = PaddingValues(
             top = 32.dp,
-            bottom = 140.dp,
+            bottom = 180.dp,
             start = 24.dp,
             end = 24.dp
         )

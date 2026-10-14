@@ -65,21 +65,25 @@ object AmllClient {
     }
 
     private fun getJson(path: String, params: Map<String, String>): JSONObject? {
-        val builder = Uri.parse("$API_BASE$path").buildUpon()
-        for ((k, v) in params) builder.appendQueryParameter(k, v)
+        return try {
+            val builder = Uri.parse("$API_BASE$path").buildUpon()
+            for ((k, v) in params) builder.appendQueryParameter(k, v)
 
-        val request = Request.Builder()
-            .url(builder.build().toString())
-            .header("User-Agent", "Mozilla/5.0")
-            .header("Accept", "application/json")
-            .build()
+            val request = Request.Builder()
+                .url(builder.build().toString())
+                .header("User-Agent", "Mozilla/5.0")
+                .header("Accept", "application/json")
+                .build()
 
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful) return null
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
 
-        val body = response.body?.string() ?: return null
-        val root = JSONObject(body)
-        return root.optJSONObject("data")
+            val body = response.body?.string() ?: return null
+            val root = JSONObject(body)
+            root.optJSONObject("data")
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun jsonArrayToStringList(array: org.json.JSONArray?): List<String> {

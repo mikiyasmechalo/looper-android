@@ -217,7 +217,7 @@ class SettingsRepository @Inject constructor(
     val enableSlideGesture: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.ENABLE_SLIDE_GESTURE] ?: true }
     val stopOnTaskRemoved: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.STOP_ON_TASK_REMOVED] ?: false }
     val enableInternet: Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[Keys.ENABLE_INTERNET] ?: false } // to be turned true before relase.
+        dataStore.data.map { prefs -> prefs[Keys.ENABLE_INTERNET] ?: true }
     val downloadArtwork: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DOWNLOAD_ARTWORK] ?: true }
     val appLanguage: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.APP_LANGUAGE] ?: "System Default" }
     val useAlbumArtist: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.USE_ALBUM_ARTIST] ?: true }

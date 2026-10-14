@@ -132,7 +132,7 @@ fun AdvancedLyricRenderer(
                 },
             contentPadding = PaddingValues(
                 top = 32.dp,
-                bottom = 150.dp,
+                bottom = 180.dp,
                 start = 24.dp,
                 end = 24.dp
             )
@@ -156,7 +156,7 @@ fun AdvancedLyricRenderer(
         }
 
         val targetBottomPadding = if (showControls) {
-            if (isLandscape) 140.dp else 204.dp
+            if (isLandscape) 150.dp else 230.dp
         } else {
             if (isLandscape) 16.dp else 36.dp
         }
