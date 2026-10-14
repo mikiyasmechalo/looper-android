@@ -53,6 +53,15 @@ interface QueueDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertQueueItems(items: List<QueueItemEntity>)
+
+    @Transaction
+    suspend fun replaceQueueItems(queueId: Long, items: List<QueueItemEntity>) {
+        deleteQueueItems(queueId)
+        insertQueueItems(items)
+    }
+
+    @Query("DELETE FROM queue_items WHERE id NOT IN (SELECT MIN(id) FROM queue_items GROUP BY queueId, positionInQueue)")
+    suspend fun deduplicateQueueItems(): Int
     
     @Query("UPDATE queues SET currentItemIndex = :index, currentPlaybackPositionMs = :position, shuffleState = :shuffleState, lastPlayedAt = :lastPlayedAt WHERE id = :queueId")
     suspend fun updateQueueState(queueId: Long, index: Int, position: Long, shuffleState: Boolean, lastPlayedAt: Long)

@@ -7,6 +7,9 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.background
@@ -35,7 +38,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -137,6 +143,13 @@ fun PlayerScreen(
 
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
 
+    var rememberedQualityText by remember {
+        mutableStateOf(state.audioQualityText.ifBlank { "Standard Quality • Audio" })
+    }
+    if (state.audioQualityText.isNotBlank()) {
+        rememberedQualityText = state.audioQualityText
+    }
+
     val density = LocalDensity.current
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
@@ -213,11 +226,27 @@ fun PlayerScreen(
 
     var isDismissing by remember { mutableStateOf(false) }
 
+    val favoriteScale = remember { Animatable(1f) }
+    LaunchedEffect(state.isFavorite) {
+        if (state.isFavorite) {
+            favoriteScale.snapTo(0.6f)
+            favoriteScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+        } else {
+            favoriteScale.snapTo(1f)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .then(
-                if (enableSlideGesture) {
+                if (enableSlideGesture && !showQueueSheet) {
                     Modifier.pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragStart = {
@@ -300,7 +329,6 @@ fun PlayerScreen(
                         }
                 )
             }
-        }
 
         val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -363,33 +391,33 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        PremiumSection(
-                            width = 38.dp,
-                            height = 38.dp,
-                            cornerRadius = 19.dp,
-                            backgroundColor = Color.Black.copy(alpha = 0.45f),
-                            onClick = {
-                                haptics.lightImpact()
-                                onBack()
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    haptics.lightImpact()
+                                    onBack()
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Lucide.ChevronDown,
+                                imageVector = Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = "Close",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(26.dp)
                             )
                         }
 
-                        PremiumSection(
-                            width = 38.dp,
-                            height = 38.dp,
-                            cornerRadius = 19.dp,
-                            backgroundColor = Color.Black.copy(alpha = 0.45f),
-                            onClick = {
-                                haptics.mediumImpact()
-                                showOptionsSheet = true
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    haptics.mediumImpact()
+                                    showOptionsSheet = true
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             if (state.isSleepTimerActive) {
                                 SleepTimerClock(
@@ -401,7 +429,9 @@ fun PlayerScreen(
                                     imageVector = Lucide.EllipsisVertical,
                                     contentDescription = "More Options",
                                     tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .graphicsLayer { rotationZ = 90f }
                                 )
                             }
                         }
@@ -459,53 +489,26 @@ fun PlayerScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                                val albumName = song.album?.trim()?.ifBlank { null }
-                                val showAlbum = !albumName.isNullOrEmpty() && !albumName.equals("Unknown Album", ignoreCase = true)
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = artistName,
-                                        color = Color.White.copy(alpha = 0.60f),
-                                        fontFamily = DmSansFontFamily,
-                                        fontSize = 13.sp,
-                                        letterSpacing = 0.2.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .clickable {
-                                                song.artist?.let {
-                                                    onBack()
-                                                    onArtistClick(it)
-                                                }
+                                Text(
+                                    text = artistName,
+                                    color = Color.White.copy(alpha = 0.60f),
+                                    fontFamily = DmSansFontFamily,
+                                    fontSize = 13.sp,
+                                    letterSpacing = 0.2.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .clickable {
+                                            song.artist?.let {
+                                                onBack()
+                                                onArtistClick(it)
                                             }
-                                            .weight(1f, fill = false)
-                                    )
-                                    if (showAlbum && albumName != null) {
-                                        Text(
-                                            text = " • ",
-                                            color = Color.White.copy(alpha = 0.40f),
-                                            fontFamily = DmSansFontFamily,
-                                            fontSize = 13.sp
-                                        )
-                                        Text(
-                                            text = albumName,
-                                            color = Color.White.copy(alpha = 0.60f),
-                                            fontFamily = DmSansFontFamily,
-                                            fontSize = 13.sp,
-                                            letterSpacing = 0.2.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier
-                                                .clickable {
-                                                    onBack()
-                                                    onAlbumClick(albumName)
-                                                }
-                                                .weight(1f, fill = false)
-                                        )
-                                    }
-                                }
+                                        }
+                                )
 
-                                if (showQualityBadge && state.audioQualityText.isNotBlank()) {
+                                if (showQualityBadge) {
+                                    val displayQuality = if (state.audioQualityText.isNotBlank()) state.audioQualityText else rememberedQualityText
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Box(
                                         modifier = Modifier
@@ -519,7 +522,7 @@ fun PlayerScreen(
                                             .padding(horizontal = 8.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = state.audioQualityText,
+                                            text = displayQuality,
                                             color = Color.White.copy(alpha = 0.70f),
                                             fontFamily = DmSansFontFamily,
                                             fontWeight = FontWeight.Normal,
@@ -534,23 +537,30 @@ fun PlayerScreen(
 
                             Spacer(modifier = Modifier.width(10.dp))
 
-                            PremiumSection(
-                                enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
-                                width = 42.dp,
-                                height = 42.dp,
-                                cornerRadius = 21.dp,
-                                backgroundColor = if (state.isFavorite) Color(0x26FFC107) else Color.Transparent,
-                                onClick = {
-                                    haptics.selectionClick()
-                                    viewModel.toggleFavorite()
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (state.isFavorite) state.accentColor.copy(alpha = 0.12f)
+                                        else Color.Transparent
+                                    )
+                                    .clickable {
+                                        haptics.selectionClick()
+                                        viewModel.toggleFavorite()
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = CustomIcons.LikedIcon,
                                     contentDescription = "Favorite",
-                                    tint = if (state.isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
-                                    modifier = Modifier.size(19.dp)
+                                    tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.40f),
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .graphicsLayer {
+                                            scaleX = favoriteScale.value
+                                            scaleY = favoriteScale.value
+                                        }
                                 )
                             }
                         }
@@ -614,10 +624,10 @@ fun PlayerScreen(
                             // Prev
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(52.dp),
+                                    .height(52.dp)
+                                    .sharedBoundsOrElement("player_prev_btn", sharedTransitionScope, animatedVisibilityScope),
                                 shape = RoundedCornerShape(
                                     topStart = 26.dp,
                                     bottomStart = 26.dp,
@@ -641,7 +651,6 @@ fun PlayerScreen(
                             // Play / Pause
                             PremiumSection(
                                 enableBlur = if (state.isPlaying) !disableBlur else false,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(52.dp)
@@ -679,10 +688,10 @@ fun PlayerScreen(
                             // Next
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(52.dp),
+                                    .height(52.dp)
+                                    .sharedBoundsOrElement("player_next_btn", sharedTransitionScope, animatedVisibilityScope),
                                 shape = RoundedCornerShape(
                                     topStart = 10.dp,
                                     bottomStart = 10.dp,
@@ -712,7 +721,6 @@ fun PlayerScreen(
                             // Shuffle
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp)
@@ -740,7 +748,6 @@ fun PlayerScreen(
                             // Repeat
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp)
@@ -763,7 +770,6 @@ fun PlayerScreen(
                             // Lyrics
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp)
@@ -786,7 +792,6 @@ fun PlayerScreen(
                             // Queue
                             PremiumSection(
                                 enableBlur = !disableBlur,
-                                hazeState = playerHazeState,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp),
@@ -825,29 +830,51 @@ fun PlayerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Close button (48x48, radius 32dp, icon size 16dp)
-                    PremiumSection(
-                        width = 48.dp,
-                        height = 48.dp,
-                        cornerRadius = 32.dp,
-                        backgroundColor = Color.Transparent,
-                        onClick = {
-                            haptics.lightImpact()
-                            onBack()
-                        }
+                    // Close button
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                haptics.lightImpact()
+                                onBack()
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Lucide.ChevronDown,
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
                             contentDescription = "Close",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
 
-                    // Title & Quality badge
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                    // Title or Quality badge (mutually exclusive per user request, vertically centered)
+                    val displayQuality = if (state.audioQualityText.isNotBlank()) state.audioQualityText else rememberedQualityText
+                    if (showQualityBadge) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(
+                                    width = 0.5.dp,
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = displayQuality,
+                                color = Color.White.copy(alpha = 0.70f),
+                                fontFamily = DmSansFontFamily,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 9.sp,
+                                letterSpacing = 0.5.sp,
+                                lineHeight = 10.sp,
+                                modifier = Modifier.wrapContentHeight(unbounded = true)
+                            )
+                        }
+                    } else {
                         Text(
                             text = "Now Playing",
                             color = Color.White,
@@ -855,43 +882,18 @@ fun PlayerScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
-                        if (showQualityBadge) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .border(
-                                        width = 0.5.dp,
-                                        color = Color.White.copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(20.dp)
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    text = state.audioQualityText,
-                                    color = Color.White.copy(alpha = 0.70f),
-                                    fontFamily = DmSansFontFamily,
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = 9.sp,
-                                    letterSpacing = 0.5.sp,
-                                    lineHeight = 10.sp,
-                                    modifier = Modifier.wrapContentHeight(unbounded = true)
-                                )
-                            }
-                        }
                     }
 
-                    // Options / Sleep Timer button (48x48, radius 32dp, icon size 18dp)
-                    PremiumSection(
-                        width = 48.dp,
-                        height = 48.dp,
-                        cornerRadius = 32.dp,
-                        backgroundColor = Color.Transparent,
-                        onClick = {
-                            haptics.mediumImpact()
-                            showOptionsSheet = true
-                        }
+                    // Options / Sleep Timer button
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                haptics.mediumImpact()
+                                showOptionsSheet = true
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         if (state.isSleepTimerActive) {
                             SleepTimerClock(
@@ -903,7 +905,9 @@ fun PlayerScreen(
                                 imageVector = Lucide.EllipsisVertical,
                                 contentDescription = "More Options",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .graphicsLayer { rotationZ = 90f }
                             )
                         }
                     }
@@ -978,84 +982,51 @@ fun PlayerScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         val artistName = song.artist?.trim()?.ifBlank { null } ?: "Unknown Artist"
-                        val albumName = song.album?.trim()?.ifBlank { null }
-                        val showAlbum = !albumName.isNullOrEmpty() && !albumName.equals("Unknown Album", ignoreCase = true)
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = artistName,
-                                color = Color.White.copy(alpha = 0.60f),
-                                fontFamily = DmSansFontFamily,
-                                fontSize = 16.sp,
-                                letterSpacing = 0.2.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .clickable {
-                                        song.artist?.let {
-                                            onBack()
-                                            onArtistClick(it)
-                                        }
-                                    }
-                                    .weight(1f, fill = false)
-                            )
-                            if (showAlbum && albumName != null) {
-                                Text(
-                                    text = " • ",
-                                    color = Color.White.copy(alpha = 0.40f),
-                                    fontFamily = DmSansFontFamily,
-                                    fontSize = 16.sp
-                                )
-                                Text(
-                                    text = albumName,
-                                    color = Color.White.copy(alpha = 0.60f),
-                                    fontFamily = DmSansFontFamily,
-                                    fontSize = 16.sp,
-                                    letterSpacing = 0.2.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .clickable {
-                                            onBack()
-                                            onAlbumClick(albumName)
-                                        }
-                                        .weight(1f, fill = false)
-                                )
+                        Text(
+                            text = artistName,
+                            color = Color.White.copy(alpha = 0.60f),
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 16.sp,
+                            letterSpacing = 0.2.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable {
+                                song.artist?.let {
+                                    onBack()
+                                    onArtistClick(it)
+                                }
                             }
-                        }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
 
+                    // Favorite Button
                     Box(
                         modifier = Modifier
-                            .height(36.dp)
-                            .width(1.dp)
-                            .background(Color.White.copy(alpha = 0.15f))
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Favorite Button (56x56, radius 32dp, icon size 24dp)
-                    PremiumSection(
-                        enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
-                        width = 56.dp,
-                        height = 56.dp,
-                        cornerRadius = 32.dp,
-                        backgroundColor = if (state.isFavorite) Color(0x26FFC107) else Color.Transparent,
-                        onClick = {
-                            haptics.selectionClick()
-                            viewModel.toggleFavorite()
-                        }
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (state.isFavorite) state.accentColor.copy(alpha = 0.12f)
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                haptics.selectionClick()
+                                viewModel.toggleFavorite()
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = CustomIcons.LikedIcon,
                             contentDescription = "Favorite",
-                            tint = if (state.isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.40f),
-                            modifier = Modifier.size(24.dp)
+                            tint = if (state.isFavorite) state.accentColor else Color.White.copy(alpha = 0.40f),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer {
+                                    scaleX = favoriteScale.value
+                                    scaleY = favoriteScale.value
+                                }
                         )
                     }
                 }
@@ -1127,10 +1098,10 @@ fun PlayerScreen(
                     // Prev (16dp)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
-                            .height(80.dp),
+                            .height(80.dp)
+                            .sharedBoundsOrElement("player_prev_btn", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(
                             topStart = 40.dp,
                             bottomStart = 40.dp,
@@ -1154,7 +1125,6 @@ fun PlayerScreen(
                     // Play / Pause (22dp) (Morphs from Mini Player play button)
                     PremiumSection(
                         enableBlur = if (state.isPlaying) !disableBlur else false,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
                             .height(80.dp)
@@ -1192,10 +1162,10 @@ fun PlayerScreen(
                     // Next (16dp)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
-                            .height(80.dp),
+                            .height(80.dp)
+                            .sharedBoundsOrElement("player_next_btn", sharedTransitionScope, animatedVisibilityScope),
                         shape = RoundedCornerShape(
                             topStart = 12.dp,
                             bottomStart = 12.dp,
@@ -1229,7 +1199,6 @@ fun PlayerScreen(
                     // Shuffle (15dp) (Morphs from Navbar Home tab)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
                             .height(64.dp)
@@ -1257,7 +1226,6 @@ fun PlayerScreen(
                     // Repeat (15dp) (Morphs from Navbar Songs tab)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
                             .height(64.dp)
@@ -1280,7 +1248,6 @@ fun PlayerScreen(
                     // Lyrics (15dp) (Morphs from Navbar Library tab)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
                             .height(64.dp)
@@ -1303,7 +1270,6 @@ fun PlayerScreen(
                     // Queue (12dp)
                     PremiumSection(
                         enableBlur = !disableBlur,
-                        hazeState = playerHazeState,
                         modifier = Modifier
                             .weight(1f)
                             .height(64.dp),
@@ -1333,12 +1299,12 @@ fun PlayerScreen(
         }
     }
 
-    // Modal Bottom Sheets
-    if (showQueueSheet) {
         QueueBottomSheet(
+            visible = showQueueSheet,
             queue = state.queue,
             currentSong = song,
             playbackViewModel = viewModel,
+            hazeState = playerHazeState,
             onDismiss = { showQueueSheet = false },
             onSongSelect = { selectedSong ->
             },

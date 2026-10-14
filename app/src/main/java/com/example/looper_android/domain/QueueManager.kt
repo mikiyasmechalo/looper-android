@@ -85,6 +85,9 @@ class QueueManager @Inject constructor(
 
     init {
         scope.launch(Dispatchers.IO) {
+            try {
+                queueDao.deduplicateQueueItems()
+            } catch (_: Exception) {}
             libraryDao.getAllSongs().collectLatest { songs ->
                 if (songs.isNotEmpty()) {
                     val items = songs.map { buildMediaItem(it, loadArtworkBytes = false) }
@@ -352,7 +355,6 @@ class QueueManager @Inject constructor(
 
         val currentPos = try { player.currentPosition.coerceAtLeast(0L) } catch (_: Exception) { 0L }
         val queueId = if (existingQueue != null) {
-            queueDao.deleteQueueItems(existingQueue.id)
             queueDao.updateQueueState(
                 existingQueue.id, 
                 startIndex, 
@@ -373,24 +375,20 @@ class QueueManager @Inject constructor(
             )
         }
 
-        val items = mutableListOf<com.example.looper_android.data.db.QueueItemEntity>()
-        songs.forEachIndexed { index, song ->
-            kotlinx.coroutines.yield()
-            items.add(
-                QueueItemEntity(
-                    queueId = queueId,
-                    mediaId = song.id.toString(),
-                    title = song.title,
-                    artist = song.artist ?: "Unknown Artist",
-                    album = song.album ?: "Unknown Album",
-                    durationMs = song.duration?.toLong() ?: 0L,
-                    uri = song.path,
-                    albumArtUri = song.artPath,
-                    positionInQueue = index
-                )
+        val items = songs.mapIndexed { index, song ->
+            QueueItemEntity(
+                queueId = queueId,
+                mediaId = song.id.toString(),
+                title = song.title,
+                artist = song.artist ?: "Unknown Artist",
+                album = song.album ?: "Unknown Album",
+                durationMs = song.duration?.toLong() ?: 0L,
+                uri = song.path,
+                albumArtUri = song.artPath,
+                positionInQueue = index
             )
         }
-        queueDao.insertQueueItems(items)
+        queueDao.replaceQueueItems(queueId, items)
         setActiveQueueIdInPrefs(queueId)
     }
 
@@ -624,7 +622,7 @@ class QueueManager @Inject constructor(
                 _activeQueueName.value = nextQueue.name
 
                 val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
-                val restoredSongs = items.map { item ->
+                val restoredSongs = items.distinctBy { it.positionInQueue }.map { item ->
                     val sId = item.mediaId.toLongOrNull()
                     (if (sId != null) songMap[sId] else null) ?: SongEntity(
                         id = sId ?: 0L,
@@ -713,7 +711,7 @@ class QueueManager @Inject constructor(
                     _activeQueueName.value = queue.name
 
                     val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
-                    val restoredSongs = items.map { item ->
+                    val restoredSongs = items.distinctBy { it.positionInQueue }.map { item ->
                         val sId = item.mediaId.toLongOrNull()
                         (if (sId != null) songMap[sId] else null) ?: SongEntity(
                             id = sId ?: 0L,
@@ -864,9 +862,10 @@ class QueueManager @Inject constructor(
 
             _activeQueueName.value = queue.name
 
+            val uniqueItems = items.distinctBy { it.positionInQueue }
             val cachedSongs = libraryDao.getAllSongsList()
             val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
-            val restoredSongs = items.map { item ->
+            val restoredSongs = uniqueItems.map { item ->
                 val sId = item.mediaId.toLongOrNull()
                 (if (sId != null) songMap[sId] else null) ?: SongEntity(
                     id = sId ?: 0L,

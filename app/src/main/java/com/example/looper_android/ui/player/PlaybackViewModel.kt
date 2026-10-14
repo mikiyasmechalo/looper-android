@@ -238,10 +238,14 @@ class PlaybackViewModel @Inject constructor(
                     val initialDbSong = libraryDao.getSongById(songId).firstOrNull()
                     val targetSong = initialDbSong ?: instantSong
 
+                    val initialQuality = AudioQualityAnalyzer.getCachedAnalysis(targetSong.path)?.let {
+                        AudioQualityAnalyzer.getQualityString(targetSong.path, targetSong.duration?.toLong())
+                    } ?: _playbackState.value.audioQualityText.ifBlank { "Standard Quality • Audio" }
+
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,
                         isFavorite = targetSong.isFavorite,
-                        audioQualityText = "High Quality • Audio",
+                        audioQualityText = initialQuality,
                         accentColor = _playbackState.value.accentColor,
                         isSongReady = true
                     )
@@ -263,7 +267,7 @@ class PlaybackViewModel @Inject constructor(
 
                     // Calculate quality and accent color in background
                     launch(Dispatchers.Default) {
-                        val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path)
+                        val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path, targetSong.duration?.toLong())
                         val dynamicTheming = settingsRepository.dynamicTheming.first()
                         val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
                         val customAccentColorInt = settingsRepository.customAccentColor.first()
@@ -408,7 +412,7 @@ class PlaybackViewModel @Inject constructor(
                     )
                     if (activeSong != null) {
                         viewModelScope.launch(Dispatchers.Default) {
-                            val dbQualityText = AudioQualityAnalyzer.getQualityString(activeSong.path)
+                            val dbQualityText = AudioQualityAnalyzer.getQualityString(activeSong.path, activeSong.duration?.toLong())
                             val dynamicTheming = settingsRepository.dynamicTheming.first()
                             val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
                             val customAccentColorInt = settingsRepository.customAccentColor.first()

@@ -117,6 +117,22 @@ fun LyricsScreen(
     val enableInternet by settingsViewModel.enableInternet.collectAsState()
     val effectiveDarkTheme = darkTheme && !dynamicTheming
     val dynamicColorActiveLyrics by settingsViewModel.dynamicColorActiveLyrics.collectAsState()
+    val dynamicAccentColor by settingsViewModel.dynamicAccentColor.collectAsState()
+    val enablePlayerGradient by settingsViewModel.enablePlayerGradient.collectAsState()
+
+    val containerColor = when {
+        !disableBlur -> {
+            if (dynamicTheming || dynamicAccentColor) {
+                state.accentColor.copy(alpha = 0.12f)
+            } else {
+                Color.White.copy(alpha = 0.08f)
+            }
+        }
+        effectiveDarkTheme -> Color(0xFF0A0A0A)
+        enablePlayerGradient -> Color(0xFF262626)
+        else -> Color(0xFF1E1E1E)
+    }
+
     val animatedAccentColor by animateColorAsState(
         targetValue = state.accentColor,
         animationSpec = tween(durationMillis = 600),
@@ -511,8 +527,8 @@ fun LyricsScreen(
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(tween(300)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            val controlHeight = if (isLandscape) 130.dp else 190.dp
-            val btnHeight = if (isLandscape) 50.dp else 68.dp
+            val controlHeight = if (isLandscape) 135.dp else 205.dp
+            val btnHeight = if (isLandscape) 52.dp else 80.dp
 
             Box(
                 modifier = Modifier
@@ -576,11 +592,12 @@ fun LyricsScreen(
                             enableBlur = !disableBlur,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
-                                topStart = if (isLandscape) 25.dp else 34.dp,
-                                bottomStart = if (isLandscape) 25.dp else 34.dp,
-                                topEnd = 12.dp,
-                                bottomEnd = 12.dp
+                                topStart = if (isLandscape) 26.dp else 40.dp,
+                                bottomStart = if (isLandscape) 26.dp else 40.dp,
+                                topEnd = if (isLandscape) 10.dp else 12.dp,
+                                bottomEnd = if (isLandscape) 10.dp else 12.dp
                             ),
+                            backgroundColor = containerColor,
                             onClick = {
                                 haptics.lightImpact()
                                 viewModel.skipToPrevious()
@@ -591,11 +608,27 @@ fun LyricsScreen(
                                 imageVector = Lucide.SkipBack,
                                 contentDescription = "Previous",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(if (isLandscape) 18.dp else 20.dp)
                             )
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
+
+                        val playPauseIconTint = if (state.isPlaying) {
+                            Color.White
+                        } else {
+                            val hsl = FloatArray(3)
+                            androidx.core.graphics.ColorUtils.colorToHSL(
+                                android.graphics.Color.rgb(
+                                    (state.accentColor.red * 255).toInt(),
+                                    (state.accentColor.green * 255).toInt(),
+                                    (state.accentColor.blue * 255).toInt()
+                                ),
+                                hsl
+                            )
+                            hsl[2] = 0.15f
+                            Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
+                        }
 
                         PremiumSection(
                             modifier = Modifier
@@ -606,10 +639,10 @@ fun LyricsScreen(
                                     animatedVisibilityScope
                                 ),
                             height = btnHeight,
-                            cornerRadius = 12.dp,
-                            enableBlur = !disableBlur,
+                            shape = RoundedCornerShape(if (isLandscape) 10.dp else 12.dp),
+                            enableBlur = if (state.isPlaying) !disableBlur else false,
                             hazeState = lyricsHazeState,
-                            backgroundColor = if (state.isPlaying) androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant else state.accentColor,
+                            backgroundColor = if (!state.isPlaying) state.accentColor else containerColor,
                             onClick = {
                                 haptics.mediumImpact()
                                 viewModel.togglePlayPause()
@@ -618,8 +651,8 @@ fun LyricsScreen(
                         ) {
                             AnimatedPlayPauseIcon(
                                 isPlaying = state.isPlaying,
-                                tint = if (state.isPlaying) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.background,
-                                modifier = Modifier.size(22.dp)
+                                tint = playPauseIconTint,
+                                modifier = Modifier.size(if (isLandscape) 20.dp else 22.dp)
                             )
                         }
 
@@ -637,11 +670,12 @@ fun LyricsScreen(
                             enableBlur = !disableBlur,
                             hazeState = lyricsHazeState,
                             shape = RoundedCornerShape(
-                                topStart = 12.dp,
-                                bottomStart = 12.dp,
-                                topEnd = if (isLandscape) 25.dp else 34.dp,
-                                bottomEnd = if (isLandscape) 25.dp else 34.dp
+                                topStart = if (isLandscape) 10.dp else 12.dp,
+                                bottomStart = if (isLandscape) 10.dp else 12.dp,
+                                topEnd = if (isLandscape) 26.dp else 40.dp,
+                                bottomEnd = if (isLandscape) 26.dp else 40.dp
                             ),
+                            backgroundColor = containerColor,
                             onClick = {
                                 haptics.lightImpact()
                                 viewModel.skipToNext()
@@ -652,7 +686,7 @@ fun LyricsScreen(
                                 imageVector = Lucide.SkipForward,
                                 contentDescription = "Next",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(if (isLandscape) 18.dp else 20.dp)
                             )
                         }
                     }

@@ -63,7 +63,7 @@ fun GestureArtwork(
     currentSongIndex: Int,
     onSkipToIndex: (Int) -> Unit,
     onTap: () -> Unit,
-    onSeekRelative: (Long) -> Unit,
+    onSeekRelative: ((Long) -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier
@@ -72,9 +72,54 @@ fun GestureArtwork(
     val safeQueue = if (queue.isEmpty()) listOf(song) else queue
     val safeCurrentIndex = currentSongIndex.coerceIn(0, maxOf(0, safeQueue.size - 1))
 
+    val prevSong = if (safeCurrentIndex > 0) safeQueue.getOrNull(safeCurrentIndex - 1) else null
+    val nextSong = if (safeCurrentIndex < safeQueue.size - 1) safeQueue.getOrNull(safeCurrentIndex + 1) else null
+
+    val hasPrev = prevSong != null
+    val hasNext = nextSong != null
+
+    val pageCount = when {
+        safeQueue.size <= 1 -> 1
+        !hasPrev || !hasNext -> 2
+        else -> 3
+    }
+
+    val currentSlot = when {
+        !hasPrev -> 0
+        else -> 1
+    }
+
+    fun getSongForPage(page: Int): SongEntity {
+        return when {
+            safeQueue.size <= 1 -> song
+            !hasPrev -> if (page == 0) song else (nextSong ?: song)
+            !hasNext -> if (page == 1) song else (prevSong ?: song)
+            else -> when (page) {
+                0 -> prevSong ?: song
+                1 -> song
+                2 -> nextSong ?: song
+                else -> song
+            }
+        }
+    }
+
+    fun getKeyForPage(page: Int): String {
+        return when {
+            safeQueue.size <= 1 -> "active_${song.id}"
+            !hasPrev -> if (page == 0) "active_${song.id}" else "next_${nextSong?.id ?: page}"
+            !hasNext -> if (page == 1) "active_${song.id}" else "prev_${prevSong?.id ?: page}"
+            else -> when (page) {
+                0 -> "prev_${prevSong?.id ?: page}"
+                1 -> "active_${song.id}"
+                2 -> "next_${nextSong?.id ?: page}"
+                else -> "slot_$page"
+            }
+        }
+    }
+
     val pagerState = rememberPagerState(
-        initialPage = safeCurrentIndex,
-        pageCount = { safeQueue.size }
+        initialPage = currentSlot,
+        pageCount = { pageCount }
     )
 
     val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
@@ -101,19 +146,17 @@ fun GestureArtwork(
         }
     }
 
-    // Programmatic skip animation (e.g. Next / Previous button tap or song finishes)
-    LaunchedEffect(safeCurrentIndex) {
-        if (safeCurrentIndex in 0 until pagerState.pageCount && pagerState.currentPage != safeCurrentIndex) {
+    var lastSongId by remember { mutableStateOf(song.id) }
+
+    // When song or slot changes, sync pagerState
+    LaunchedEffect(song.id, currentSlot) {
+        val isSongChanged = (lastSongId != song.id)
+        lastSongId = song.id
+        if (isSongChanged) {
             wasUserDragged = false
-            val distance = (pagerState.currentPage - safeCurrentIndex).absoluteValue
-            if (distance == 1) {
-                pagerState.animateScrollToPage(
-                    page = safeCurrentIndex,
-                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
-                )
-            } else {
-                pagerState.scrollToPage(safeCurrentIndex)
-            }
+        }
+        if (pagerState.currentPage != currentSlot && !isDragged && !wasUserDragged) {
+            pagerState.scrollToPage(currentSlot)
         }
     }
 
@@ -123,18 +166,15 @@ fun GestureArtwork(
             .collect { (settledPage, isScrollInProgress) ->
                 if (!isScrollInProgress && wasUserDragged) {
                     wasUserDragged = false
-                    if (settledPage != safeCurrentIndex && settledPage in safeQueue.indices) {
-                        onSkipToIndex(settledPage)
+                    if (settledPage != currentSlot) {
+                        if (settledPage > currentSlot && hasNext) {
+                            onSkipToIndex(safeCurrentIndex + 1)
+                        } else if (settledPage < currentSlot && hasPrev) {
+                            onSkipToIndex(safeCurrentIndex - 1)
+                        }
                     }
                 }
             }
-    }
-
-    // Sync pager if queue list changes
-    LaunchedEffect(safeQueue) {
-        if (safeCurrentIndex in 0 until pagerState.pageCount && pagerState.currentPage != safeCurrentIndex) {
-            pagerState.scrollToPage(safeCurrentIndex)
-        }
     }
 
     Box(
@@ -151,14 +191,16 @@ fun GestureArtwork(
     ) {
         HorizontalPager(
             state = pagerState,
+            key = { page -> getKeyForPage(page) },
             pageSpacing = 16.dp,
             beyondViewportPageCount = 1,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val pageSong = safeQueue.getOrNull(page) ?: song
+            val pageSong = getSongForPage(page)
             val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
-            val scale = lerp(1f, 0.90f, pageOffset)
-            val alpha = lerp(1f, 0.65f, pageOffset)
+            val isInteracting = isDragged || wasUserDragged
+            val scale = if (isInteracting) lerp(1f, 0.90f, pageOffset) else 1f
+            val alpha = if (isInteracting) lerp(1f, 0.65f, pageOffset) else 1f
 
             Box(
                 modifier = Modifier
@@ -170,17 +212,7 @@ fun GestureArtwork(
                     }
                     .pointerInput(pageSong.id) {
                         detectTapGestures(
-                            onTap = { onTap() },
-                            onDoubleTap = { offset ->
-                                val isLeft = offset.x < size.width / 2f
-                                if (isLeft) {
-                                    onSeekRelative(-10000L)
-                                    triggerFeedback("rewind")
-                                } else {
-                                    onSeekRelative(10000L)
-                                    triggerFeedback("forward")
-                                }
-                            }
+                            onTap = { onTap() }
                         )
                     }
             ) {
