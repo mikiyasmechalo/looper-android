@@ -89,6 +89,7 @@ import com.composables.icons.lucide.SkipForward
 import com.composables.icons.lucide.Star
 import com.example.looper_android.ui.components.AnimatedPlayPauseIcon
 import com.example.looper_android.ui.theme.DmSansFontFamily
+import com.example.looper_android.ui.theme.JostFontFamily
 import com.example.looper_android.ui.utils.rememberHapticFeedbackHelper
 import com.example.looper_android.ui.widgets.ExpressiveSlider
 import com.example.looper_android.ui.widgets.GestureArtwork
@@ -144,7 +145,7 @@ fun PlayerScreen(
     var rawVerticalOffset by remember { mutableFloatStateOf(0f) }
 
     var rememberedQualityText by remember {
-        mutableStateOf(state.audioQualityText.ifBlank { "Standard Quality • Audio" })
+        mutableStateOf(state.audioQualityText)
     }
     if (state.audioQualityText.isNotBlank()) {
         rememberedQualityText = state.audioQualityText
@@ -513,8 +514,8 @@ fun PlayerScreen(
                                         }
                                 )
 
-                                if (showQualityBadge) {
-                                    val displayQuality = if (state.audioQualityText.isNotBlank()) state.audioQualityText else rememberedQualityText
+                                val displayQuality = if (state.audioQualityText.isNotBlank()) state.audioQualityText else rememberedQualityText
+                                if (showQualityBadge && displayQuality.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Box(
                                         modifier = Modifier
@@ -525,17 +526,18 @@ fun PlayerScreen(
                                                 color = Color.White.copy(alpha = 0.12f),
                                                 shape = RoundedCornerShape(20.dp)
                                             )
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            .padding(horizontal = 10.dp, vertical = 3.dp)
                                     ) {
                                         Text(
                                             text = displayQuality,
                                             color = Color.White.copy(alpha = 0.70f),
-                                            fontFamily = DmSansFontFamily,
-                                            fontWeight = FontWeight.Normal,
+                                            fontFamily = JostFontFamily,
+                                            fontWeight = FontWeight.SemiBold,
                                             fontSize = 9.sp,
                                             letterSpacing = 0.5.sp,
-                                            lineHeight = 10.sp,
-                                            modifier = Modifier.wrapContentHeight(unbounded = true)
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -865,7 +867,7 @@ fun PlayerScreen(
 
                     // Title or Quality badge (mutually exclusive per user request, vertically centered)
                     val displayQuality = if (state.audioQualityText.isNotBlank()) state.audioQualityText else rememberedQualityText
-                    if (showQualityBadge) {
+                    if (showQualityBadge && displayQuality.isNotBlank()) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
@@ -880,12 +882,13 @@ fun PlayerScreen(
                             Text(
                                 text = displayQuality,
                                 color = Color.White.copy(alpha = 0.70f),
-                                fontFamily = DmSansFontFamily,
-                                fontWeight = FontWeight.Normal,
+                                fontFamily = JostFontFamily,
+                                fontWeight = FontWeight.SemiBold,
                                 fontSize = 9.sp,
                                 letterSpacing = 0.5.sp,
-                                lineHeight = 10.sp,
-                                modifier = Modifier.wrapContentHeight(unbounded = true)
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     } else {

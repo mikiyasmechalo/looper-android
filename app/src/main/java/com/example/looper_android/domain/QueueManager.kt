@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -72,6 +74,59 @@ class QueueManager @Inject constructor(
     val activeQueueName: StateFlow<String> = _activeQueueName.asStateFlow()
 
     private var queueJob: Job? = null
+    private val restoreMutex = Mutex()
+
+    fun getCachedLastSong(): SongEntity? {
+        val songId = prefs.getLong("last_song_id", -1L)
+        val path = prefs.getString("last_song_path", null)
+        val title = prefs.getString("last_song_title", null)
+        if (songId == -1L || path.isNullOrEmpty() || title.isNullOrEmpty()) return null
+        return SongEntity(
+            id = songId,
+            path = path,
+            title = title,
+            artist = prefs.getString("last_song_artist", null),
+            albumArtist = prefs.getString("last_song_album_artist", null),
+            album = prefs.getString("last_song_album", null),
+            genre = null,
+            duration = prefs.getInt("last_song_duration", 0),
+            trackNumber = null,
+            year = null,
+            artPath = prefs.getString("last_song_art_path", null),
+            dateAdded = 0L,
+            isFavorite = prefs.getBoolean("last_song_is_favorite", false)
+        )
+    }
+
+    fun getCachedLastPosition(): Long {
+        val targetQueueId = getActiveQueueIdFromPrefs()
+        return if (targetQueueId != null) {
+            prefs.getLong("queue_${targetQueueId}_position", prefs.getLong("last_song_position", 0L))
+        } else {
+            prefs.getLong("last_song_position", 0L)
+        }
+    }
+
+    fun getCachedActiveQueueId(): Long? = getActiveQueueIdFromPrefs()
+    fun getCachedActiveQueueName(): String? = prefs.getString("active_queue_name", "All Songs")
+
+    fun saveSongMetadataToPrefs(song: SongEntity, positionMs: Long = 0L) {
+        prefs.edit()
+            .putLong("last_song_id", song.id)
+            .putString("last_song_path", song.path)
+            .putString("last_song_title", song.title)
+            .putString("last_song_artist", song.artist)
+            .putString("last_song_album_artist", song.albumArtist)
+            .putString("last_song_album", song.album)
+            .putString("last_song_art_path", song.artPath)
+            .putInt("last_song_duration", song.duration ?: 0)
+            .putLong("last_song_position", positionMs)
+            .putBoolean("last_song_is_favorite", song.isFavorite)
+            .putString("active_queue_name", _activeQueueName.value)
+            .apply()
+
+        settingsRepository.saveCachedSongArtPath(song.artPath)
+    }
 
     private fun getActiveQueueIdFromPrefs(): Long? {
         val id = prefs.getLong("active_queue_id", -1L)
@@ -117,6 +172,10 @@ class QueueManager @Inject constructor(
                             lastPlayedAt = System.currentTimeMillis()
                         )
                     }
+                }
+                val currentSong = if (newIndex in workingSongs.indices) workingSongs[newIndex] else null
+                if (currentSong != null) {
+                    saveSongMetadataToPrefs(currentSong, 0L)
                 }
             }
 
@@ -194,6 +253,7 @@ class QueueManager @Inject constructor(
         
         // INSTANT UI UPDATE
         workingSongs = currentWorkingSongs
+        saveSongMetadataToPrefs(startSong, 0L)
 
         val mediaItems = currentWorkingSongs.mapIndexed { idx, s ->
             buildMediaItem(s, loadArtworkBytes = (idx == currentWorkingIndex))
@@ -643,17 +703,9 @@ class QueueManager @Inject constructor(
 
                 if (restoredSongs.isNotEmpty()) {
                     val startIdx = if (forcePlayFromBeginning) 0 else nextQueue.currentItemIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
-                    val startPos = if (forcePlayFromBeginning) 0L else nextQueue.currentPlaybackPositionMs
-                    val startSong = restoredSongs[startIdx]
-                    val targetMediaItem = buildMediaItem(startSong, loadArtworkBytes = true)
-
-                    val afterItems = mutableListOf<androidx.media3.common.MediaItem>()
-                    for (i in startIdx + 1 until restoredSongs.size) {
-                        afterItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
-                    }
-                    val beforeItems = mutableListOf<androidx.media3.common.MediaItem>()
-                    for (i in 0 until startIdx) {
-                        beforeItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
+                    val startPos = if (forcePlayFromBeginning) 0L else nextQueue.currentPlaybackPositionMs.coerceAtLeast(0L)
+                    val mediaItems = restoredSongs.mapIndexed { idx, s ->
+                        buildMediaItem(s, loadArtworkBytes = (idx == startIdx))
                     }
 
                     withContext(Dispatchers.Main) {
@@ -663,14 +715,7 @@ class QueueManager @Inject constructor(
 
                         val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
                         if (exoPlayer != null) {
-                            exoPlayer.setMediaItem(targetMediaItem)
-                            if (afterItems.isNotEmpty()) {
-                                exoPlayer.addMediaItems(afterItems)
-                            }
-                            if (beforeItems.isNotEmpty()) {
-                                exoPlayer.addMediaItems(0, beforeItems)
-                            }
-                            exoPlayer.seekTo(startIdx, startPos)
+                            exoPlayer.setMediaItems(mediaItems, startIdx, startPos)
                             exoPlayer.prepare()
                             com.example.looper_android.playback.PlaybackService.start(context)
                             exoPlayer.play()
@@ -732,16 +777,9 @@ class QueueManager @Inject constructor(
 
                     if (restoredSongs.isNotEmpty()) {
                         val startIdx = queue.currentItemIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
-                        val startSong = restoredSongs[startIdx]
-                        val targetMediaItem = buildMediaItem(startSong, loadArtworkBytes = true)
-
-                        val afterItems = mutableListOf<androidx.media3.common.MediaItem>()
-                        for (i in startIdx + 1 until restoredSongs.size) {
-                            afterItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
-                        }
-                        val beforeItems = mutableListOf<androidx.media3.common.MediaItem>()
-                        for (i in 0 until startIdx) {
-                            beforeItems.add(buildMediaItem(restoredSongs[i], loadArtworkBytes = false))
+                        val startPos = queue.currentPlaybackPositionMs.coerceAtLeast(0L)
+                        val mediaItems = restoredSongs.mapIndexed { idx, s ->
+                            buildMediaItem(s, loadArtworkBytes = (idx == startIdx))
                         }
 
                         withContext(Dispatchers.Main) {
@@ -751,14 +789,7 @@ class QueueManager @Inject constructor(
 
                             val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
                             if (exoPlayer != null) {
-                                exoPlayer.setMediaItem(targetMediaItem)
-                                if (afterItems.isNotEmpty()) {
-                                    exoPlayer.addMediaItems(afterItems)
-                                }
-                                if (beforeItems.isNotEmpty()) {
-                                    exoPlayer.addMediaItems(0, beforeItems)
-                                }
-                                exoPlayer.seekTo(startIdx, queue.currentPlaybackPositionMs)
+                                exoPlayer.setMediaItems(mediaItems, startIdx, startPos)
                                 exoPlayer.prepare()
                                 if (autoPlay) {
                                     com.example.looper_android.playback.PlaybackService.start(context)
@@ -822,115 +853,130 @@ class QueueManager @Inject constructor(
         }
     }
 
-    suspend fun restoreLastQueueAwait(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val isAlreadyRestored = withContext(Dispatchers.Main) {
-                workingSongs.isNotEmpty() && player.mediaItemCount > 0
-            }
-            if (isAlreadyRestored) {
-                return@withContext true
-            }
-
-            var targetQueueId = getActiveQueueIdFromPrefs()
-            var queue = if (targetQueueId != null && targetQueueId != -1L) {
-                queueDao.getQueueById(targetQueueId)
-            } else null
-
-            if (queue == null) {
-                val allQueues = queueDao.getAllQueues().firstOrNull() ?: emptyList()
-                queue = allQueues.maxByOrNull { it.lastPlayedAt } ?: allQueues.firstOrNull()
-                targetQueueId = queue?.id
-                if (targetQueueId != null) {
-                    setActiveQueueIdInPrefs(targetQueueId)
+    suspend fun restoreLastQueueAwait(): Boolean = restoreMutex.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                val isAlreadyRestored = withContext(Dispatchers.Main) {
+                    workingSongs.isNotEmpty() && player.mediaItemCount > 0
                 }
-            }
-
-            if (queue == null || targetQueueId == null) return@withContext false
-
-            var items = queueDao.getQueueItemsList(targetQueueId)
-            if (items.isEmpty()) {
-                val allQueues = queueDao.getAllQueues().firstOrNull() ?: emptyList()
-                val fallback = allQueues.firstOrNull { it.id != targetQueueId && queueDao.getQueueItemsList(it.id).isNotEmpty() }
-                if (fallback != null) {
-                    queue = fallback
-                    targetQueueId = fallback.id
-                    setActiveQueueIdInPrefs(targetQueueId)
-                    items = queueDao.getQueueItemsList(targetQueueId)
+                if (isAlreadyRestored) {
+                    return@withContext true
                 }
-            }
-            if (items.isEmpty()) return@withContext false
 
-            _activeQueueName.value = queue.name
+                var targetQueueId = getActiveQueueIdFromPrefs()
+                var queue = if (targetQueueId != null && targetQueueId != -1L) {
+                    queueDao.getQueueById(targetQueueId)
+                } else null
 
-            val uniqueItems = items.distinctBy { it.positionInQueue }
-            val cachedSongs = libraryDao.getAllSongsList()
-            val songMap = if (cachedSongs.isNotEmpty()) cachedSongs.associateBy { it.id } else emptyMap()
-            val restoredSongs = uniqueItems.map { item ->
-                val sId = item.mediaId.toLongOrNull()
-                (if (sId != null) songMap[sId] else null) ?: SongEntity(
-                    id = sId ?: 0L,
-                    path = item.uri,
-                    title = item.title,
-                    artist = item.artist,
-                    albumArtist = item.artist,
-                    album = item.album,
-                    genre = null,
-                    duration = item.durationMs.toInt(),
-                    trackNumber = null,
-                    year = null,
-                    artPath = item.albumArtUri,
-                    dateAdded = 0L,
-                    isFavorite = false
-                )
-            }
+                if (queue == null) {
+                    val allQueues = queueDao.getAllQueues().firstOrNull() ?: emptyList()
+                    queue = allQueues.maxByOrNull { it.lastPlayedAt } ?: allQueues.firstOrNull()
+                    targetQueueId = queue?.id
+                    if (targetQueueId != null) {
+                        setActiveQueueIdInPrefs(targetQueueId)
+                    }
+                }
 
-            if (restoredSongs.isNotEmpty()) {
+                if (queue == null || targetQueueId == null) return@withContext false
+
+                var items = queueDao.getQueueItemsList(targetQueueId)
+                if (items.isEmpty()) {
+                    val allQueues = queueDao.getAllQueues().firstOrNull() ?: emptyList()
+                    val fallback = allQueues.firstOrNull { it.id != targetQueueId && queueDao.getQueueItemsList(it.id).isNotEmpty() }
+                    if (fallback != null) {
+                        queue = fallback
+                        targetQueueId = fallback.id
+                        setActiveQueueIdInPrefs(targetQueueId)
+                        items = queueDao.getQueueItemsList(targetQueueId)
+                    }
+                }
+                if (items.isEmpty()) return@withContext false
+
+                _activeQueueName.value = queue.name
+
+                val uniqueItems = items.distinctBy { it.positionInQueue }
                 val savedPrefIndex = prefs.getInt("queue_${targetQueueId}_index", queue.currentItemIndex)
                 val savedPrefPosition = prefs.getLong("queue_${targetQueueId}_position", queue.currentPlaybackPositionMs)
 
-                val startIdx = savedPrefIndex.coerceIn(0, (restoredSongs.size - 1).coerceAtLeast(0))
+                val startIdx = savedPrefIndex.coerceIn(0, (uniqueItems.size - 1).coerceAtLeast(0))
                 val startPos = savedPrefPosition.coerceAtLeast(0L)
 
-                val mediaItems = restoredSongs.mapIndexed { idx, s ->
-                    buildMediaItem(s, loadArtworkBytes = (idx == startIdx))
+                val startItem = uniqueItems.getOrNull(startIdx)
+                val startSongId = startItem?.mediaId?.toLongOrNull()
+                val startSongDb = if (startSongId != null) libraryDao.getSongByIdSync(startSongId) else null
+
+                val restoredSongs = uniqueItems.mapIndexed { idx, item ->
+                    val sId = item.mediaId.toLongOrNull() ?: 0L
+                    if (idx == startIdx && startSongDb != null) {
+                        startSongDb
+                    } else {
+                        SongEntity(
+                            id = sId,
+                            path = item.uri,
+                            title = item.title,
+                            artist = item.artist,
+                            albumArtist = item.artist,
+                            album = item.album,
+                            genre = null,
+                            duration = item.durationMs.toInt(),
+                            trackNumber = null,
+                            year = null,
+                            artPath = item.albumArtUri,
+                            dateAdded = 0L,
+                            isFavorite = false
+                        )
+                    }
                 }
 
-                val shouldResume = try {
-                    settingsRepository.resumeOnStart.firstOrNull() ?: false
-                } catch (_: Exception) { false }
-
-                withContext(Dispatchers.Main) {
-                    workingSongs = restoredSongs
-                    originalSongs = restoredSongs
-                    _activeQueueId.value = targetQueueId
-                    _activeQueueName.value = queue.name
-                    _isShuffleEnabled.value = queue.shuffleState
-
-                    val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
-                    if (exoPlayer != null) {
-                        exoPlayer.playWhenReady = shouldResume
-                        exoPlayer.setMediaItems(mediaItems, startIdx, startPos)
-                        exoPlayer.prepare()
-                        if (shouldResume) {
-                            exoPlayer.play()
-                        }
+                if (restoredSongs.isNotEmpty()) {
+                    val mediaItems = restoredSongs.mapIndexed { idx, s ->
+                        buildMediaItem(s, loadArtworkBytes = (idx == startIdx))
                     }
 
-                    val startSong = restoredSongs[startIdx]
-                    WidgetStateRepository.updateState(
-                        context = context,
-                        song = startSong,
-                        isPlaying = shouldResume,
-                        positionMs = startPos,
-                        durationMs = startSong.duration?.toLong() ?: 0L
-                    )
+                    val shouldResume = try {
+                        settingsRepository.resumeOnStart.firstOrNull() ?: false
+                    } catch (_: Exception) { false }
+
+                    withContext(Dispatchers.Main) {
+                        val isPlayingOrReady = player.isPlaying || player.playWhenReady
+                        workingSongs = restoredSongs
+                        originalSongs = restoredSongs
+                        _activeQueueId.value = targetQueueId
+                        _activeQueueName.value = queue.name
+                        _isShuffleEnabled.value = queue.shuffleState
+
+                        val exoPlayer = player as? androidx.media3.exoplayer.ExoPlayer
+                        if (exoPlayer != null) {
+                            if (exoPlayer.mediaItemCount == 0) {
+                                val playTarget = isPlayingOrReady || shouldResume
+                                exoPlayer.playWhenReady = playTarget
+                                exoPlayer.setMediaItems(mediaItems, startIdx, startPos)
+                                exoPlayer.prepare()
+                                if (playTarget) {
+                                    exoPlayer.play()
+                                }
+                            } else if (shouldResume && !isPlayingOrReady) {
+                                exoPlayer.play()
+                            }
+                        }
+
+                        val startSong = restoredSongs[startIdx]
+                        saveSongMetadataToPrefs(startSong, startPos)
+                        WidgetStateRepository.updateState(
+                            context = context,
+                            song = startSong,
+                            isPlaying = isPlayingOrReady || shouldResume,
+                            positionMs = startPos,
+                            durationMs = startSong.duration?.toLong() ?: 0L
+                        )
+                    }
+                    return@withContext true
                 }
-                return@withContext true
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+            return@withContext false
         }
-        return@withContext false
     }
 
     fun restoreLastQueue() {
@@ -963,6 +1009,11 @@ class QueueManager @Inject constructor(
                     .putInt("queue_${activeId}_index", currentIndex)
                     .putLong("queue_${activeId}_position", position)
                     .commit()
+
+                val currentSong = if (currentIndex in workingSongs.indices) workingSongs[currentIndex] else null
+                if (currentSong != null) {
+                    saveSongMetadataToPrefs(currentSong, position)
+                }
 
                 scope.launch(Dispatchers.IO) {
                     queueDao.updateQueueState(

@@ -44,7 +44,7 @@ data class PlaybackState(
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val isFavorite: Boolean = false,
     val queue: List<SongEntity> = emptyList(),
-    val audioQualityText: String = "High Quality • Audio",
+    val audioQualityText: String = "",
     val accentColor: Color = Color(0xFF55DF69),
     val isSleepTimerActive: Boolean = false,
     val sleepTimerLabel: String = "",
@@ -71,11 +71,24 @@ class PlaybackViewModel @Inject constructor(
     private val lyricsFetcher: com.example.looper_android.data.repository.LyricsFetcher
 ) : ViewModel() {
 
-    private val _playbackState = MutableStateFlow(
-        PlaybackState(
-            accentColor = Color(settingsRepository.getInitialAccentColor())
+    private val _playbackState: MutableStateFlow<PlaybackState> = run {
+        val cachedSong = queueManager.getCachedLastSong()
+        val cachedPos = queueManager.getCachedLastPosition()
+        val cachedQueueId = queueManager.getCachedActiveQueueId()
+        val cachedQueueName = queueManager.getCachedActiveQueueName()
+        val initialAccent = Color(settingsRepository.getInitialAccentColor())
+        MutableStateFlow(
+            PlaybackState(
+                currentSong = cachedSong,
+                position = cachedPos,
+                duration = cachedSong?.duration?.toLong() ?: 0L,
+                isSongReady = (cachedSong != null),
+                activeQueueId = cachedQueueId,
+                activeQueueName = cachedQueueName ?: "Select Queue",
+                accentColor = initialAccent
+            )
         )
-    )
+    }
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
     private val _isSelectionActive = MutableStateFlow(false)
@@ -85,7 +98,7 @@ class PlaybackViewModel @Inject constructor(
         _isSelectionActive.value = active
     }
 
-    private val _currentPosition = MutableStateFlow(0L)
+    private val _currentPosition = MutableStateFlow(queueManager.getCachedLastPosition())
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
     private var currentRepeatMode: RepeatMode = RepeatMode.OFF
@@ -102,6 +115,7 @@ class PlaybackViewModel @Inject constructor(
     private var songObserveJob: kotlinx.coroutines.Job? = null
 
     private var pendingTransition = false
+    private var restoreJob: kotlinx.coroutines.Job? = null
 
     // When true, any attempt by ExoPlayer to start playing is immediately cancelled.
     // Set when a song-count sleep timer / stop-after-this-song fires during a track transition.
@@ -157,7 +171,20 @@ class PlaybackViewModel @Inject constructor(
                     }
                 }
 
-                val instantSong = com.example.looper_android.data.db.SongEntity(
+                val knownSong = queueManager.workingSongs.find { it.id == songId }
+                    ?: if (_playbackState.value.currentSong?.id == songId) _playbackState.value.currentSong else null
+
+                val resolvedDuration = player.duration.coerceAtLeast(0L)
+                val knownDuration = (knownSong?.duration?.toLong() ?: 0L).coerceAtLeast(0L)
+                val effectiveDuration = if (resolvedDuration > 0L) {
+                    resolvedDuration
+                } else if (knownDuration > 0L) {
+                    knownDuration
+                } else {
+                    _playbackState.value.duration.coerceAtLeast(0L)
+                }
+
+                val instantSong = knownSong ?: com.example.looper_android.data.db.SongEntity(
                     id = songId,
                     path = mediaItem.localConfiguration?.uri?.toString() ?: "",
                     title = metadata.title?.toString() ?: "Unknown Title",
@@ -165,23 +192,19 @@ class PlaybackViewModel @Inject constructor(
                     albumArtist = null,
                     album = metadata.albumTitle?.toString() ?: "Unknown Album",
                     genre = null,
-                    duration = player.duration.coerceAtLeast(0).toInt(),
+                    duration = effectiveDuration.toInt(),
                     trackNumber = null,
                     year = null,
                     artPath = metadata.artworkUri?.toString(),
                     dateAdded = System.currentTimeMillis()
                 )
 
-                val resolvedDuration = player.duration.coerceAtLeast(0)
                 val currentPos = player.currentPosition.coerceAtLeast(0L)
                 _currentPosition.value = currentPos
                 _playbackState.value = _playbackState.value.copy(
-                    currentSong = instantSong,
+                    currentSong = instantSong.copy(duration = effectiveDuration.toInt()),
                     position = currentPos,
-                    // Only overwrite duration when ExoPlayer has actually resolved it.
-                    // If it is still TIME_UNSET (coerced to 0), keep the old value so the
-                    // slider stays at 0% instead of briefly snapping to 100% (0/0 edge case).
-                    duration = if (resolvedDuration > 0L) resolvedDuration else _playbackState.value.duration
+                    duration = effectiveDuration
                 )
 
 
@@ -241,7 +264,7 @@ class PlaybackViewModel @Inject constructor(
 
                     val initialQuality = AudioQualityAnalyzer.getCachedAnalysis(targetSong.path)?.let {
                         AudioQualityAnalyzer.getQualityString(targetSong.path, targetSong.duration?.toLong())
-                    } ?: _playbackState.value.audioQualityText.ifBlank { "Standard Quality • Audio" }
+                    } ?: _playbackState.value.audioQualityText
 
                     _playbackState.value = _playbackState.value.copy(
                         currentSong = targetSong,
@@ -276,6 +299,12 @@ class PlaybackViewModel @Inject constructor(
                     // Calculate quality and accent color in background
                     launch(Dispatchers.Default) {
                         val dbQualityText = AudioQualityAnalyzer.getQualityString(targetSong.path, targetSong.duration?.toLong())
+                        if (_playbackState.value.currentSong?.id == targetSong.id) {
+                            _playbackState.value = _playbackState.value.copy(
+                                audioQualityText = dbQualityText
+                            )
+                        }
+
                         val dynamicTheming = settingsRepository.dynamicTheming.first()
                         val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
                         val customAccentColorInt = settingsRepository.customAccentColor.first()
@@ -287,7 +316,6 @@ class PlaybackViewModel @Inject constructor(
 
                         if (_playbackState.value.currentSong?.id == targetSong.id) {
                             _playbackState.value = _playbackState.value.copy(
-                                audioQualityText = dbQualityText,
                                 accentColor = accent
                             )
                         }
@@ -390,22 +418,74 @@ class PlaybackViewModel @Inject constructor(
             val currentIdx = player.currentMediaItemIndex.coerceAtLeast(0)
             val activeSong = if (currentIdx in songs.indices) songs[currentIdx] else songs.firstOrNull()
             if (activeSong != null) {
+                val cachedQuality = AudioQualityAnalyzer.getCachedAnalysis(activeSong.path)?.let {
+                    AudioQualityAnalyzer.getQualityString(activeSong.path, activeSong.duration?.toLong())
+                }
                 _playbackState.value = _playbackState.value.copy(
                     queue = songs,
                     currentSong = activeSong,
+                    audioQualityText = cachedQuality ?: _playbackState.value.audioQualityText,
                     isSongReady = true
                 )
+                viewModelScope.launch(Dispatchers.Default) {
+                    val dbQualityText = AudioQualityAnalyzer.getQualityString(activeSong.path, activeSong.duration?.toLong())
+                    if (_playbackState.value.currentSong?.id == activeSong.id) {
+                        _playbackState.value = _playbackState.value.copy(
+                            audioQualityText = dbQualityText
+                        )
+                    }
+                    val dynamicTheming = settingsRepository.dynamicTheming.first()
+                    val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
+                    val customAccentColorInt = settingsRepository.customAccentColor.first()
+                    val accent = if (dynamicTheming || dynamicAccentColor) {
+                        extractAccentColor(activeSong)
+                    } else {
+                        Color(customAccentColorInt)
+                    }
+                    if (_playbackState.value.currentSong?.id == activeSong.id) {
+                        _playbackState.value = _playbackState.value.copy(
+                            accentColor = accent
+                        )
+                    }
+                }
             }
         } else {
-            // Cold start or process resurrection: restore last played queue and song
-            viewModelScope.launch {
+            val initialCachedSong = _playbackState.value.currentSong
+            if (initialCachedSong != null) {
+                viewModelScope.launch(Dispatchers.Default) {
+                    val dbQualityText = AudioQualityAnalyzer.getQualityString(initialCachedSong.path, initialCachedSong.duration?.toLong())
+                    if (_playbackState.value.currentSong?.id == initialCachedSong.id) {
+                        _playbackState.value = _playbackState.value.copy(
+                            audioQualityText = dbQualityText
+                        )
+                    }
+                    val dynamicTheming = settingsRepository.dynamicTheming.first()
+                    val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
+                    val customAccentColorInt = settingsRepository.customAccentColor.first()
+                    val accent = if (dynamicTheming || dynamicAccentColor) {
+                        extractAccentColor(initialCachedSong)
+                    } else {
+                        Color(customAccentColorInt)
+                    }
+
+                    if (_playbackState.value.currentSong?.id == initialCachedSong.id) {
+                        _playbackState.value = _playbackState.value.copy(
+                            accentColor = accent
+                        )
+                    }
+                }
+            }
+
+            // Cold start or process resurrection: restore last played queue and song asynchronously in background
+            restoreJob = viewModelScope.launch {
                 val restored = queueManager.restoreLastQueueAwait()
                 if (restored) {
                     val currentIdx = player.currentMediaItemIndex.coerceAtLeast(0)
                     val songs = queueManager.workingSongs
-                    val activeSong = if (currentIdx in songs.indices) songs[currentIdx] else songs.firstOrNull()
+                    val activeSong = if (currentIdx in songs.indices) songs[currentIdx] else (songs.firstOrNull() ?: _playbackState.value.currentSong)
                     val currentPos = player.currentPosition.coerceAtLeast(0L)
-                    val songDur = (activeSong?.duration?.toLong() ?: 0L).coerceAtLeast(player.duration.coerceAtLeast(0L))
+                    val rawPlayerDur = player.duration.coerceAtLeast(0L)
+                    val songDur = if (rawPlayerDur > 0L) rawPlayerDur else (activeSong?.duration?.toLong() ?: _playbackState.value.duration)
                     _currentPosition.value = currentPos
                     _playbackState.value = _playbackState.value.copy(
                         queue = songs,
@@ -421,6 +501,11 @@ class PlaybackViewModel @Inject constructor(
                     if (activeSong != null) {
                         viewModelScope.launch(Dispatchers.Default) {
                             val dbQualityText = AudioQualityAnalyzer.getQualityString(activeSong.path, activeSong.duration?.toLong())
+                            if (_playbackState.value.currentSong?.id == activeSong.id) {
+                                _playbackState.value = _playbackState.value.copy(
+                                    audioQualityText = dbQualityText
+                                )
+                            }
                             val dynamicTheming = settingsRepository.dynamicTheming.first()
                             val dynamicAccentColor = settingsRepository.dynamicAccentColor.first()
                             val customAccentColorInt = settingsRepository.customAccentColor.first()
@@ -432,7 +517,6 @@ class PlaybackViewModel @Inject constructor(
 
                             if (_playbackState.value.currentSong?.id == activeSong.id) {
                                 _playbackState.value = _playbackState.value.copy(
-                                    audioQualityText = dbQualityText,
                                     accentColor = accent
                                 )
                             }
@@ -507,11 +591,11 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
-    private fun extractAccentColor(song: com.example.looper_android.data.db.SongEntity): Color {
+    private suspend fun extractAccentColor(song: com.example.looper_android.data.db.SongEntity): Color = withContext(Dispatchers.Default) {
         val fallbackColor = Color(settingsRepository.getInitialAccentColor())
 
         var bitmap: android.graphics.Bitmap? = null
-        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
 
         try {
             // 1. Read directly from the album art content URI stored during scan
@@ -556,16 +640,18 @@ class PlaybackViewModel @Inject constructor(
             if (bitmap == null && !artPath.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 try {
                     val artUri = android.net.Uri.parse(artPath)
-                    bitmap = context.contentResolver.loadThumbnail(artUri, android.util.Size(200, 200), null)
+                    bitmap = context.contentResolver.loadThumbnail(artUri, android.util.Size(120, 120), null)
                 } catch (e: Exception) {
                     android.util.Log.w("AccentColor", "loadThumbnail failed for ${song.title}: ${e.message}")
                 }
             }
 
-            val b = bitmap ?: return fallbackColor
+            val b = bitmap ?: return@withContext fallbackColor
 
             val palette = androidx.palette.graphics.Palette.from(b).generate()
-            b.recycle()
+            try {
+                b.recycle()
+            } catch (_: Exception) {}
 
             val chosenSwatch = palette.vibrantSwatch
                 ?: palette.lightVibrantSwatch
@@ -584,17 +670,17 @@ class PlaybackViewModel @Inject constructor(
                 val a = (finalColor.alpha.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
                 val r = (finalColor.red.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
                 val g = (finalColor.green.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
-                val b = (finalColor.blue.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
-                val argb = (a shl 24) or (r shl 16) or (g shl 8) or b
+                val bInt = (finalColor.blue.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+                val argb = (a shl 24) or (r shl 16) or (g shl 8) or bInt
                 settingsRepository.saveCachedAccentColor(argb, isDynamic = true)
                 settingsRepository.saveCachedSongArtPath(song.artPath)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            return finalColor
+            finalColor
         } catch (e: Exception) {
             e.printStackTrace()
-            return fallbackColor
+            fallbackColor
         }
     }
 
@@ -677,7 +763,8 @@ class PlaybackViewModel @Inject constructor(
         // pendingTransition is already cleared by then, so we can't use that flag here — instead
         // we simply keep the last known good duration until ExoPlayer resolves a real value.
         val rawDur = player.duration.coerceAtLeast(0L)
-        val dur = if (rawDur > 0L) rawDur else _playbackState.value.duration
+        val currentSongDur = (_playbackState.value.currentSong?.duration?.toLong() ?: 0L).coerceAtLeast(0L)
+        val dur = if (rawDur > 0L) rawDur else if (currentSongDur > 0L) currentSongDur else _playbackState.value.duration
         
         _currentPosition.value = pos
         _playbackState.value = _playbackState.value.copy(
@@ -697,33 +784,33 @@ class PlaybackViewModel @Inject constructor(
     }
 
     fun togglePlayPause() {
-        if (player.isPlaying) {
+        val willPause = player.isPlaying || (_playbackState.value.isPlaying && player.playWhenReady)
+        if (willPause) {
             player.pause()
             val pos = player.currentPosition.coerceAtLeast(0L)
             _currentPosition.value = pos
             _playbackState.value = _playbackState.value.copy(isPlaying = false, position = pos)
         } else {
-            if (player.mediaItemCount == 0) {
-                viewModelScope.launch {
+            _playbackState.value = _playbackState.value.copy(isPlaying = true)
+            viewModelScope.launch {
+                restoreJob?.join()
+                if (player.mediaItemCount == 0) {
                     val restored = queueManager.restoreLastQueueAwait()
-                    if (restored) {
-                        com.example.looper_android.playback.PlaybackService.start(context)
-                        (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
-                        player.prepare()
-                        player.play()
+                    if (!restored) {
+                        _playbackState.value = _playbackState.value.copy(isPlaying = false)
+                        return@launch
                     }
                 }
-                return
+                com.example.looper_android.playback.PlaybackService.start(context)
+                (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
+                if (player.playbackState == Player.STATE_IDLE) {
+                    player.prepare()
+                } else if (player.playbackState == Player.STATE_ENDED) {
+                    player.seekTo(0, 0L)
+                    player.prepare()
+                }
+                player.play()
             }
-            com.example.looper_android.playback.PlaybackService.start(context)
-            (player as? androidx.media3.exoplayer.ExoPlayer)?.pauseAtEndOfMediaItems = false
-            if (player.playbackState == Player.STATE_IDLE) {
-                player.prepare()
-            } else if (player.playbackState == Player.STATE_ENDED) {
-                player.seekTo(0, 0L)
-                player.prepare()
-            }
-            player.play()
         }
     }
 

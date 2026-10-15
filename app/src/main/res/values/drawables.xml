@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification small icon (status bar and header) -->
+    <item name="media3_notification_small_icon" type="drawable">@drawable/ic_notification_session</item>
+
+    <!-- Notification action button icons -->
+    <item name="media3_icon_play" type="drawable">@drawable/ic_widget_play</item>
+    <item name="media3_icon_pause" type="drawable">@drawable/ic_widget_pause</item>
+    <item name="media3_icon_previous" type="drawable">@drawable/ic_widget_prev</item>
+    <item name="media3_icon_next" type="drawable">@drawable/ic_widget_next</item>
+</resources>

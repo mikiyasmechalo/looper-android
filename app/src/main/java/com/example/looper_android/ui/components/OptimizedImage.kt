@@ -12,6 +12,11 @@ import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.clip
+import coil.request.CachePolicy
+import kotlinx.coroutines.Dispatchers
+
 @Composable
 fun OptimizedImage(
     url: String?,
@@ -25,7 +30,11 @@ fun OptimizedImage(
         else {
             val builder = ImageRequest.Builder(context)
                 .data(url)
-                .crossfade(200)
+                .dispatcher(Dispatchers.IO)
+                .allowHardware(true)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .crossfade(false)
             if (sizePx != null && sizePx > 0) {
                 builder.size(sizePx, sizePx)
             }
@@ -33,17 +42,17 @@ fun OptimizedImage(
         }
     }
 
-    if (imageRequest == null) {
-        Box(
-            modifier = modifier.background(Color(0xFF222222)),
-            contentAlignment = Alignment.Center
-        ) {}
-    } else {
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = null,
-            modifier = modifier,
-            contentScale = contentScale
-        )
+    Box(
+        modifier = modifier.background(Color(0xFF1E1E1E)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (imageRequest != null) {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = contentScale
+            )
+        }
     }
 }

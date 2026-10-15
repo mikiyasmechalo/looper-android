@@ -336,7 +336,8 @@ private fun RecentPill(
                 OptimizedImage(
                     url = song.artPath,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    sizePx = 80
                 )
             }
 

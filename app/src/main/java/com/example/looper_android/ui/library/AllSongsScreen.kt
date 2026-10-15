@@ -94,6 +94,7 @@ fun AllSongsScreen(
     val isAscending by viewModel.isAscending.collectAsState()
     val isDbLoaded by viewModel.isDbLoaded.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
     val pendingDelete by viewModel.pendingDeletePermission.collectAsState()
     val pendingBatchDelete by viewModel.pendingBatchDeletePermission.collectAsState()
 
@@ -356,7 +357,7 @@ fun AllSongsScreen(
                 Spacer(modifier = Modifier.height(36.dp))
             }
 
-            val isRefreshing by viewModel.isLoading.collectAsState()
+            val isRefreshing by viewModel.isRefreshing.collectAsState()
             val pullToRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
 
             var wasRefreshing by remember { mutableStateOf(false) }
@@ -387,7 +388,11 @@ fun AllSongsScreen(
 
             androidx.compose.material3.pulltorefresh.PullToRefreshBox(
                 isRefreshing = isRefreshing,
-                onRefresh = { viewModel.rescanLibrary() },
+                onRefresh = { 
+                    if (!isScanning) {
+                        viewModel.rescanLibrary() 
+                    }
+                },
                 state = pullToRefreshState,
                 modifier = Modifier.fillMaxSize(),
                 indicator = {
@@ -401,7 +406,7 @@ fun AllSongsScreen(
             ) {
                 if (songs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        if (isLoading || !isDbLoaded) {
+                        if (isLoading || isScanning || !isDbLoaded) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 color = playbackState.accentColor,
                                 modifier = Modifier.size(36.dp),
@@ -600,7 +605,8 @@ fun SongTile(
         ) {
             OptimizedImage(
                 url = song.artPath,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                sizePx = 160
             )
             if (isCurrent) {
                 Box(

@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -76,7 +79,15 @@ class AllSongsViewModel @Inject constructor(
             SortOption.RECENTLY_PLAYED -> if (asc) sorted.sortBy { it.lastPlayed ?: 0L } else sorted.sortByDescending { it.lastPlayed ?: 0L }
         }
         sorted
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -88,10 +99,10 @@ class AllSongsViewModel @Inject constructor(
         _songs.value = libraryCacheManager.songs.value
         _isDbLoaded.value = libraryCacheManager.isDbLoaded.value
 
-        libraryDao.getAllSongs()
+        libraryCacheManager.songs
             .onEach { 
                 _songs.value = it 
-                _isDbLoaded.value = true
+                _isDbLoaded.value = libraryCacheManager.isDbLoaded.value
             }
             .catch { it.printStackTrace() }
             .launchIn(viewModelScope)
@@ -212,21 +223,36 @@ class AllSongsViewModel @Inject constructor(
     }
 
     fun rescanLibrary() {
+        if (_isScanning.value) return
+        _isScanning.value = true
+        _isRefreshing.value = true
         viewModelScope.launch {
-            _isLoading.value = true
+            // Dismiss pull-to-refresh spinner after brief feedback so it doesn't stay on screen for the whole scan
+            launch {
+                delay(800)
+                _isRefreshing.value = false
+            }
             try {
                 libraryScanner.scanMediaStore(forceDiskRead = true)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                _isLoading.value = false
+                _isRefreshing.value = false
+                _isScanning.value = false
             }
         }
     }
 
     fun loadSongs() {
-        if (_songs.value.isNotEmpty()) return
+        if (_isScanning.value) return
         viewModelScope.launch {
+            if (!libraryCacheManager.isDbLoaded.value) {
+                libraryCacheManager.isDbLoaded.first { it }
+            }
+            if (libraryCacheManager.songs.value.isNotEmpty()) {
+                return@launch
+            }
+            _isScanning.value = true
             _isLoading.value = true
             try {
                 libraryScanner.scanMediaStore()
@@ -234,19 +260,23 @@ class AllSongsViewModel @Inject constructor(
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
+                _isScanning.value = false
             }
         }
     }
 
     fun scanFolder(uri: android.net.Uri) {
+        if (_isScanning.value) return
+        _isScanning.value = true
+        _isLoading.value = true
         viewModelScope.launch {
-            _isLoading.value = true
             try {
                 safScanner.scanDirectory(uri)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
+                _isScanning.value = false
             }
         }
     }

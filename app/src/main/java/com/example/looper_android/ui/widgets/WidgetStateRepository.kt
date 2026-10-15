@@ -95,8 +95,8 @@ object WidgetStateRepository {
             if (visuals == null) {
                 val loadedBitmap = loadRawBitmap(context, song)
                 if (loadedBitmap != null) {
-                    val thumb = createRoundedBitmap(loadedBitmap, 128, 128, 20f)
-                    val fullArt = createFullArtWithGradient(loadedBitmap, 300, 300, 24f)
+                    val thumb = createRoundedBitmap(loadedBitmap, 180, 180, 24f)
+                    val fullArt = createFullArtWithGradient(loadedBitmap, 480, 480, 28f)
 
                     var extractedAccent = Color(0xFF55DF69)
                     var extractedCardBg = Color(0xE61E1E22)
@@ -326,7 +326,7 @@ object WidgetStateRepository {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !artPath.isNullOrEmpty()) {
             try {
-                return context.contentResolver.loadThumbnail(Uri.parse(artPath), Size(300, 300), null)
+                return context.contentResolver.loadThumbnail(Uri.parse(artPath), Size(800, 800), null)
             } catch (_: Exception) {}
         }
 
@@ -337,7 +337,10 @@ object WidgetStateRepository {
         val scaled = Bitmap.createScaledBitmap(src, targetW, targetH, true)
         val output = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFilterBitmap = true
+            isDither = true
+        }
         val rectF = RectF(0f, 0f, targetW.toFloat(), targetH.toFloat())
 
         canvas.drawRoundRect(rectF, cornerRadiusPx, cornerRadiusPx, paint)
@@ -356,7 +359,10 @@ object WidgetStateRepository {
 
         val output = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFilterBitmap = true
+            isDither = true
+        }
         val rectF = RectF(0f, 0f, targetW.toFloat(), targetH.toFloat())
 
         canvas.drawRoundRect(rectF, cornerRadiusPx, cornerRadiusPx, paint)
@@ -365,7 +371,10 @@ object WidgetStateRepository {
         val top = (targetH - scaledH) / 2f
         canvas.drawBitmap(scaled, left, top, paint)
 
-        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFilterBitmap = true
+            isDither = true
+        }
         gradientPaint.shader = LinearGradient(
             0f, targetH * 0.25f,
             0f, targetH.toFloat(),

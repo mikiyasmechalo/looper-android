@@ -3,6 +3,8 @@ package com.example.looper_android.ui.widgets
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
@@ -161,9 +163,21 @@ fun FrostedBottomSheet(
     var isDismissing by remember { mutableStateOf(false) }
     val isTargetVisible = visible && !isDismissing
 
-    val transition = updateTransition(targetState = isTargetVisible, label = "FrostedBottomSheetTransition")
+    val transitionState = remember {
+        MutableTransitionState(false).apply {
+            targetState = isTargetVisible
+        }
+    }
+    LaunchedEffect(isTargetVisible) {
+        transitionState.targetState = isTargetVisible
+    }
 
-    if (!transition.currentState && !transition.targetState && !visible) {
+    val transition = rememberTransition(
+        transitionState = transitionState,
+        label = "FrostedBottomSheetTransition"
+    )
+
+    if (!transitionState.currentState && !transitionState.targetState && !visible) {
         return
     }
 
@@ -175,7 +189,7 @@ fun FrostedBottomSheet(
 
     val scrimAlpha by transition.animateFloat(
         transitionSpec = {
-            if (targetState) tween(280) else tween(220)
+            if (targetState) tween(220) else tween(180)
         },
         label = "frosted_scrim_alpha"
     ) { isVis ->
@@ -184,8 +198,8 @@ fun FrostedBottomSheet(
 
     val sheetProgress by transition.animateFloat(
         transitionSpec = {
-            if (targetState) spring(dampingRatio = 0.85f, stiffness = 420f)
-            else spring(dampingRatio = 0.90f, stiffness = 450f)
+            if (targetState) spring(dampingRatio = 0.82f, stiffness = 520f)
+            else spring(dampingRatio = 0.90f, stiffness = 500f)
         },
         label = "frosted_sheet_progress"
     ) { isVis ->
@@ -193,8 +207,8 @@ fun FrostedBottomSheet(
     }
 
     // When dismissal animation completes, notify caller
-    LaunchedEffect(transition.currentState, transition.targetState, isDismissing) {
-        if (isDismissing && !transition.currentState && !transition.targetState) {
+    LaunchedEffect(transitionState.isIdle, transitionState.currentState, isDismissing) {
+        if (isDismissing && transitionState.isIdle && !transitionState.currentState) {
             onDismiss()
         }
     }

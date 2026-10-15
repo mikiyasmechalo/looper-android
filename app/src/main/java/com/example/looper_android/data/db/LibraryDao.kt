@@ -20,6 +20,9 @@ interface LibraryDao {
     @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAllSongsList(): List<SongEntity>
 
+    @Query("SELECT id, path, title, artist, albumArtist, album, genre, duration, trackNumber, year, artPath, dateAdded, playCount, lastPlayed, isFavorite, NULL as lyrics, hasCustomEqualizer, equalizerGains FROM songs WHERE id IN (:ids)")
+    suspend fun getSongsByIds(ids: List<Long>): List<SongEntity>
+
     @Query("SELECT DISTINCT path FROM songs")
     fun getAllSongPathsFlow(): Flow<List<String>>
 

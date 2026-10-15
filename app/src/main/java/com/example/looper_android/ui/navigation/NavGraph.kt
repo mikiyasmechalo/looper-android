@@ -4,11 +4,15 @@ import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -86,10 +90,20 @@ fun AppNavGraph(
 
             composable(
                 route = "player",
-                enterTransition = { fadeIn(animationSpec = tween(350)) },
-                exitTransition = { fadeOut(animationSpec = tween(350)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(350)) },
-                popExitTransition = { fadeOut(animationSpec = tween(350)) }
+                enterTransition = { fadeIn(animationSpec = tween(180)) },
+                exitTransition = {
+                    slideOutVertically(
+                        animationSpec = tween(220, easing = FastOutLinearInEasing),
+                        targetOffsetY = { fullHeight -> (fullHeight * 0.12f).toInt() }
+                    ) + fadeOut(animationSpec = tween(200))
+                },
+                popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+                popExitTransition = {
+                    slideOutVertically(
+                        animationSpec = tween(220, easing = FastOutLinearInEasing),
+                        targetOffsetY = { fullHeight -> (fullHeight * 0.12f).toInt() }
+                    ) + fadeOut(animationSpec = tween(200))
+                }
             ) {
                 PlayerScreen(
                     viewModel = playbackViewModel,

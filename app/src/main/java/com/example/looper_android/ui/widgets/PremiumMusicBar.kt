@@ -1,6 +1,8 @@
 package com.example.looper_android.ui.widgets
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -8,6 +10,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.input.pointer.changedToUp
@@ -65,25 +68,43 @@ fun PremiumMusicBar(
     modifier: Modifier = Modifier
 ) {
     val containerColor = if (darkTheme) Color(0xFF0A0A0A) else Color(0xFF1E1E1E)
+    val currentInitial = viewModel.playbackState.value
     val miniPlayerState by remember(viewModel) {
         viewModel.playbackState
             .map { MiniPlayerUiState(it.currentSong, it.isPlaying, it.isSongReady) }
             .distinctUntilChanged()
-    }.collectAsState(initial = MiniPlayerUiState(null, false, false))
+    }.collectAsState(initial = MiniPlayerUiState(currentInitial.currentSong, currentInitial.isPlaying, currentInitial.isSongReady))
     val song = miniPlayerState.song
     val haptics = rememberHapticFeedbackHelper()
 
     val coroutineScope = rememberCoroutineScope()
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var lastNavTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(song?.id) {
         dragOffset = Offset.Zero
     }
 
+    val shouldBeVisible = song != null && miniPlayerState.isSongReady
+    val visibleState = remember {
+        MutableTransitionState(false).apply {
+            targetState = shouldBeVisible
+        }
+    }
+    LaunchedEffect(shouldBeVisible) {
+        visibleState.targetState = shouldBeVisible
+    }
+
     AnimatedVisibility(
-        visible = song != null && miniPlayerState.isSongReady,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it }),
+        visibleState = visibleState,
+        enter = slideInVertically(
+            animationSpec = spring(dampingRatio = 0.80f, stiffness = 380f),
+            initialOffsetY = { fullHeight -> fullHeight * 2 }
+        ) + fadeIn(animationSpec = tween(220)),
+        exit = slideOutVertically(
+            animationSpec = tween(180),
+            targetOffsetY = { it }
+        ) + fadeOut(animationSpec = tween(180)),
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -97,7 +118,7 @@ fun PremiumMusicBar(
 
             val localDensity = LocalDensity.current
             val upwardThresholdPx = with(localDensity) { 14.dp.toPx() }
-            val swipeThresholdPx = with(localDensity) { 32.dp.toPx() }
+            val swipeThresholdPx = with(localDensity) { 64.dp.toPx() }
             var isPressedPlayPause by remember { mutableStateOf(false) }
 
             val playPauseScale by animateFloatAsState(
@@ -120,6 +141,7 @@ fun PremiumMusicBar(
                         val touchSlop = viewConfiguration.touchSlop
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
                             var isDrag = false
                             val startPos = down.position
                             var currentOffset = Offset.Zero
@@ -166,7 +188,7 @@ fun PremiumMusicBar(
                                         typeConverter = Offset.VectorConverter,
                                         initialValue = dragOffset,
                                         targetValue = Offset.Zero,
-                                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
                                     ) { value, _ -> dragOffset = value }
                                 }
                             } else if (!isDrag) {
@@ -175,8 +197,13 @@ fun PremiumMusicBar(
                                     haptics.mediumImpact()
                                     viewModel.togglePlayPause()
                                 } else {
-                                    haptics.lightImpact()
-                                    onNavigateToPlayer()
+                                    val now = android.os.SystemClock.elapsedRealtime()
+                                    if (now - lastNavTime > 500L) {
+                                        lastNavTime = now
+                                        haptics.lightImpact()
+                                        dragOffset = Offset.Zero
+                                        onNavigateToPlayer()
+                                    }
                                 }
                                 dragOffset = Offset.Zero
                             } else {
@@ -186,7 +213,7 @@ fun PremiumMusicBar(
                                 val absDy = kotlin.math.abs(dy)
 
                                 if (dy < -upwardThresholdPx && absDy > absDx * 0.35f) {
-                                    // UPWARD SLIDE -> Expand to player!
+                                    // UPWARD SLIDE -> Continue upward from current dragged position and expand!
                                     haptics.lightImpact()
                                     onNavigateToPlayer()
                                     val startOffset = dragOffset
@@ -194,14 +221,15 @@ fun PremiumMusicBar(
                                         animate(
                                             typeConverter = Offset.VectorConverter,
                                             initialValue = startOffset,
-                                            targetValue = Offset(0f, startOffset.y * 2.5f),
-                                            animationSpec = tween(
-                                                durationMillis = 400,
-                                                easing = FastOutSlowInEasing
+                                            targetValue = Offset(0f, -size.height.toFloat() * 2.5f),
+                                            animationSpec = spring(
+                                                stiffness = 500f,
+                                                dampingRatio = 0.85f
                                             )
                                         ) { value, _ ->
                                             dragOffset = value
                                         }
+                                        dragOffset = Offset.Zero
                                     }
                                 } else if (dy > swipeThresholdPx && absDy > absDx) {
                                     // DOWNWARD DRAG -> Clear queue
@@ -212,7 +240,7 @@ fun PremiumMusicBar(
                                             typeConverter = Offset.VectorConverter,
                                             initialValue = dragOffset,
                                             targetValue = Offset.Zero,
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                            animationSpec = spring(stiffness = Spring.StiffnessMedium)
                                         ) { value, _ -> dragOffset = value }
                                     }
                                 } else if (absDx > absDy && absDx > swipeThresholdPx) {
@@ -229,11 +257,11 @@ fun PremiumMusicBar(
                                             typeConverter = Offset.VectorConverter,
                                             initialValue = dragOffset,
                                             targetValue = Offset.Zero,
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                            animationSpec = spring(stiffness = Spring.StiffnessMedium)
                                         ) { value, _ -> dragOffset = value }
                                     }
                                 } else if (dy < -6.dp.toPx() && startPos.x < size.width * 0.78f) {
-                                    // Micro-slide upward on Song Info -> expand to player!
+                                    // Micro-slide upward on Song Info -> Continue upward and expand!
                                     haptics.lightImpact()
                                     onNavigateToPlayer()
                                     val startOffset = dragOffset
@@ -241,14 +269,15 @@ fun PremiumMusicBar(
                                         animate(
                                             typeConverter = Offset.VectorConverter,
                                             initialValue = startOffset,
-                                            targetValue = Offset(0f, startOffset.y * 2.5f),
-                                            animationSpec = tween(
-                                                durationMillis = 400,
-                                                easing = FastOutSlowInEasing
+                                            targetValue = Offset(0f, -size.height.toFloat() * 2.5f),
+                                            animationSpec = spring(
+                                                stiffness = 500f,
+                                                dampingRatio = 0.85f
                                             )
                                         ) { value, _ ->
                                             dragOffset = value
                                         }
+                                        dragOffset = Offset.Zero
                                     }
                                 } else {
                                     coroutineScope.launch {
@@ -256,7 +285,7 @@ fun PremiumMusicBar(
                                             typeConverter = Offset.VectorConverter,
                                             initialValue = dragOffset,
                                             targetValue = Offset.Zero,
-                                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                            animationSpec = spring(stiffness = Spring.StiffnessMedium)
                                         ) { value, _ -> dragOffset = value }
                                     }
                                 }
@@ -297,7 +326,8 @@ fun PremiumMusicBar(
                             ) {
                                 OptimizedImage(
                                     url = song.artPath,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    sizePx = 160
                                 )
                                 if (miniPlayerState.isPlaying) {
                                     Box(
@@ -409,9 +439,9 @@ fun Modifier.sharedBoundsOrElement(
                 sharedContentState = contentState,
                 animatedVisibilityScope = animatedVisibilityScope,
                 boundsTransform = { _, _ ->
-                    tween(
-                        durationMillis = 400,
-                        easing = FastOutSlowInEasing
+                    spring(
+                        dampingRatio = 0.82f,
+                        stiffness = 550f
                     )
                 }
             )

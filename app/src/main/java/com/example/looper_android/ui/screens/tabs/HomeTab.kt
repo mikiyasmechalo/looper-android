@@ -105,14 +105,10 @@ fun HomeTab(
     val isMiniPlayerVisible = playbackState.isSongReady && currentSong != null
 
     var selectedSongForOptions by remember { mutableStateOf<SongEntity?>(null) }
-    val context = LocalContext.current
-    val svgImageLoader = remember(context) {
-        coil.ImageLoader.Builder(context)
-            .components {
-                add(coil.decode.SvgDecoder.Factory())
-            }
-            .build()
-    }
+
+    val isDbLoaded by viewModel.libraryCacheManager.isDbLoaded.collectAsState()
+    val allSongs by viewModel.libraryCacheManager.songs.collectAsState()
+    val hasContent = uiState.quickPicks.isNotEmpty() || uiState.topSongs.isNotEmpty() || allSongs.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -130,7 +126,6 @@ fun HomeTab(
             coil.compose.AsyncImage(
                 model = "file:///android_asset/main_logo_transparent.svg",
                 contentDescription = "Looper",
-                imageLoader = svgImageLoader,
                 modifier = Modifier.height(38.dp),
                 contentScale = ContentScale.Fit
             )
@@ -169,9 +164,9 @@ fun HomeTab(
                 .background(Color.White.copy(alpha = 0.15f))
         )
 
-        if (uiState.isLoading) {
+        if (!isDbLoaded && !hasContent) {
             com.example.looper_android.ui.components.PremiumLoadingView(message = "LOADING MUSIC LIBRARY")
-        } else if (uiState.quickPicks.isEmpty() && uiState.topSongs.isEmpty()) {
+        } else if (!hasContent && isDbLoaded) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No songs found", color = Color.Gray)
             }
@@ -576,7 +571,8 @@ private fun QuickPickGridItem(
         OptimizedImage(
             url = song.artPath,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            sizePx = 180
         )
 
         // Gradient overlay
@@ -657,7 +653,8 @@ private fun HorizontalArtistsList(
                         OptimizedImage(
                             url = avatarUrl,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            sizePx = 250
                         )
                     } else {
                         Icon(
@@ -708,7 +705,8 @@ private fun HorizontalAlbumsList(
                     OptimizedImage(
                         url = album.artPath,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        sizePx = 280
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -772,7 +770,8 @@ private fun HorizontalGenresList(
                         OptimizedImage(
                             url = art,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            sizePx = 150
                         )
                     }
                 } ?: run {

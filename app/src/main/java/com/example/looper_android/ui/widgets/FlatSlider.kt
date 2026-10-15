@@ -105,42 +105,59 @@ fun FlatSlider(
         else -> rawProgress
     }
 
+    var canSeek by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(400L)
+        canSeek = true
+    }
+
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(32.dp)
-                .pointerInput(totalDurationMs) {
+                .pointerInput(totalDurationMs, canSeek) {
+                    if (!canSeek) return@pointerInput
                     awaitPointerEventScope {
+                        val touchSlop = viewConfiguration.touchSlop
                         while (true) {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            val initialFraction = (down.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            
-                            isDragging = true
-                            dragProgress = initialFraction
-                            onSeekStart?.invoke()
-                            
-                            var currentFraction = initialFraction
+                            val down = awaitFirstDown(requireUnconsumed = true)
+                            val startX = down.position.x
+                            var isDrag = false
+                            var currentFraction = (startX / size.width.toFloat()).coerceIn(0f, 1f)
+
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (change.pressed) {
-                                    currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                                    dragProgress = currentFraction
-                                    change.consume()
+                                    val dx = kotlin.math.abs(change.position.x - startX)
+                                    if (!isDrag && dx > touchSlop) {
+                                        isDrag = true
+                                        isDragging = true
+                                        onSeekStart?.invoke()
+                                        down.consume()
+                                    }
+                                    if (isDrag) {
+                                        change.consume()
+                                        currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                        dragProgress = currentFraction
+                                    }
                                 } else {
-                                    change.consume()
+                                    if (isDrag) {
+                                        change.consume()
+                                    }
                                     break
                                 }
                             }
                             
-                            val targetMs = (currentFraction * totalDurationMs).toLong()
-                            smoothPositionMs = targetMs
-                            onSeek(targetMs)
-                            
-                            isDragging = false
-                            dragProgress = null
-                            onSeekEnd?.invoke()
+                            if (isDrag) {
+                                val targetMs = (currentFraction * totalDurationMs).toLong()
+                                smoothPositionMs = targetMs
+                                onSeek(targetMs)
+                                isDragging = false
+                                dragProgress = null
+                                onSeekEnd?.invoke()
+                            }
                         }
                     }
                 }

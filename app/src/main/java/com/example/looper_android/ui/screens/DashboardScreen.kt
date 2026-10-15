@@ -134,8 +134,6 @@ fun DashboardScreen(
     val homeViewModel: com.example.looper_android.ui.screens.tabs.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val libraryViewModel: com.example.looper_android.ui.screens.tabs.LibraryViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     
-    val isDbLoaded by allSongsViewModel.isDbLoaded.collectAsState()
-    val songs by allSongsViewModel.songs.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val isSelectionActive by playbackViewModel.isSelectionActive.collectAsState()
     
@@ -294,6 +292,8 @@ fun DashboardScreen(
                 HorizontalPager(
                     state = pagerState,
                     userScrollEnabled = !isSelectionActive,
+                    beyondViewportPageCount = 1,
+                    key = { page -> page },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = stableTopDp)

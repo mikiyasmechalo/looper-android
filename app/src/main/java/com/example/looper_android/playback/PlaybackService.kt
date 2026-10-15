@@ -80,11 +80,11 @@ class PlaybackService : MediaSessionService() {
         fun start(context: Context) {
             try {
                 val intent = Intent(context, PlaybackService::class.java)
-                context.startService(intent)
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
             } catch (_: Exception) {
                 try {
                     val intent = Intent(context, PlaybackService::class.java)
-                    androidx.core.content.ContextCompat.startForegroundService(context, intent)
+                    context.startService(intent)
                 } catch (_: Exception) {}
             }
         }
@@ -118,6 +118,10 @@ class PlaybackService : MediaSessionService() {
     private val headsetStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action ?: return
+            // Ignore sticky initial broadcast delivered on registerReceiver (state=0 when no headphones plugged in)
+            if (isInitialStickyBroadcast) {
+                return
+            }
             serviceScope.launch {
                 when (action) {
                     AudioManager.ACTION_AUDIO_BECOMING_NOISY -> {
@@ -321,11 +325,63 @@ class PlaybackService : MediaSessionService() {
             }
         }
 
-        mediaSession = MediaSession.Builder(this, player)
+        val channelId = "looper_playback_channel_v4"
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val notifManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+            try {
+                notifManager?.deleteNotificationChannel("media3_default_channel_id")
+                notifManager?.deleteNotificationChannel("looper_playback_channel_v2")
+                notifManager?.deleteNotificationChannel("looper_playback_channel_v3")
+            } catch (_: Exception) {}
+
+            val channel = android.app.NotificationChannel(
+                channelId,
+                getString(R.string.playback_channel_name),
+                android.app.NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Music playback controls"
+                setShowBadge(true)
+                setSound(null, null)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notifManager?.createNotificationChannel(channel)
+        }
+
+        try {
+            val notificationProvider = LooperMediaNotificationProvider(
+                this,
+                channelId,
+                R.string.playback_channel_name
+            )
+            setMediaNotificationProvider(notificationProvider)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val sessionActivityPendingIntent = launchIntent?.let {
+            android.app.PendingIntent.getActivity(
+                this,
+                0,
+                it,
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        }
+
+        val sessionBuilder = MediaSession.Builder(this, player)
             .setCallback(callback)
             .setBitmapLoader(bitmapLoader)
             .setCustomLayout(listOf(initialFavBtn, initialCloseBtn))
-            .build()
+
+        if (sessionActivityPendingIntent != null) {
+            sessionBuilder.setSessionActivity(sessionActivityPendingIntent)
+        }
+
+        val session = sessionBuilder.build()
+        mediaSession = session
+        addSession(session)
 
         player.addListener(playerListener)
 
@@ -443,9 +499,63 @@ class PlaybackService : MediaSessionService() {
             player.pause()
         } catch (_: Exception) {}
         mediaSession?.run {
+            removeSession(this)
             release()
         }
         mediaSession = null
         super.onDestroy()
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private class LooperMediaNotificationProvider(
+        private val context: Context,
+        channelId: String,
+        channelNameRes: Int
+    ) : androidx.media3.session.MediaNotification.Provider {
+
+        private val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider.Builder(context)
+            .setChannelId(channelId)
+            .setChannelName(channelNameRes)
+            .build().apply {
+                setSmallIcon(R.drawable.ic_notification_session)
+            }
+
+        override fun createNotification(
+            mediaSession: MediaSession,
+            customLayout: com.google.common.collect.ImmutableList<CommandButton>,
+            actionFactory: androidx.media3.session.MediaNotification.ActionFactory,
+            onNotificationChangedCallback: androidx.media3.session.MediaNotification.Provider.Callback
+        ): androidx.media3.session.MediaNotification {
+            val mediaNotification = defaultProvider.createNotification(
+                mediaSession, customLayout, actionFactory, onNotificationChangedCallback
+            )
+            val notif = mediaNotification.notification
+            val isPlaying = mediaSession.player.isPlaying || mediaSession.player.playWhenReady
+            notif.category = android.app.Notification.CATEGORY_TRANSPORT
+            notif.visibility = android.app.Notification.VISIBILITY_PUBLIC
+            if (notif.contentIntent == null && mediaSession.sessionActivity != null) {
+                notif.contentIntent = mediaSession.sessionActivity
+            }
+            if (isPlaying) {
+                notif.flags = notif.flags or android.app.Notification.FLAG_ONGOING_EVENT or android.app.Notification.FLAG_NO_CLEAR
+            } else {
+                notif.flags = (notif.flags and android.app.Notification.FLAG_ONGOING_EVENT.inv())
+            }
+            try {
+                notif.extras.putBoolean("android.requestPromotedOngoing", true)
+                notif.extras.putBoolean("com.samsung.android.extra.LIVE_NOTIFICATION", true)
+                notif.extras.putBoolean("com.samsung.android.extra.ONGOING_ACTIVITY", true)
+                notif.extras.putBoolean("com.samsung.android.extra.NOW_BAR", true)
+            } catch (_: Exception) {}
+            return mediaNotification
+        }
+
+        override fun handleCustomCommand(
+            session: MediaSession,
+            action: String,
+            extras: Bundle
+        ): Boolean {
+            return defaultProvider.handleCustomCommand(session, action, extras)
+        }
     }
 }

@@ -26,8 +26,13 @@ object AudioQualityAnalyzer {
         if (path.isNullOrEmpty()) return null
         cache[path]?.let { return it }
 
+        val cleanPath = when {
+            path.startsWith("file://") -> android.net.Uri.parse(path).path ?: path
+            else -> path
+        }
+
         return try {
-            val file = File(path)
+            val file = File(cleanPath)
             val fileSize = if (file.exists()) file.length() else 0L
 
             var sampleRate = 44100
@@ -40,7 +45,7 @@ object AudioQualityAnalyzer {
             // 1. MediaExtractor
             try {
                 val extractor = MediaExtractor()
-                extractor.setDataSource(path)
+                extractor.setDataSource(cleanPath)
                 for (i in 0 until extractor.trackCount) {
                     val format = extractor.getTrackFormat(i)
                     val mime = format.getString(MediaFormat.KEY_MIME)
@@ -68,7 +73,7 @@ object AudioQualityAnalyzer {
             // 2. MediaMetadataRetriever (very reliable for MP3/AAC/FLAC bitrate)
             try {
                 val mmr = MediaMetadataRetriever()
-                mmr.setDataSource(path)
+                mmr.setDataSource(cleanPath)
                 if (bitrate <= 0) {
                     val br = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
                     if (br != null && br > 0) bitrate = br
@@ -93,7 +98,7 @@ object AudioQualityAnalyzer {
                 bitrate = ((fileSize * 8L) / (dur / 1000.0)).toInt()
             }
 
-            val codec = parseCodecName(mimeType, path)
+            val codec = parseCodecName(mimeType, cleanPath)
 
             val analysis = AudioAnalysis(
                 codec = codec,
@@ -105,7 +110,7 @@ object AudioQualityAnalyzer {
             cache[path] = analysis
             analysis
         } catch (e: Exception) {
-            val fallback = getFallbackAnalysis(path)
+            val fallback = getFallbackAnalysis(cleanPath)
             cache[path] = fallback
             fallback
         }
@@ -120,17 +125,22 @@ object AudioQualityAnalyzer {
             mime.contains("alac", ignoreCase = true) -> "ALAC"
             mime.contains("vorbis", ignoreCase = true) || mime.contains("ogg", ignoreCase = true) -> "OGG"
             mime.contains("opus", ignoreCase = true) -> "OPUS"
-            else -> path.substringAfterLast('.').uppercase()
+            mime.contains("m4a", ignoreCase = true) -> "M4A"
+            else -> {
+                val ext = path.substringAfterLast('.', "").uppercase()
+                if (ext.length in 2..5 && !ext.contains('/')) ext else "AUDIO"
+            }
         }
     }
 
     private fun getFallbackAnalysis(path: String): AudioAnalysis {
-        val ext = path.substringAfterLast('.').uppercase()
-        val isLossless = listOf("FLAC", "WAV", "ALAC", "APE", "DSD", "DSF", "DFF").contains(ext)
+        val ext = path.substringAfterLast('.', "").uppercase()
+        val codec = if (ext.length in 2..5 && !ext.contains('/')) ext else "AUDIO"
+        val isLossless = listOf("FLAC", "WAV", "ALAC", "APE", "DSD", "DSF", "DFF").contains(codec)
         return AudioAnalysis(
-            codec = if (ext.length in 3..4) ext else "AUDIO",
+            codec = codec,
             sampleRate = 44100,
-            bitrate = if (isLossless) 1411000 else 128000,
+            bitrate = if (isLossless) 1411000 else 256000,
             bitsPerSample = 0,
             channelCount = 2
         )
@@ -150,13 +160,15 @@ object AudioQualityAnalyzer {
             }
             analysis.bitrate >= 192000 -> "High Quality"
             analysis.bitrate in 1..191999 -> "Standard Quality"
-            else -> "Audio"
+            else -> "High Quality"
         }
 
         val sampleRateStr = "%.1f kHz".format(analysis.sampleRate / 1000.0)
         val parts = mutableListOf<String>()
         parts.add(qualityPrefix)
-        parts.add(codecStr)
+        if (codecStr != "AUDIO") {
+            parts.add(codecStr)
+        }
         parts.add(sampleRateStr)
         if (!isLossless && analysis.bitrate > 0) {
             val kbps = (analysis.bitrate / 1000.0 + 0.5).toInt()

@@ -32,17 +32,13 @@ class LibraryViewModel @Inject constructor(
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
     init {
-        libraryDao.getAllSongs().map { songs ->
-            songs.filter { it.lastPlayed != null }
-                 .sortedByDescending { it.lastPlayed }
-        }
-        .flowOn(Dispatchers.Default)
-        .onEach { recent ->
-            _uiState.value = LibraryUiState(
-                recentlyPlayed = recent,
-                isLoading = false
-            )
-        }.launchIn(viewModelScope)
+        libraryCacheManager.historySongs
+            .onEach { recent ->
+                _uiState.value = LibraryUiState(
+                    recentlyPlayed = recent,
+                    isLoading = false
+                )
+            }.launchIn(viewModelScope)
     }
 
     fun playRecentlyPlayedSong(index: Int) {

@@ -66,6 +66,12 @@ object AppModule {
             .build()
     }
 
+    private val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_title` ON `songs` (`title`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): com.example.looper_android.data.db.AppDatabase {
@@ -74,6 +80,7 @@ object AppModule {
             com.example.looper_android.data.db.AppDatabase::class.java,
             "looper_database"
         )
+        .addMigrations(MIGRATION_3_4)
         .fallbackToDestructiveMigration()
         .build()
     }

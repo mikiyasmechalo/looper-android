@@ -48,7 +48,9 @@ class HomeViewModel @Inject constructor(
 
     private val prefs = context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE)
 
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(
+        HomeUiState(isLoading = !prefs.getBoolean("has_cached_library", false))
+    )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private val sessionSeed: Long = System.currentTimeMillis()
@@ -59,13 +61,17 @@ class HomeViewModel @Inject constructor(
 
     init {
         combine(
-            libraryDao.getAllSongs(),
-            libraryDao.getAllAlbums(),
-            libraryDao.getAllArtists(),
+            libraryCacheManager.songs,
+            libraryCacheManager.albums,
+            libraryCacheManager.artists,
             settingsRepository.showUnknownGenre
         ) { songs, albums, artists, showUnknownGenre ->
+            if (songs.isNotEmpty()) {
+                prefs.edit().putBoolean("has_cached_library", true).apply()
+            }
             if (songs.isEmpty()) {
-                return@combine HomeUiState(isLoading = false)
+                val dbLoaded = libraryCacheManager.isDbLoaded.value
+                return@combine HomeUiState(isLoading = !dbLoaded)
             }
 
             // 1. Quick Picks: stable per session and daily cache

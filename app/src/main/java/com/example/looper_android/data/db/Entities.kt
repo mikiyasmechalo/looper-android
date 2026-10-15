@@ -53,6 +53,7 @@ data class QueueItemEntity(
     tableName = "songs",
     indices = [
         androidx.room.Index(value = ["path"], unique = true),
+        androidx.room.Index(value = ["title"]),
         androidx.room.Index(value = ["artist"]),
         androidx.room.Index(value = ["albumArtist"]),
         androidx.room.Index(value = ["album"]),
