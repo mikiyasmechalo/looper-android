@@ -13,4 +13,7 @@
 
     <string name="widget_square_name">Square Player (2x2)</string>
     <string name="widget_square_desc">Square music card with album art and playback controls</string>
+
+    <string name="widget_mini_player_name">Mini Player (Pill)</string>
+    <string name="widget_mini_player_desc">Floating pill mini player with circular artwork and clean controls</string>
 </resources>

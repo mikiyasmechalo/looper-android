@@ -11,10 +11,12 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -30,6 +32,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
@@ -39,10 +42,38 @@ import com.example.looper_android.MainActivity
 import com.example.looper_android.R
 
 class SquareProgressWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        WidgetStateRepository.ensureInitialized(context)
+        val appWidgetId = try {
+            androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(id)
+        } catch (_: Exception) { -1 }
+
         provideContent {
+            val widgetSize = LocalSize.current
+            val minDim = minOf(widgetSize.width, widgetSize.height)
+
+            // Dynamic scaling: base 160.dp (standard 2x2 widget).
+            // Image scales up significantly as widget scales (e.g., from 58dp up to 135dp+ on 4x4)
+            val scale = (1.0f + ((minDim.value - 160f) / 160f).coerceIn(0f, 1.8f))
+            val artSize = (58 * scale).dp
+            val artRadius = (14 * scale).dp
+            val musicIconSize = (26 * scale).dp
+
+            val titleFontSize = (13 * (1.0f + ((minDim.value - 160f) / 160f).coerceIn(0f, 1.0f) * 0.35f)).sp
+            val artistFontSize = (11 * (1.0f + ((minDim.value - 160f) / 160f).coerceIn(0f, 1.0f) * 0.35f)).sp
+            val vSpacer = (6 * scale).dp.coerceAtMost(16.dp)
+
+            val ctrlScale = (1.0f + ((minDim.value - 160f) / 160f).coerceIn(0f, 1.0f) * 0.20f)
+            val ctrlWidth = (50 * ctrlScale).dp
+            val ctrlHeight = (36 * ctrlScale).dp
+            val ctrlPrevNextIconSize = (18 * ctrlScale).dp
+            val ctrlPlayIconSize = (20 * ctrlScale).dp
+
             val state by WidgetStateRepository.state.collectAsState()
-            val config = WidgetSettingsManager.getConfig(context, "SQUARE")
+            val configVersion by WidgetSettingsManager.configVersion.collectAsState()
+            val config = WidgetSettingsManager.getConfig(context, "SQUARE", appWidgetId)
 
             val cardBg = WidgetSettingsManager.getEffectiveCardColor(context, config, state.cardBackgroundColor)
             val textCol = WidgetSettingsManager.getEffectiveTextColor(context, config)
@@ -82,7 +113,7 @@ class SquareProgressWidget : GlanceAppWidget() {
                     }
                 }
 
-                // 2. Main Centered Player Content
+                // 2. Main Centered Player Content (Dynamically Scaled)
                 Column(
                     modifier = GlanceModifier
                         .fillMaxSize()
@@ -90,40 +121,40 @@ class SquareProgressWidget : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Centered Artwork
+                    // Centered Artwork (Scales with widget size)
                     if (state.artBitmap != null) {
                         Image(
                             provider = ImageProvider(state.artBitmap!!),
                             contentDescription = "Artwork",
                             modifier = GlanceModifier
-                                .size(56.dp)
-                                .cornerRadius(14.dp),
+                                .size(artSize)
+                                .cornerRadius(artRadius),
                             contentScale = ContentScale.Crop
                         )
                     } else {
                         Box(
                             modifier = GlanceModifier
-                                .size(56.dp)
-                                .cornerRadius(14.dp)
+                                .size(artSize)
+                                .cornerRadius(artRadius)
                                 .background(ColorProvider(Color(0xFF282828))),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_widget_music),
                                 contentDescription = "Music",
-                                modifier = GlanceModifier.size(26.dp)
+                                modifier = GlanceModifier.size(musicIconSize)
                             )
                         }
                     }
 
-                    Spacer(modifier = GlanceModifier.height(6.dp))
+                    Spacer(modifier = GlanceModifier.height(vSpacer))
 
                     // Title & Artist
                     Text(
                         text = state.title,
                         style = TextStyle(
                             color = ColorProvider(textCol),
-                            fontSize = 13.sp,
+                            fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         ),
@@ -135,40 +166,51 @@ class SquareProgressWidget : GlanceAppWidget() {
                         text = state.artist,
                         style = TextStyle(
                             color = ColorProvider(secTextCol),
-                            fontSize = 11.sp,
+                            fontSize = artistFontSize,
                             textAlign = TextAlign.Center
                         ),
                         maxLines = 1,
                         modifier = GlanceModifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = GlanceModifier.height(8.dp))
+                    Spacer(modifier = GlanceModifier.height(vSpacer + 2.dp))
 
-                    // Enlarged Controls Row (Prev: 26dp, Play: 44dp, Next: 26dp)
+                    // Three-Part Pill Controls
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Previous Pill Cap
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 8.dp)
+                                .width(ctrlWidth)
+                                .height(ctrlHeight)
+                                .background(ImageProvider(R.drawable.widget_ctrl_prev_pill))
                                 .clickable(actionRunCallback<PreviousActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_widget_prev),
                                 contentDescription = "Prev",
-                                modifier = GlanceModifier.size(26.dp)
+                                modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )
                         }
 
+                        Spacer(modifier = GlanceModifier.width(4.dp))
+
+                        // Play/Pause Center Pill
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 8.dp)
-                                .size(44.dp)
-                                .cornerRadius(22.dp)
-                                .background(ColorProvider(state.accentColor))
-                                .clickable(actionRunCallback<PlayPauseActionCallback>()),
+                                 .width(ctrlWidth)
+                                 .height(ctrlHeight)
+                                 .let {
+                                     if (state.isPlaying) {
+                                         it.background(ImageProvider(R.drawable.widget_ctrl_play_pill))
+                                     } else {
+                                         it.cornerRadius(8.dp).background(ColorProvider(state.accentColor))
+                                     }
+                                 }
+                                 .clickable(actionRunCallback<PlayPauseActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -177,23 +219,36 @@ class SquareProgressWidget : GlanceAppWidget() {
                                     else R.drawable.ic_widget_play
                                 ),
                                 contentDescription = if (state.isPlaying) "Pause" else "Play",
-                                modifier = GlanceModifier.size(22.dp)
+                                modifier = GlanceModifier.size(ctrlPlayIconSize)
                             )
                         }
 
+                        Spacer(modifier = GlanceModifier.width(4.dp))
+
+                        // Next Pill Cap
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 8.dp)
+                                .width(ctrlWidth)
+                                .height(ctrlHeight)
+                                .background(ImageProvider(R.drawable.widget_ctrl_next_pill))
                                 .clickable(actionRunCallback<NextActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_widget_next),
                                 contentDescription = "Next",
-                                modifier = GlanceModifier.size(26.dp)
+                                modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )
                         }
                     }
+                }
+
+                if (config.showOutline) {
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxSize()
+                            .background(ImageProvider(R.drawable.widget_border_rounded_22))
+                    ) {}
                 }
             }
         }

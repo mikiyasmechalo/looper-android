@@ -91,16 +91,35 @@ class WidgetConfigActivity : ComponentActivity() {
             )
         }
 
-        widgetType = intent.getStringExtra("widget_type") ?: "COMPACT"
+        val explicitType = intent.getStringExtra("widget_type")
+        val info = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            AppWidgetManager.getInstance(this).getAppWidgetInfo(appWidgetId)
+        } else null
+
+        val detectedType = explicitType ?: when {
+            info?.provider?.className?.contains("MiniPlayer") == true -> "MINI_PLAYER"
+            info?.provider?.className?.contains("FullAlbumArt") == true -> "FULL_ART"
+            info?.provider?.className?.contains("Lyrics") == true -> "LYRICS"
+            info?.provider?.className?.contains("Square") == true -> "SQUARE"
+            info?.provider?.className?.contains("Compact") == true -> "COMPACT"
+            else -> "MINI_PLAYER"
+        }
+        widgetType = detectedType
         val initialConfig = WidgetSettingsManager.getConfig(this, widgetType, appWidgetId)
 
         setContent {
             WidgetConfigScreen(
                 initialConfig = initialConfig,
                 widgetType = widgetType,
-                onSave = { savedConfig ->
-                    WidgetSettingsManager.saveConfig(this, widgetType, appWidgetId, savedConfig)
-                    WidgetStateRepository.updatePlayPauseOptimistic(this, WidgetStateRepository.state.value.isPlaying)
+                onSave = { savedConfig, targetType ->
+                    WidgetSettingsManager.saveConfig(
+                        context = this,
+                        widgetType = targetType,
+                        appWidgetId = appWidgetId,
+                        config = savedConfig,
+                        originWidgetType = widgetType
+                    )
+                    WidgetStateRepository.forceRefreshAllWidgets(applicationContext)
 
                     val resultValue = Intent().apply {
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -146,13 +165,15 @@ fun extractLiveWallpaperBitmap(context: Context): Bitmap? {
 fun WidgetConfigScreen(
     initialConfig: WidgetConfig,
     widgetType: String,
-    onSave: (WidgetConfig) -> Unit,
+    onSave: (WidgetConfig, String) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     var selectedTheme by remember { mutableStateOf(initialConfig.themeMode) }
     var transparency by remember { mutableFloatStateOf(initialConfig.transparency) }
     var showFavorite by remember { mutableStateOf(initialConfig.showFavorite) }
+    var circularCapsule by remember { mutableStateOf(initialConfig.circularCapsule) }
+    var showOutline by remember { mutableStateOf(initialConfig.showOutline) }
     var previewWidgetType by remember { mutableStateOf(widgetType) }
 
     val liveState by WidgetStateRepository.state.collectAsState()
@@ -189,23 +210,37 @@ fun WidgetConfigScreen(
             // Preview Type Selector Chips
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                listOf("COMPACT" to "1x4 Bar", "LYRICS" to "Lyrics", "SQUARE" to "2x2 Square").forEach { (type, label) ->
+                listOf(
+                    "MINI_PLAYER" to "Mini",
+                    "COMPACT" to "Classic",
+                    "LYRICS" to "Lyrics",
+                    "SQUARE" to "Square",
+                    "FULL_ART" to "Full Art"
+                ).forEach { (type, label) ->
                     val isSelected = previewWidgetType == type
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (isSelected) Color(0xFF55DF69) else Color(0xFF1E1E22))
-                            .clickable { previewWidgetType = type }
+                            .clickable {
+                                previewWidgetType = type
+                                val cfg = WidgetSettingsManager.getConfig(context, type)
+                                selectedTheme = cfg.themeMode
+                                transparency = cfg.transparency
+                                showFavorite = cfg.showFavorite
+                                circularCapsule = cfg.circularCapsule
+                                showOutline = cfg.showOutline
+                            }
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = label,
                             color = if (isSelected) Color.Black else Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
@@ -213,7 +248,7 @@ fun WidgetConfigScreen(
             }
 
             // 2. Interactive Live Preview on Real Desktop Wallpaper
-            val currentConfig = WidgetConfig(selectedTheme, transparency, showFavorite)
+            val currentConfig = WidgetConfig(selectedTheme, transparency, showFavorite, circularCapsule, showOutline)
             val previewCardBg = WidgetSettingsManager.getEffectiveCardColor(
                 context,
                 currentConfig,
@@ -225,7 +260,7 @@ fun WidgetConfigScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (previewWidgetType == "LYRICS") 180.dp else if (previewWidgetType == "SQUARE") 190.dp else 120.dp)
+                    .height(if (previewWidgetType == "LYRICS") 180.dp else if (previewWidgetType == "SQUARE" || previewWidgetType == "FULL_ART") 190.dp else 110.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
@@ -265,16 +300,157 @@ fun WidgetConfigScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     when (previewWidgetType) {
-                        "LYRICS" -> {
-                            // Lyrics Widget Mockup
-                            Column(
+                        "MINI_PLAYER" -> {
+                            // Mini Player Dual Pill Mockup
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(previewCardBg)
-                                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(22.dp))
-                                    .padding(12.dp)
+                                    .height(78.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val leftShape = RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 12.dp, bottomEnd = 12.dp)
+                                val leftModifier = if (showOutline) {
+                                    Modifier.weight(1f).height(78.dp).clip(leftShape).background(previewCardBg).border(1.dp, Color(0x26FFFFFF), leftShape).padding(horizontal = 14.dp)
+                                } else {
+                                    Modifier.weight(1f).height(78.dp).clip(leftShape).background(previewCardBg).padding(horizontal = 14.dp)
+                                }
+                                Box(
+                                    modifier = leftModifier,
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (liveState.artBitmap != null) {
+                                            Image(
+                                                bitmap = liveState.artBitmap!!.asImageBitmap(),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(60.dp).clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier.size(60.dp).clip(CircleShape).background(Color(0xFF262626)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Lucide.Music, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = liveState.title.ifBlank { "Chasing Stars" }, color = previewTextCol, fontSize = 16.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(text = liveState.artist.ifBlank { "Alesso, Marshmello" }, color = previewSecTextCol, fontSize = 14.sp, maxLines = 1)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(6.dp))
+
+                                val rightShape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, topEnd = 36.dp, bottomEnd = 36.dp)
+                                val rightModifier = if (showOutline) {
+                                    Modifier.width(74.dp).height(78.dp).clip(rightShape).background(previewCardBg).border(1.dp, Color(0x26FFFFFF), rightShape)
+                                } else {
+                                    Modifier.width(74.dp).height(78.dp).clip(rightShape).background(previewCardBg)
+                                }
+                                Box(
+                                    modifier = rightModifier,
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (liveState.isPlaying) Lucide.Pause else Lucide.Play,
+                                        contentDescription = null,
+                                        tint = previewTextCol,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                        }
+                        "FULL_ART" -> {
+                            // Full Album Artwork Mockup
+                            val fullArtShape = RoundedCornerShape(24.dp)
+                            val fullArtModifier = if (showOutline) {
+                                Modifier.size(165.dp).clip(fullArtShape).background(previewCardBg).border(1.dp, Color(0x26FFFFFF), fullArtShape)
+                            } else {
+                                Modifier.size(165.dp).clip(fullArtShape).background(previewCardBg)
+                            }
+                            Box(modifier = fullArtModifier) {
+                                if (liveState.artFullWithGradient != null) {
+                                    Image(
+                                        bitmap = liveState.artFullWithGradient!!.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E22)), contentAlignment = Alignment.Center) {
+                                        Icon(Lucide.Music, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                                    }
+                                }
+
+                                if (showFavorite) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0x66000000)).padding(4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.fillMaxSize().padding(10.dp),
+                                    verticalArrangement = Arrangement.Bottom,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(text = liveState.title.ifBlank { "Chasing Stars" }, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
+                                    Text(text = liveState.artist.ifBlank { "Alesso, Marshmello" }, color = Color(0xB3FFFFFF), fontSize = 11.sp, maxLines = 1, textAlign = TextAlign.Center)
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    // 3-Part Pill Controls (Rectangular pill controls, matching fullscreen player)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipBack, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "LYRICS" -> {
+                            // Lyrics Widget Mockup
+                            val lyricsShape = RoundedCornerShape(22.dp)
+                            val lyricsModifier = if (showOutline) {
+                                Modifier.fillMaxWidth().clip(lyricsShape).background(previewCardBg).border(1.dp, Color(0x26FFFFFF), lyricsShape).padding(12.dp)
+                            } else {
+                                Modifier.fillMaxWidth().clip(lyricsShape).background(previewCardBg).padding(12.dp)
+                            }
+                            Column(modifier = lyricsModifier) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -302,16 +478,31 @@ fun WidgetConfigScreen(
                                         Text(text = liveState.artist.ifBlank { "Alesso, Marshmello" }, color = previewSecTextCol, fontSize = 11.sp, maxLines = 1)
                                     }
 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Box(modifier = Modifier.size(30.dp).clip(CircleShape).background(liveState.accentColor), contentAlignment = Alignment.Center) {
-                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    // 3-Part Pill Controls (Rectangular pill controls, matching fullscreen player)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
                                         }
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(18.dp))
+                                        Box(
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                        }
                                         if (showFavorite) {
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
                                             Box(
                                                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0x66000000)).padding(4.dp),
                                                 contentAlignment = Alignment.Center
@@ -335,14 +526,14 @@ fun WidgetConfigScreen(
                             }
                         }
                         "SQUARE" -> {
-                            // 2x2 Square Widget Mockup (With Top-Right Star Pill)
-                            Box(
-                                modifier = Modifier
-                                    .size(165.dp)
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(previewCardBg)
-                                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(22.dp))
-                            ) {
+                            // 2x2 Square Widget Mockup (With 3-Part Pill Controls)
+                            val squareShape = RoundedCornerShape(22.dp)
+                            val squareModifier = if (showOutline) {
+                                Modifier.size(165.dp).clip(squareShape).background(previewCardBg).border(1.dp, Color(0x26FFFFFF), squareShape)
+                            } else {
+                                Modifier.size(165.dp).clip(squareShape).background(previewCardBg)
+                            }
+                            Box(modifier = squareModifier) {
                                 if (showFavorite) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -391,42 +582,67 @@ fun WidgetConfigScreen(
 
                                     Spacer(modifier = Modifier.height(8.dp))
 
+                                    // 3-Part Pill Controls (Rectangular pill controls, matching fullscreen player)
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(modifier = Modifier.size(42.dp).clip(CircleShape).background(liveState.accentColor), contentAlignment = Alignment.Center) {
-                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(18.dp))
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(20.dp))
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 }
                             }
                         }
                         else -> {
-                            // Compact 4x1 Bar Mockup (46dp Artwork, perfectly proportional)
-                            Row(
-                                modifier = Modifier
+                            // Compact 4x1 Bar Mockup with 3-Part Pill Controls
+                            val containerRadius = if (circularCapsule) 37.dp else 18.dp
+                            val artRadius = if (circularCapsule) 29.dp else 18.dp
+                            val horizontalPad = if (circularCapsule) 12.dp else 10.dp
+                            val containerShape = RoundedCornerShape(containerRadius)
+                            val compactModifier = if (showOutline) {
+                                Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(18.dp))
+                                    .clip(containerShape)
                                     .background(previewCardBg)
-                                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(18.dp))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    .border(1.dp, Color(0x26FFFFFF), containerShape)
+                                    .padding(horizontal = horizontalPad, vertical = 6.dp)
+                            } else {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(containerShape)
+                                    .background(previewCardBg)
+                                    .padding(horizontal = horizontalPad, vertical = 6.dp)
+                            }
+                            Row(
+                                modifier = compactModifier,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (liveState.artBitmap != null) {
                                     Image(
                                         bitmap = liveState.artBitmap!!.asImageBitmap(),
                                         contentDescription = null,
-                                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(13.dp)),
+                                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(artRadius)),
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
                                     Box(
-                                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF282828)),
+                                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(artRadius)).background(Color(0xFF282828)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(Lucide.Music, null, tint = Color.White, modifier = Modifier.size(26.dp))
@@ -442,17 +658,32 @@ fun WidgetConfigScreen(
 
                                 Spacer(modifier = Modifier.width(6.dp))
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(22.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(liveState.accentColor), contentAlignment = Alignment.Center) {
-                                        Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                                // 3-Part Pill Controls (Rectangular pill controls, matching fullscreen player)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(22.dp))
+                                    Box(
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                    Box(
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                    }
                                     if (showFavorite) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(Lucide.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Icon(Lucide.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -509,24 +740,54 @@ fun WidgetConfigScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 5. Show Favorite Button Toggle
+            // 5. Show Favorite Button Toggle (Not applicable for Mini Player)
+            if (previewWidgetType != "MINI_PLAYER") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1C1C1E))
+                        .clickable { showFavorite = !showFavorite }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Show Favorite (Star) Button", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "Add like button to widget controls", color = Color(0x80FFFFFF), fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = showFavorite,
+                        onCheckedChange = { showFavorite = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF55DF69),
+                            uncheckedThumbColor = Color(0x80FFFFFF),
+                            uncheckedTrackColor = Color(0xFF333333)
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // White Outline Toggle (available across all widgets)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF1C1C1E))
-                    .clickable { showFavorite = !showFavorite }
+                    .clickable { showOutline = !showOutline }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(text = "Show Favorite (Star) Button", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    Text(text = "Add like button to widget controls", color = Color(0x80FFFFFF), fontSize = 12.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "White Outline", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(text = "Display subtle outline around widget", color = Color(0x80FFFFFF), fontSize = 12.sp)
                 }
                 Switch(
-                    checked = showFavorite,
-                    onCheckedChange = { showFavorite = it },
+                    checked = showOutline,
+                    onCheckedChange = { showOutline = it },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = Color(0xFF55DF69),
@@ -534,6 +795,37 @@ fun WidgetConfigScreen(
                         uncheckedTrackColor = Color(0xFF333333)
                     )
                 )
+            }
+
+            if (previewWidgetType == "COMPACT") {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Circular Capsule Shape Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1C1C1E))
+                        .clickable { circularCapsule = !circularCapsule }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Circular Capsule Shape", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "Transform classic bar into a sleek circular capsule", color = Color(0x80FFFFFF), fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = circularCapsule,
+                        onCheckedChange = { circularCapsule = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF55DF69),
+                            uncheckedThumbColor = Color(0x80FFFFFF),
+                            uncheckedTrackColor = Color(0xFF333333)
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -554,7 +846,10 @@ fun WidgetConfigScreen(
 
                 Button(
                     onClick = {
-                        onSave(WidgetConfig(selectedTheme, transparency, showFavorite))
+                        onSave(
+                            WidgetConfig(selectedTheme, transparency, showFavorite, circularCapsule, showOutline),
+                            previewWidgetType
+                        )
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF55DF69)),
                     shape = RoundedCornerShape(14.dp),

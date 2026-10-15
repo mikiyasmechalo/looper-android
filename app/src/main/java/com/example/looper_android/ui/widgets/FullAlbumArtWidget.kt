@@ -11,10 +11,12 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -30,6 +32,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
@@ -39,16 +42,46 @@ import com.example.looper_android.MainActivity
 import com.example.looper_android.R
 
 class FullAlbumArtWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        WidgetStateRepository.ensureInitialized(context)
+        val appWidgetId = try {
+            androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(id)
+        } catch (_: Exception) { -1 }
+
         provideContent {
+            val widgetSize = LocalSize.current
+            val minDim = minOf(widgetSize.width, widgetSize.height)
+
+            // Dynamic scaling: base 160.dp (standard 2x2 widget), scaled up by at most 20% (1.20x) for 4x4
+            val scale = (1.0f + ((minDim.value - 160f) / 160f).coerceIn(0f, 1f) * 0.20f)
+
+            val ctrlBtnWidth = (50 * scale).dp
+            val ctrlBtnHeight = (36 * scale).dp
+            val ctrlPlayCorner = 8.dp
+            val ctrlPrevNextIconSize = (18 * scale).dp
+            val ctrlPlayIconSize = (20 * scale).dp
+            val ctrlSpacing = 4.dp
+
+            val starBtnSize = (38 * scale).dp
+            val starIconSize = (18 * scale).dp
+
+            val titleFontSize = (15 * scale).sp
+            val artistFontSize = (12 * scale).sp
+            val bottomPadding = (12 * scale).dp
+            val rootRadius = (24 * scale).dp.coerceAtMost(36.dp)
+
             val state by WidgetStateRepository.state.collectAsState()
-            val config = WidgetSettingsManager.getConfig(context, "FULL_ART")
+            val configVersion by WidgetSettingsManager.configVersion.collectAsState()
+            val config = WidgetSettingsManager.getConfig(context, "FULL_ART", appWidgetId)
+            val cardBg = WidgetSettingsManager.getEffectiveCardColor(context, config, state.cardBackgroundColor)
 
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .cornerRadius(24.dp)
-                    .background(ColorProvider(state.cardBackgroundColor))
+                    .cornerRadius(rootRadius)
+                    .background(ColorProvider(cardBg))
                     .clickable(actionStartActivity(ComponentName(context, MainActivity::class.java)))
             ) {
                 // 1. Full-bleed Artwork Background (CROP FILL) with Dark Ambient Gradient
@@ -69,7 +102,7 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                         Image(
                             provider = ImageProvider(R.drawable.ic_widget_music),
                             contentDescription = "Music",
-                            modifier = GlanceModifier.size(64.dp)
+                            modifier = GlanceModifier.size((56 * scale).dp)
                         )
                     }
                 }
@@ -79,13 +112,13 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding((12 * scale).dp),
                         horizontalAlignment = Alignment.End
                     ) {
                         Box(
                             modifier = GlanceModifier
+                                .size(starBtnSize)
                                 .background(ImageProvider(R.drawable.widget_star_pill_bg))
-                                .padding(8.dp)
                                 .clickable(actionRunCallback<ToggleFavoriteActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
@@ -95,17 +128,17 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                                     else R.drawable.ic_widget_star_border
                                 ),
                                 contentDescription = "Favorite",
-                                modifier = GlanceModifier.size(20.dp)
+                                modifier = GlanceModifier.size(starIconSize)
                             )
                         }
                     }
                 }
 
-                // 3. Bottom Metadata & Enlarged Padded Controls Wrapper
+                // 3. Bottom Metadata & Dynamically Scaled Padded Controls Wrapper
                 Column(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .padding(12.dp),
+                        .padding(bottomPadding),
                     verticalAlignment = Alignment.Bottom,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -114,7 +147,7 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                         text = state.title,
                         style = TextStyle(
                             color = ColorProvider(Color.White),
-                            fontSize = 15.sp,
+                            fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         ),
@@ -122,13 +155,13 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 6.dp)
                     )
 
-                    Spacer(modifier = GlanceModifier.height(2.dp))
+                    Spacer(modifier = GlanceModifier.height((2 * scale).dp))
 
                     Text(
                         text = state.artist,
                         style = TextStyle(
                             color = ColorProvider(Color(0xB3FFFFFF)),
-                            fontSize = 12.sp,
+                            fontSize = artistFontSize,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center
                         ),
@@ -136,37 +169,43 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 6.dp)
                     )
 
-                    Spacer(modifier = GlanceModifier.height(8.dp))
+                    Spacer(modifier = GlanceModifier.height((8 * scale).dp))
 
-                    // Padded Controls Dock with Dynamic Accent Color
+                    // Three-Part Pill Controls (Equal width buttons, matching 8dp*scale facing corner radii)
                     Row(
-                        modifier = GlanceModifier
-                            .background(ImageProvider(R.drawable.widget_controls_pill_bg))
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Previous
+                        // Previous Pill Cap (Equal width, 7dp facing corner)
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                .width(ctrlBtnWidth)
+                                .height(ctrlBtnHeight)
+                                .background(ImageProvider(R.drawable.widget_ctrl_prev_pill))
                                 .clickable(actionRunCallback<PreviousActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_widget_prev),
                                 contentDescription = "Previous",
-                                modifier = GlanceModifier.size(24.dp)
+                                modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )
                         }
 
-                        // Play/Pause Dynamic Palette Accent Button
+                        Spacer(modifier = GlanceModifier.width(ctrlSpacing))
+
+                        // Play/Pause Dynamic Center Pill (Equal width, matching corner radius)
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 10.dp)
-                                .size(44.dp)
-                                .cornerRadius(22.dp)
-                                .background(ColorProvider(state.accentColor))
+                                .width(ctrlBtnWidth)
+                                .height(ctrlBtnHeight)
+                                .let {
+                                    if (state.isPlaying) {
+                                        it.background(ImageProvider(R.drawable.widget_ctrl_play_pill))
+                                    } else {
+                                        it.cornerRadius(ctrlPlayCorner).background(ColorProvider(state.accentColor))
+                                    }
+                                }
                                 .clickable(actionRunCallback<PlayPauseActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
@@ -176,24 +215,36 @@ class FullAlbumArtWidget : GlanceAppWidget() {
                                     else R.drawable.ic_widget_play
                                 ),
                                 contentDescription = if (state.isPlaying) "Pause" else "Play",
-                                modifier = GlanceModifier.size(22.dp)
+                                modifier = GlanceModifier.size(ctrlPlayIconSize)
                             )
                         }
 
-                        // Next
+                        Spacer(modifier = GlanceModifier.width(ctrlSpacing))
+
+                        // Next Pill Cap (Equal width, 7dp facing corner)
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                .width(ctrlBtnWidth)
+                                .height(ctrlBtnHeight)
+                                .background(ImageProvider(R.drawable.widget_ctrl_next_pill))
                                 .clickable(actionRunCallback<NextActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_widget_next),
                                 contentDescription = "Next",
-                                modifier = GlanceModifier.size(24.dp)
+                                modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )
                         }
                     }
+                }
+
+                if (config.showOutline) {
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxSize()
+                            .background(ImageProvider(R.drawable.widget_border_rounded_24))
+                    ) {}
                 }
             }
         }

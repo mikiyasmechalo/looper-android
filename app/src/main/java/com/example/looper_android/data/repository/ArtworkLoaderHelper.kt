@@ -40,7 +40,7 @@ object ArtworkLoaderHelper {
             try {
                 val uri = Uri.parse(artPath)
                 if (uri.scheme == "content") {
-                    val bmp = context.contentResolver.loadThumbnail(uri, Size(800, 800), null)
+                    val bmp = context.contentResolver.loadThumbnail(uri, Size(1200, 1200), null)
                     if (bmp != null) return bmp
                 }
             } catch (_: Exception) {}

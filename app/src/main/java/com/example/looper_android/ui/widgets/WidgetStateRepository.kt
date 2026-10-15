@@ -72,6 +72,49 @@ object WidgetStateRepository {
     private var pendingUpdateJob: Job? = null
     private var lastFullUpdateMs = 0L
 
+    suspend fun ensureInitialized(context: Context) {
+        if (_state.value.hasSong) return
+        val cached = loadCachedSongFromPrefs(context) ?: return
+        val (cachedSong, savedPos) = cached
+        applySongState(
+            context = context,
+            song = cachedSong,
+            isPlaying = false,
+            positionMs = savedPos,
+            durationMs = cachedSong.duration?.toLong() ?: 0L,
+            triggerGlanceUpdate = false
+        )
+    }
+
+    private fun loadCachedSongFromPrefs(context: Context): Pair<SongEntity, Long>? {
+        return try {
+            val prefs = context.getSharedPreferences("looper_queues", Context.MODE_PRIVATE)
+            val songId = prefs.getLong("last_song_id", -1L)
+            val path = prefs.getString("last_song_path", null)
+            val title = prefs.getString("last_song_title", null)
+            if (songId == -1L || path.isNullOrEmpty() || title.isNullOrEmpty()) return null
+            val song = SongEntity(
+                id = songId,
+                path = path,
+                title = title,
+                artist = prefs.getString("last_song_artist", null),
+                albumArtist = prefs.getString("last_song_album_artist", null),
+                album = prefs.getString("last_song_album", null),
+                genre = null,
+                duration = prefs.getInt("last_song_duration", 0),
+                trackNumber = null,
+                year = null,
+                artPath = prefs.getString("last_song_art_path", null),
+                dateAdded = 0L,
+                isFavorite = prefs.getBoolean("last_song_is_favorite", false)
+            )
+            val pos = prefs.getLong("last_song_position", 0L)
+            Pair(song, pos)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun updateState(
         context: Context,
         song: SongEntity?,
@@ -82,63 +125,105 @@ object WidgetStateRepository {
         accentColorInt: Int? = null
     ) {
         scope.launch {
-            if (song == null) {
-                if (_state.value.hasSong) {
-                    _state.value = WidgetPlaybackState()
-                    scheduleThrottledUpdate(context)
-                }
-                return@launch
-            }
-
-            // 1. Instant 0ms Visuals Cache Lookup & High-Contrast Palette
-            var visuals = visualsCache.get(song.id)
-            if (visuals == null) {
-                val loadedBitmap = loadRawBitmap(context, song)
-                if (loadedBitmap != null) {
-                    val thumb = createRoundedBitmap(loadedBitmap, 180, 180, 24f)
-                    val fullArt = createFullArtWithGradient(loadedBitmap, 480, 480, 28f)
-
-                    var extractedAccent = Color(0xFF55DF69)
-                    var extractedCardBg = Color(0xE61E1E22)
-                    try {
-                        val palette = Palette.from(loadedBitmap).generate()
-                        extractedAccent = computeOptimalAccentColor(palette)
-                        extractedCardBg = computeAdaptiveCardColor(palette)
-                    } catch (_: Exception) {}
-
-                    visuals = CachedSongVisuals(thumb, fullArt, extractedAccent, extractedCardBg)
-                    visualsCache.put(song.id, visuals)
-                } else {
-                    visuals = CachedSongVisuals(null, null, Color(0xFF55DF69), Color(0xE61E1E22))
-                    visualsCache.put(song.id, visuals)
-                }
-            }
-
-            // 2. Process Multi-Line Lyrics
-            val effectiveLyrics = rawLyrics ?: (if (song.id == lastSongIdForLyrics && !lastRawLyrics.isNullOrBlank()) lastRawLyrics else song.lyrics)
-            lastRawLyrics = effectiveLyrics
-            lastSongIdForLyrics = song.id
-            val (lines, activeIdx) = extractDisplayLyrics(effectiveLyrics, positionMs, durationMs)
-
-            val newState = WidgetPlaybackState(
-                songId = song.id,
-                title = song.title.ifBlank { "Unknown Title" },
-                artist = (song.artist ?: song.albumArtist ?: "Unknown Artist").ifBlank { "Unknown Artist" },
-                album = song.album ?: "",
-                artBitmap = visuals.artBitmap,
-                artFullWithGradient = visuals.artFullWithGradient,
+            applySongState(
+                context = context,
+                song = song,
                 isPlaying = isPlaying,
-                isFavorite = song.isFavorite,
                 positionMs = positionMs,
                 durationMs = durationMs,
-                lyricsLines = lines,
-                activeLyricIndex = activeIdx,
-                accentColor = visuals.accentColor,
-                cardBackgroundColor = visuals.cardBackgroundColor,
-                hasSong = true
+                rawLyrics = rawLyrics,
+                accentColorInt = accentColorInt,
+                triggerGlanceUpdate = true
             )
+        }
+    }
 
-            _state.value = newState
+    suspend fun applySongState(
+        context: Context,
+        song: SongEntity?,
+        isPlaying: Boolean,
+        positionMs: Long,
+        durationMs: Long,
+        rawLyrics: String? = null,
+        accentColorInt: Int? = null,
+        triggerGlanceUpdate: Boolean = true
+    ) {
+        if (song == null) {
+            // If we already have a song displayed, preserve it and only update playing status to paused
+            if (_state.value.hasSong) {
+                if (_state.value.isPlaying) {
+                    _state.value = _state.value.copy(isPlaying = false)
+                    if (triggerGlanceUpdate) scheduleThrottledUpdate(context)
+                }
+                return
+            }
+            val cached = loadCachedSongFromPrefs(context)
+            if (cached != null) {
+                val (cachedSong, savedPos) = cached
+                applySongState(
+                    context = context,
+                    song = cachedSong,
+                    isPlaying = false,
+                    positionMs = savedPos,
+                    durationMs = cachedSong.duration?.toLong() ?: 0L,
+                    triggerGlanceUpdate = triggerGlanceUpdate
+                )
+            }
+            return
+        }
+
+        // 1. Instant 0ms Visuals Cache Lookup & High-Contrast Palette
+        var visuals = visualsCache.get(song.id)
+        if (visuals == null) {
+            val loadedBitmap = loadRawBitmap(context, song)
+            if (loadedBitmap != null) {
+                val thumb = createSquareBitmap(loadedBitmap, 300)
+                val fullArt = createFullArtWithGradient(loadedBitmap, 800, 800, 48f)
+
+                var extractedAccent = Color(0xFF55DF69)
+                var extractedCardBg = Color(0xE61E1E22)
+                try {
+                    val palette = Palette.from(loadedBitmap).generate()
+                    extractedAccent = computeOptimalAccentColor(palette)
+                    extractedCardBg = computeAdaptiveCardColor(palette)
+                } catch (_: Exception) {}
+
+                visuals = CachedSongVisuals(thumb, fullArt, extractedAccent, extractedCardBg)
+                visualsCache.put(song.id, visuals)
+            } else {
+                visuals = CachedSongVisuals(null, null, Color(0xFF55DF69), Color(0xE61E1E22))
+                visualsCache.put(song.id, visuals)
+            }
+        }
+
+        val effectiveAccent = visuals.accentColor
+
+        // 2. Process Multi-Line Lyrics
+        val effectiveLyrics = rawLyrics ?: (if (song.id == lastSongIdForLyrics && !lastRawLyrics.isNullOrBlank()) lastRawLyrics else song.lyrics)
+        lastRawLyrics = effectiveLyrics
+        lastSongIdForLyrics = song.id
+        val (lines, activeIdx) = extractDisplayLyrics(effectiveLyrics, positionMs, durationMs)
+
+        val newState = WidgetPlaybackState(
+            songId = song.id,
+            title = song.title.ifBlank { "Unknown Title" },
+            artist = (song.artist ?: song.albumArtist ?: "Unknown Artist").ifBlank { "Unknown Artist" },
+            album = song.album ?: "",
+            artBitmap = visuals.artBitmap,
+            artFullWithGradient = visuals.artFullWithGradient,
+            isPlaying = isPlaying,
+            isFavorite = song.isFavorite,
+            positionMs = positionMs,
+            durationMs = durationMs,
+            lyricsLines = lines,
+            activeLyricIndex = activeIdx,
+            accentColor = effectiveAccent,
+            cardBackgroundColor = visuals.cardBackgroundColor,
+            hasSong = true
+        )
+
+        _state.value = newState
+        if (triggerGlanceUpdate) {
             scheduleThrottledUpdate(context)
         }
     }
@@ -206,11 +291,36 @@ object WidgetStateRepository {
         }
     }
 
+    fun clearVisualsCache() {
+        visualsCache.evictAll()
+    }
+
+    fun forceRefreshAllWidgets(context: Context) {
+        visualsCache.evictAll()
+        scope.launch {
+            val cached = loadCachedSongFromPrefs(context)
+            if (cached != null) {
+                val (cachedSong, savedPos) = cached
+                applySongState(
+                    context = context,
+                    song = cachedSong,
+                    isPlaying = _state.value.isPlaying,
+                    positionMs = _state.value.positionMs.takeIf { it > 0 } ?: savedPos,
+                    durationMs = _state.value.durationMs.takeIf { it > 0 } ?: (cachedSong.duration?.toLong() ?: 0L),
+                    triggerGlanceUpdate = true
+                )
+            } else {
+                dispatchAllWidgets(context)
+            }
+        }
+    }
+
     private suspend fun dispatchAllWidgets(context: Context) {
         lastFullUpdateMs = System.currentTimeMillis()
         try {
-            FullAlbumArtWidget().updateAll(context)
             CompactWidget().updateAll(context)
+            MiniPlayerWidget().updateAll(context)
+            FullAlbumArtWidget().updateAll(context)
             LyricsWidget().updateAll(context)
             SquareProgressWidget().updateAll(context)
         } catch (_: Exception) {}
@@ -261,7 +371,7 @@ object WidgetStateRepository {
         durationMs: Long
     ): Pair<List<String>, Int> {
         if (rawLyrics.isNullOrBlank()) {
-            return Pair(listOf("No lyrics available for this song"), -1)
+            return Pair(listOf("", "", "No lyrics available for this song", "", ""), 2)
         }
 
         val parsed = LyricsParser.parseLyrics(rawLyrics, durationMs.coerceAtLeast(180000L))
@@ -270,31 +380,37 @@ object WidgetStateRepository {
             var currentIndex = timed.indexOfLast { it.startTimeMs <= positionMs }
             if (currentIndex == -1) currentIndex = 0
 
-            val result = mutableListOf<String>()
-            val startIndex = (currentIndex - 2).coerceAtLeast(0)
-            val endIndex = (currentIndex + 2).coerceAtMost(timed.size - 1)
-
-            for (i in startIndex..endIndex) {
-                result.add(timed[i].text.ifBlank { "♪ ♪ ♪" })
+            val result = ArrayList<String>(5)
+            for (offset in -2..2) {
+                val idx = currentIndex + offset
+                if (idx in timed.indices) {
+                    result.add(timed[idx].text.ifBlank { "♪ ♪ ♪" })
+                } else {
+                    result.add("")
+                }
             }
-
-            val activeIdxInResult = currentIndex - startIndex
-            return Pair(result, activeIdxInResult)
+            return Pair(result, 2)
         } else if (parsed.plainLines.isNotEmpty()) {
             val plain = parsed.plainLines.filter { it.isNotBlank() }
-            if (plain.isEmpty()) return Pair(listOf("♪ ♪ ♪"), -1)
+            if (plain.isEmpty()) return Pair(listOf("", "", "♪ ♪ ♪", "", ""), 2)
 
             val progressRatio = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
             val targetIdx = (progressRatio * plain.size).toInt().coerceIn(0, plain.size - 1)
 
-            val startIndex = (targetIdx - 2).coerceAtLeast(0)
-            val endIndex = (targetIdx + 2).coerceAtMost(plain.size - 1)
-            val result = plain.subList(startIndex, endIndex + 1)
-            val activeIdx = targetIdx - startIndex
-            return Pair(result, activeIdx)
+            val result = ArrayList<String>(5)
+            for (offset in -2..2) {
+                val idx = targetIdx + offset
+                if (idx in plain.indices) {
+                    result.add(plain[idx])
+                } else {
+                    result.add("")
+                }
+            }
+            return Pair(result, 2)
         }
 
-        return Pair(listOf(rawLyrics.trim().lines().firstOrNull() ?: "♪ ♪ ♪"), 0)
+        val firstLine = rawLyrics.trim().lines().firstOrNull() ?: "♪ ♪ ♪"
+        return Pair(listOf("", "", firstLine, "", ""), 2)
     }
 
     private fun loadRawBitmap(context: Context, song: SongEntity): Bitmap? {
@@ -326,11 +442,25 @@ object WidgetStateRepository {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !artPath.isNullOrEmpty()) {
             try {
-                return context.contentResolver.loadThumbnail(Uri.parse(artPath), Size(800, 800), null)
+                return context.contentResolver.loadThumbnail(Uri.parse(artPath), Size(1200, 1200), null)
             } catch (_: Exception) {}
         }
 
         return null
+    }
+
+    private fun createSquareBitmap(src: Bitmap, targetSize: Int): Bitmap {
+        val w = src.width
+        val h = src.height
+        val minDim = minOf(w, h)
+        val startX = (w - minDim) / 2
+        val startY = (h - minDim) / 2
+        val cropped = if (w != h) {
+            Bitmap.createBitmap(src, startX, startY, minDim, minDim)
+        } else {
+            src
+        }
+        return Bitmap.createScaledBitmap(cropped, targetSize, targetSize, true)
     }
 
     private fun createRoundedBitmap(src: Bitmap, targetW: Int, targetH: Int, cornerRadiusPx: Float): Bitmap {

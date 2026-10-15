@@ -178,18 +178,22 @@ class PlaybackService : MediaSessionService() {
             val duration = player.duration.coerceAtLeast(0)
 
             serviceScope.launch(Dispatchers.IO) {
-                val song = if (currentMediaId != null) libraryDao.getSongByIdSync(currentMediaId) else null
-                val isFav = song?.isFavorite ?: false
-                serviceScope.launch(Dispatchers.Main) {
-                    updateNotificationButtons(isFav)
+                if (currentMediaId != null) {
+                    val song = libraryDao.getSongByIdSync(currentMediaId)
+                    val isFav = song?.isFavorite ?: false
+                    serviceScope.launch(Dispatchers.Main) {
+                        updateNotificationButtons(isFav)
+                    }
+                    if (song != null) {
+                        WidgetStateRepository.updateState(
+                            context = this@PlaybackService,
+                            song = song,
+                            isPlaying = isPlaying,
+                            positionMs = position,
+                            durationMs = duration
+                        )
+                    }
                 }
-                WidgetStateRepository.updateState(
-                    context = this@PlaybackService,
-                    song = song,
-                    isPlaying = isPlaying,
-                    positionMs = position,
-                    durationMs = duration
-                )
             }
         }
 
@@ -200,19 +204,25 @@ class PlaybackService : MediaSessionService() {
             val duration = player.duration.coerceAtLeast(0)
 
             serviceScope.launch(Dispatchers.IO) {
-                val song = if (currentMediaId != null) libraryDao.getSongByIdSync(currentMediaId) else null
-                WidgetStateRepository.updateState(
-                    context = this@PlaybackService,
-                    song = song,
-                    isPlaying = isPlaying,
-                    positionMs = position,
-                    durationMs = duration
-                )
-                if (song != null && song.lyrics.isNullOrBlank()) {
-                    val fetched = lyricsFetcher.fetchLyrics(song)
-                    if (!fetched.isNullOrBlank()) {
-                        WidgetStateRepository.updateLyrics(this@PlaybackService, song.id, fetched)
+                if (currentMediaId != null) {
+                    val song = libraryDao.getSongByIdSync(currentMediaId)
+                    if (song != null) {
+                        WidgetStateRepository.updateState(
+                            context = this@PlaybackService,
+                            song = song,
+                            isPlaying = isPlaying,
+                            positionMs = position,
+                            durationMs = duration
+                        )
+                        if (song.lyrics.isNullOrBlank()) {
+                            val fetched = lyricsFetcher.fetchLyrics(song)
+                            if (!fetched.isNullOrBlank()) {
+                                WidgetStateRepository.updateLyrics(this@PlaybackService, song.id, fetched)
+                            }
+                        }
                     }
+                } else {
+                    WidgetStateRepository.updatePlayPauseOptimistic(this@PlaybackService, isPlaying)
                 }
             }
         }

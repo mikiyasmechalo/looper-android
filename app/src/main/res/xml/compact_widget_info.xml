@@ -12,6 +12,7 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:previewImage="@drawable/widget_preview_compact"
+    android:previewLayout="@layout/widget_preview_compact_layout"
     android:configure="com.example.looper_android.ui.widgets.WidgetConfigActivity"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:resizeMode="horizontal|vertical"

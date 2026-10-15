@@ -332,7 +332,16 @@ class PlaybackViewModel @Inject constructor(
                     }
                 }
             } else {
-                _playbackState.value = _playbackState.value.copy(currentSong = null, isSongReady = false)
+                val lastSong = _playbackState.value.currentSong ?: queueManager.getCachedLastSong()
+                if (lastSong != null) {
+                    _playbackState.value = _playbackState.value.copy(
+                        currentSong = lastSong,
+                        isPlaying = false,
+                        isSongReady = true
+                    )
+                } else {
+                    _playbackState.value = _playbackState.value.copy(currentSong = null, isSongReady = false)
+                }
             }
         }
 
@@ -374,14 +383,18 @@ class PlaybackViewModel @Inject constructor(
                     (a shl 24) or (r shl 16) or (g shl 8) or b
                 } catch (_: Exception) { 0 }
 
-                WidgetStateRepository.updateState(
-                    context = context,
-                    song = currentSong,
-                    isPlaying = isPlaying,
-                    positionMs = pos,
-                    durationMs = dur,
-                    accentColorInt = accentInt
-                )
+                if (currentSong != null) {
+                    WidgetStateRepository.updateState(
+                        context = context,
+                        song = currentSong,
+                        isPlaying = isPlaying,
+                        positionMs = pos,
+                        durationMs = dur,
+                        accentColorInt = accentInt
+                    )
+                } else {
+                    WidgetStateRepository.updatePlayPauseOptimistic(context, isPlaying)
+                }
             }
         }
 

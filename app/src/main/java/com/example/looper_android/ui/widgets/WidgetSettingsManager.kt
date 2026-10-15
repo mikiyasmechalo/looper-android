@@ -1,10 +1,15 @@
 package com.example.looper_android.ui.widgets
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.ColorUtils
+
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 enum class WidgetThemeMode {
     ADAPTIVE,
@@ -15,12 +20,21 @@ enum class WidgetThemeMode {
 
 data class WidgetConfig(
     val themeMode: WidgetThemeMode = WidgetThemeMode.ADAPTIVE,
-    val transparency: Float = 0.1f, // 0.0f = solid, 1.0f = transparent
-    val showFavorite: Boolean = false
+    val transparency: Float = 0.0f, // 0.0f = solid, 1.0f = transparent
+    val showFavorite: Boolean = false,
+    val circularCapsule: Boolean = false,
+    val showOutline: Boolean = false
 )
 
 object WidgetSettingsManager {
     private const val PREFS_NAME = "looper_widget_prefs"
+
+    private val _configVersion = MutableStateFlow(0L)
+    val configVersion: StateFlow<Long> = _configVersion
+
+    fun notifyConfigChanged() {
+        _configVersion.value = System.currentTimeMillis()
+    }
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -28,35 +42,117 @@ object WidgetSettingsManager {
 
     fun getConfig(context: Context, widgetType: String, appWidgetId: Int = -1): WidgetConfig {
         val prefs = getPrefs(context)
-        val prefix = if (appWidgetId != -1) "w_${appWidgetId}_" else "type_${widgetType}_"
-
         val defaultShowFav = if (widgetType == "FULL_ART" || widgetType == "SQUARE") true else false
-        val themeStr = prefs.getString("${prefix}theme", prefs.getString("default_theme", WidgetThemeMode.ADAPTIVE.name)) ?: WidgetThemeMode.ADAPTIVE.name
-        val transparency = prefs.getFloat("${prefix}transparency", prefs.getFloat("default_transparency", 0.1f))
-        val showFav = prefs.getBoolean("${prefix}show_favorite", prefs.getBoolean("default_show_favorite", defaultShowFav))
+        val defaultShowOutline = if (widgetType == "MINI_PLAYER") true else false
 
-        val mode = try { WidgetThemeMode.valueOf(themeStr) } catch (_: Exception) { WidgetThemeMode.ADAPTIVE }
-        return WidgetConfig(mode, transparency, showFav)
+        var themeStr: String? = null
+        var transparency: Float? = null
+        var showFav: Boolean? = null
+        var circularCapsule: Boolean? = null
+        var showOutline: Boolean? = null
+
+        if (appWidgetId != -1 && prefs.contains("w_${appWidgetId}_theme")) {
+            themeStr = prefs.getString("w_${appWidgetId}_theme", null)
+            if (prefs.contains("w_${appWidgetId}_transparency")) {
+                transparency = prefs.getFloat("w_${appWidgetId}_transparency", 0.0f)
+            }
+            if (prefs.contains("w_${appWidgetId}_show_favorite")) {
+                showFav = prefs.getBoolean("w_${appWidgetId}_show_favorite", defaultShowFav)
+            }
+            if (prefs.contains("w_${appWidgetId}_circular_capsule")) {
+                circularCapsule = prefs.getBoolean("w_${appWidgetId}_circular_capsule", false)
+            }
+            if (prefs.contains("w_${appWidgetId}_show_outline")) {
+                showOutline = prefs.getBoolean("w_${appWidgetId}_show_outline", defaultShowOutline)
+            }
+        }
+
+        val typePrefix = "type_${widgetType}_"
+        if (themeStr == null && prefs.contains("${typePrefix}theme")) {
+            themeStr = prefs.getString("${typePrefix}theme", null)
+        }
+        if (transparency == null && prefs.contains("${typePrefix}transparency")) {
+            transparency = prefs.getFloat("${typePrefix}transparency", 0.0f)
+        }
+        if (showFav == null && prefs.contains("${typePrefix}show_favorite")) {
+            showFav = prefs.getBoolean("${typePrefix}show_favorite", defaultShowFav)
+        }
+        if (circularCapsule == null && prefs.contains("${typePrefix}circular_capsule")) {
+            circularCapsule = prefs.getBoolean("${typePrefix}circular_capsule", false)
+        }
+        if (showOutline == null && prefs.contains("${typePrefix}show_outline")) {
+            showOutline = prefs.getBoolean("${typePrefix}show_outline", defaultShowOutline)
+        }
+
+        val finalThemeStr = themeStr ?: prefs.getString("default_theme", WidgetThemeMode.ADAPTIVE.name) ?: WidgetThemeMode.ADAPTIVE.name
+        val finalTransparency = transparency ?: prefs.getFloat("default_transparency", 0.0f)
+        val finalShowFav = showFav ?: defaultShowFav
+        val finalCircularCapsule = circularCapsule ?: false
+        val finalShowOutline = showOutline ?: defaultShowOutline
+
+        val mode = try { WidgetThemeMode.valueOf(finalThemeStr) } catch (_: Exception) { WidgetThemeMode.ADAPTIVE }
+        return WidgetConfig(mode, finalTransparency, finalShowFav, finalCircularCapsule, finalShowOutline)
     }
 
-    fun saveConfig(context: Context, widgetType: String, appWidgetId: Int, config: WidgetConfig) {
+    fun saveConfig(
+        context: Context,
+        widgetType: String,
+        appWidgetId: Int,
+        config: WidgetConfig,
+        originWidgetType: String? = null
+    ) {
         val prefs = getPrefs(context)
         val editor = prefs.edit()
 
-        if (appWidgetId != -1) {
-            val prefix = "w_${appWidgetId}_"
-            editor.putString("${prefix}theme", config.themeMode.name)
-            editor.putFloat("${prefix}transparency", config.transparency)
-            editor.putBoolean("${prefix}show_favorite", config.showFavorite)
-        }
-
-        // Also update type default
+        // 1. Update type-level config
         val typePrefix = "type_${widgetType}_"
         editor.putString("${typePrefix}theme", config.themeMode.name)
         editor.putFloat("${typePrefix}transparency", config.transparency)
         editor.putBoolean("${typePrefix}show_favorite", config.showFavorite)
+        editor.putBoolean("${typePrefix}circular_capsule", config.circularCapsule)
+        editor.putBoolean("${typePrefix}show_outline", config.showOutline)
 
-        editor.apply()
+        // 2. Find ALL widget IDs on home screen belonging to this widgetType and update them
+        try {
+            val manager = AppWidgetManager.getInstance(context)
+            val receiverClass = when (widgetType) {
+                "MINI_PLAYER" -> MiniPlayerWidgetReceiver::class.java
+                "FULL_ART" -> FullAlbumArtWidgetReceiver::class.java
+                "LYRICS" -> LyricsWidgetReceiver::class.java
+                "SQUARE" -> SquareProgressWidgetReceiver::class.java
+                "COMPACT" -> CompactWidgetReceiver::class.java
+                else -> null
+            }
+            if (receiverClass != null) {
+                val component = ComponentName(context, receiverClass)
+                val ids = manager.getAppWidgetIds(component)
+                for (id in ids) {
+                    val p = "w_${id}_"
+                    editor.putString("${p}theme", config.themeMode.name)
+                    editor.putFloat("${p}transparency", config.transparency)
+                    editor.putBoolean("${p}show_favorite", config.showFavorite)
+                    editor.putBoolean("${p}circular_capsule", config.circularCapsule)
+                    editor.putBoolean("${p}show_outline", config.showOutline)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Only update calling appWidgetId if it belongs to this widgetType
+        val isSameType = originWidgetType == null || originWidgetType == widgetType
+        if (appWidgetId != -1 && isSameType) {
+            val prefix = "w_${appWidgetId}_"
+            editor.putString("${prefix}theme", config.themeMode.name)
+            editor.putFloat("${prefix}transparency", config.transparency)
+            editor.putBoolean("${prefix}show_favorite", config.showFavorite)
+            editor.putBoolean("${prefix}circular_capsule", config.circularCapsule)
+            editor.putBoolean("${prefix}show_outline", config.showOutline)
+        }
+
+        editor.putString("default_theme", config.themeMode.name)
+        editor.putFloat("default_transparency", config.transparency)
+
+        editor.commit()
+        notifyConfigChanged()
     }
 
     fun getEffectiveCardColor(context: Context, config: WidgetConfig, adaptiveColor: Color): Color {
@@ -75,9 +171,9 @@ object WidgetSettingsManager {
             WidgetThemeMode.SYSTEM -> if (isSystemDark) android.graphics.Color.rgb(18, 18, 18) else android.graphics.Color.rgb(238, 238, 240)
         }
 
-        // Apply transparency (alpha: 1.0f - transparency)
+        // Apply transparency: 0.0f = strictly 100% opaque solid, 1.0f = completely transparent
         val alphaFloat = (1.0f - config.transparency).coerceIn(0.0f, 1.0f)
-        val alphaInt = (alphaFloat * 255).toInt()
+        val alphaInt = if (config.transparency <= 0.005f) 255 else (alphaFloat * 255).toInt()
         val argb = (alphaInt shl 24) or (baseColorInt and 0x00FFFFFF)
         return Color(argb)
     }
