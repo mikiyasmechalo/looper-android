@@ -18,7 +18,12 @@ import com.composables.icons.lucide.ListOrdered
 import com.composables.icons.lucide.History
 import com.example.looper_android.data.repository.UpdateInfo
 import com.example.looper_android.data.repository.UpdateStatus
+import com.example.looper_android.data.repository.BatteryOptimizationManager
+import com.example.looper_android.data.repository.CrashHandler
 import com.example.looper_android.ui.components.UpdatePromptDialog
+import com.example.looper_android.ui.components.CrashLogDialog
+import com.composables.icons.lucide.FileText
+import androidx.compose.runtime.DisposableEffect
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1959,6 +1964,45 @@ private fun AboutSettingsSection(
         )
     }
 
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isIgnoringBattery by remember {
+        mutableStateOf(BatteryOptimizationManager.isIgnoringBatteryOptimizations(context))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isIgnoringBattery = BatteryOptimizationManager.isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    var showCrashLogDialog by remember { mutableStateOf(false) }
+    var hasCrashLog by remember { mutableStateOf(CrashHandler.hasCrashLog(context)) }
+    var lastCrashDate by remember { mutableStateOf(CrashHandler.getLastCrashDate(context)) }
+
+    if (showCrashLogDialog) {
+        val log = CrashHandler.getLastCrashLog(context) ?: "No crash log recorded."
+        CrashLogDialog(
+            crashLog = log,
+            crashDate = lastCrashDate,
+            accentColor = accentColor,
+            onClear = {
+                CrashHandler.clearCrashLog(context)
+                hasCrashLog = false
+                lastCrashDate = null
+                showCrashLogDialog = false
+                Toast.makeText(context, "Crash diagnostics cleared", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = {
+                showCrashLogDialog = false
+            }
+        )
+    }
+
     Column {
         // Top Section Card
         PremiumSection(
@@ -2184,6 +2228,194 @@ private fun AboutSettingsSection(
             }
         }
         
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // System & Diagnostics Header
+        Column(modifier = Modifier.padding(start = 4.dp)) {
+            Text(
+                text = "System & Diagnostics",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = DmSansFontFamily
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Battery restrictions & stability logs",
+                color = Color.White.copy(alpha = 0.4f),
+                fontSize = 14.sp,
+                fontFamily = DmSansFontFamily
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // System & Diagnostics Card
+        PremiumSection(
+            cornerRadius = 14.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                // Battery Optimization Tile
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            BatteryOptimizationManager.requestIgnoreBatteryOptimizations(context)
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isIgnoringBattery) Color(0xFF81C784).copy(alpha = 0.15f)
+                                else Color(0xFFFFB74D).copy(alpha = 0.15f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Lucide.BatteryCharging,
+                            contentDescription = null,
+                            tint = if (isIgnoringBattery) Color(0xFF81C784) else Color(0xFFFFB74D),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Battery Optimization",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = DmSansFontFamily
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isIgnoringBattery) {
+                                "Unrestricted • Background playback is protected"
+                            } else {
+                                "Optimized • Tap to allow Looper to run unrestricted"
+                            },
+                            color = Color.White.copy(alpha = 0.54f),
+                            fontSize = 12.sp,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isIgnoringBattery) Color(0xFF81C784).copy(alpha = 0.15f)
+                                else Color(0xFFFFB74D).copy(alpha = 0.15f)
+                            )
+                            .border(
+                                0.5.dp,
+                                if (isIgnoringBattery) Color(0xFF81C784).copy(alpha = 0.4f)
+                                else Color(0xFFFFB74D).copy(alpha = 0.4f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = if (isIgnoringBattery) "Unrestricted" else "Optimized",
+                            color = if (isIgnoringBattery) Color(0xFF81C784) else Color(0xFFFFB74D),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                AboutDivider()
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Crash Diagnostics Tile
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (hasCrashLog) {
+                                showCrashLogDialog = true
+                            } else {
+                                Toast.makeText(context, "No crashes recorded. Engine is stable!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (hasCrashLog) Color(0xFFEF5350).copy(alpha = 0.15f)
+                                else Color.White.copy(alpha = 0.10f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Lucide.FileText,
+                            contentDescription = null,
+                            tint = if (hasCrashLog) Color(0xFFEF5350) else Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Crash Diagnostics",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = DmSansFontFamily
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (hasCrashLog) {
+                                "Recorded on ${lastCrashDate ?: "recently"} • Tap to view & copy report"
+                            } else {
+                                "No crashes recorded • System is healthy"
+                            },
+                            color = if (hasCrashLog) Color(0xFFEF5350).copy(alpha = 0.9f) else Color.White.copy(alpha = 0.54f),
+                            fontSize = 12.sp,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    if (hasCrashLog) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEF5350).copy(alpha = 0.15f))
+                                .border(0.5.dp, Color(0xFFEF5350).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "View Log",
+                                color = Color(0xFFEF5350),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = DmSansFontFamily
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
 
         // FLUTTER ANDROID Header

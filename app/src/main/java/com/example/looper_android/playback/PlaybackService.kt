@@ -198,6 +198,11 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                com.example.looper_android.data.repository.BatteryOptimizationManager.onPlaybackStarted(this@PlaybackService)
+            } else {
+                com.example.looper_android.data.repository.BatteryOptimizationManager.onPlaybackStopped(this@PlaybackService)
+            }
             // Read Player properties strictly on the Main thread
             val currentMediaId = player.currentMediaItem?.mediaId?.toLongOrNull()
             val position = player.currentPosition
@@ -314,6 +319,7 @@ class PlaybackService : MediaSessionService() {
                     ACTION_CLOSE -> {
                         serviceScope.launch(Dispatchers.Main) {
                             try {
+                                com.example.looper_android.data.repository.BatteryOptimizationManager.onServiceGracefulShutdown(this@PlaybackService)
                                 queueManager.saveCurrentStateSync()
                                 player.pause()
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -439,6 +445,7 @@ class PlaybackService : MediaSessionService() {
                     if (player.isPlaying) {
                         val position = player.currentPosition
                         WidgetStateRepository.updatePosition(this@PlaybackService, position)
+                        com.example.looper_android.data.repository.BatteryOptimizationManager.onPlaybackHeartbeat(this@PlaybackService)
                     }
                 } catch (_: Exception) {}
                 kotlinx.coroutines.delay(350L)
@@ -492,6 +499,7 @@ class PlaybackService : MediaSessionService() {
         serviceScope.launch(Dispatchers.IO) {
             val stop = settingsRepository.stopOnTaskRemoved.first()
             if (stop) {
+                com.example.looper_android.data.repository.BatteryOptimizationManager.onServiceGracefulShutdown(this@PlaybackService)
                 queueManager.saveCurrentStateSync()
                 player.pause()
                 stopSelf()
@@ -505,6 +513,7 @@ class PlaybackService : MediaSessionService() {
         } catch (_: Exception) {}
         player.removeListener(playerListener)
         bitmapExecutor.shutdown()
+        com.example.looper_android.data.repository.BatteryOptimizationManager.onServiceGracefulShutdown(this@PlaybackService)
         queueManager.saveCurrentStateSync()
         try {
             player.pause()

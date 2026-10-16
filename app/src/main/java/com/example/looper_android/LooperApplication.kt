@@ -10,6 +10,10 @@ import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class LooperApplication : Application(), ImageLoaderFactory {
+    override fun onCreate() {
+        super.onCreate()
+        com.example.looper_android.data.repository.CrashHandler.init(this)
+    }
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
             .memoryCache {

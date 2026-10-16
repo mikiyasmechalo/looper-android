@@ -32,13 +32,13 @@ It pairs an audio engine with a **Glassmorphic / Neo-Blur** interface that extra
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        LOOPER ANDROID FEATURES                         │
 ├───────────────────────────────────────┬────────────────────────────────┤
-│ 🔮 GLASSMORPHIC CYBER-UI              │ ⚡ MEDIA3 / EXOPLAYER AUDIO     │
+│ 🔮 GLASSMORPHIC CYBER-UI              │ ⚡ MEDIA3 / EXOPLAYER AUDIO   │
 │   Real-time blur, glow borders, and   │   Bit-perfect gapless playback,│
 │   dynamic palette extraction.         │   audio focus & lockscreen sync│
 ├───────────────────────────────────────┼────────────────────────────────┤
-│ 🧩 INTERACTIVE GLANCE WIDGET SUITE    │ 🎤 SYNCHRONIZED LRC LYRICS      │
-│   4 dynamic home screen widgets:      │   Real-time smooth scrolling,  │
-│   Mini, Classic, Square & Lyrics!     │   tap-to-seek & LRCLIB sync.   │
+│ 🧩 INTERACTIVE GLANCE WIDGET SUITE    │ 🎤 SYNCHRONIZED LRC LYRICS     │
+│   5 dynamic home screen widgets:      │   Real-time smooth scrolling,  │
+│   Mini, Classic, Art, Square & Lyrics!│   tap-to-seek & LRCLIB sync.   │
 ├───────────────────────────────────────┼────────────────────────────────┤
 │ 🎚️ 18-BAND GRAPHIC EQUALIZER         │ 🔒 100% PRIVATE & OFFLINE      │
 │   Custom curve shaping, dB grids,     │   Zero telemetry, no trackers, │
@@ -134,9 +134,9 @@ Looper features a collection of home screen widgets built using AndroidX Glance 
 
 ## 📦 Download & Installation
 
-Grab the latest Beta build from the [Releases](https://github.com/SthrNilshaaa/looper-android/releases) tab.
+Grab the latest Beta build from the [Releases](https://github.com/mikiyasmechalo/looper-android/releases) tab.
 
-1. Download **`Looper-v1.0.0-beta1.apk`**.
+1. Download the APK compatible with your device.
 2. Open the downloaded APK on your Android device and confirm installation.
    > *Note: If prompted, enable "Install unknown apps" for your browser or file manager.*
 3. Enjoy your music offline with zero setup required!
@@ -153,7 +153,7 @@ Grab the latest Beta build from the [Releases](https://github.com/SthrNilshaaa/l
 ### Build Steps
 ```bash
 # Clone the repository
-git clone https://github.com/SthrNilshaaa/looper-android.git
+git clone https://github.com/mikiyasmechalo/looper-android.git
 cd looper-android
 
 # Build Debug APK

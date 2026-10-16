@@ -226,6 +226,15 @@ fun DashboardScreen(
     val selectionBottomBarState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
     val frostedSheetOverlayState = remember { androidx.compose.runtime.mutableStateOf<(@Composable () -> Unit)?>(null) }
 
+    var showBatteryOptimizationPrompt by remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (com.example.looper_android.data.repository.BatteryOptimizationManager.checkUnexpectedKill(context)) {
+            showBatteryOptimizationPrompt = true
+            com.example.looper_android.data.repository.BatteryOptimizationManager.consumeKillEvent(context)
+        }
+    }
+
     val isBlurEnabled = dynamicTheming && !disableBlur
 
     androidx.compose.runtime.CompositionLocalProvider(
@@ -787,6 +796,23 @@ fun DashboardScreen(
                 },
                 onDismiss = {
                     homeViewModel.dismissUpdate()
+                }
+            )
+        }
+
+        if (showBatteryOptimizationPrompt) {
+            com.example.looper_android.ui.components.BatteryOptimizationPromptDialog(
+                accentColor = animatedAccentColor,
+                onAllowUnrestricted = {
+                    showBatteryOptimizationPrompt = false
+                    com.example.looper_android.data.repository.BatteryOptimizationManager.requestIgnoreBatteryOptimizations(context)
+                },
+                onDontShowAgain = {
+                    showBatteryOptimizationPrompt = false
+                    com.example.looper_android.data.repository.BatteryOptimizationManager.setDontShowAgain(context, true)
+                },
+                onDismiss = {
+                    showBatteryOptimizationPrompt = false
                 }
             )
         }
