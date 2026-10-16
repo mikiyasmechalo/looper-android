@@ -38,7 +38,7 @@ It pairs an audio engine with a **Glassmorphic / Neo-Blur** interface that extra
 ├───────────────────────────────────────┼────────────────────────────────┤
 │ 🧩 INTERACTIVE GLANCE WIDGET SUITE    │ 🎤 SYNCHRONIZED LRC LYRICS     │
 │   5 dynamic home screen widgets:      │   Real-time smooth scrolling,  │
-│   Mini, Classic, Art, Square & Lyrics!│   tap-to-seek & LRCLIB sync.   │
+│   Mini, Classic, Art, Square & Lyrics!│   tap-to-seek & multi-source.  │
 ├───────────────────────────────────────┼────────────────────────────────┤
 │ 🎚️ 18-BAND GRAPHIC EQUALIZER         │ 🔒 100% PRIVATE & OFFLINE      │
 │   Custom curve shaping, dB grids,     │   Zero telemetry, no trackers, │
@@ -61,7 +61,7 @@ Looper features a collection of home screen widgets built using AndroidX Glance 
 ### 🎤 Synchronized LRC Lyrics
 - **Real-time Karaoke Scrolling**: Fluid line-by-line animations synchronized with playback progress.
 - **Tap-to-Seek**: Jump straight to any section of the song simply by tapping a lyric line.
-- **Offline & Online Sources**: Automatically loads embedded and local `.lrc` files, or fetches synchronized lyrics on-demand via [LRCLIB](https://lrclib.net/).
+- **Offline & Multi-Source Online Providers**: Automatically extracts embedded metadata and loads local `.lrc` / `.ttml` files, or queries multiple online lyrics providers with automatic word-level upgrade matching and fallback.
 - **Customizable Experience**: Supports font scaling, translation toggle, and display keep-awake modes.
 
 ### ⚡ Media3 & ExoPlayer Engine
@@ -77,29 +77,21 @@ Looper features a collection of home screen widgets built using AndroidX Glance 
 
 ## 📸 Screenshots
 
-### 📱 Now Playing & Synchronized Lyrics
+### 📱 Now Playing, Synced Lyrics & Dynamic Blur
 <p align="center">
-  <img src="assets/screenshots/01_now_playing_player.jpg" width="24%" alt="Now Playing Screen" />
-  <img src="assets/screenshots/02_synchronized_lyrics.jpg" width="24%" alt="Live Synced Lyrics" />
-  <img src="assets/screenshots/03_lyrics_scroll.jpg" width="24%" alt="Smooth Lyrics Scrolling" />
-  <img src="assets/screenshots/04_player_paused.jpg" width="24%" alt="Glassmorphic Controls" />
+  <img src="assets/screenshots/01_now_playing_player.jpg" width="32%" alt="Now Playing Screen" />
+  <img src="assets/screenshots/02_synchronized_lyrics.jpg" width="32%" alt="Live Synced Lyrics" />
+  <img src="assets/screenshots/06_dynamic_theming_player.jpg" width="32%" alt="Dynamic Theming Player" />
 </p>
 
-### 🎨 Real-time Dynamic Theming & Neo-Blur
+### 📚 Home Dashboard, Songs & Library Navigation
 <p align="center">
-  <img src="assets/screenshots/06_dynamic_theming_player.jpg" width="31%" alt="Dynamic Theming Player" />
-  <img src="assets/screenshots/07_dynamic_theming_lyrics.jpg" width="31%" alt="Dynamic Theming Lyrics" />
-  <img src="assets/screenshots/11_dashboard_rockstar.jpg" width="31%" alt="Dynamic Ambient Dashboard" />
+  <img src="assets/screenshots/11_dashboard_rockstar.jpg" width="32%" alt="Home Dashboard" />
+  <img src="assets/screenshots/10_all_songs_tracklist.jpg" width="32%" alt="All Songs Tracklist" />
+  <img src="assets/screenshots/08_music_library.jpg" width="32%" alt="Music Library" />
 </p>
 
-### 📚 Home Dashboard, Library & Settings
-<p align="center">
-  <img src="assets/screenshots/05_home_dashboard.jpg" width="31%" alt="Home Dashboard" />
-  <img src="assets/screenshots/08_music_library.jpg" width="31%" alt="Music Library" />
-  <img src="assets/screenshots/10_all_songs_tracklist.jpg" width="31%" alt="All Songs Tracklist" />
-</p>
-
-### 🧩 Interactive AndroidX Glance Widgets
+### 🧩 Interactive AndroidX Glance Widgets & Settings
 <p align="center">
   <img src="assets/screenshots/13_widgets_square_fullart_compact.jpg" width="32%" alt="Square, Full Art, and Classic Widgets" />
   <img src="assets/screenshots/14_widgets_lyrics_miniplayer.jpg" width="32%" alt="Synchronized Lyrics & Mini Player Widgets" />
@@ -146,7 +138,7 @@ Grab the latest Beta build from the [Releases](https://github.com/mikiyasmechalo
 ## 💻 Building from Source
 
 ### Prerequisites
-- **JDK 17** (Temurin or OpenJDK recommended)
+- **JDK 21** (Temurin or OpenJDK recommended)
 - **Android Studio** (Ladybug | 2024.2.1+ recommended)
 - **Android SDK** API 36 with Build-Tools 36.0.0
 
@@ -159,13 +151,35 @@ cd looper-android
 # Build Debug APK
 ./gradlew assembleDebug
 
-# Build Release APK and Android App Bundle (.aab)
-./gradlew assembleRelease bundleRelease
+# Build Signed Release APK
+./gradlew assembleRelease
 ```
 
-The output artifacts will be located in:
-- APK: `app/build/outputs/apk/release/app-release.apk`
-- AAB: `app/build/outputs/bundle/release/app-release.aab`
+The output APK will be located in:
+- `app/build/outputs/apk/release/app-release.apk`
+
+---
+
+## 🌐 Supported Lyrics Providers & Sources
+
+Looper features an intelligent multi-provider engine that automatically queries, upgrades, and caches lyrics with word-by-word and syllable-level timing precision:
+
+- **Local & Offline**:
+  - Embedded audio tags (ID3v2, Vorbis Comments, MP4/M4A, FLAC)
+  - Local `.lrc` and `.ttml` files stored in the track's directory
+- **Online Providers**:
+  - [lrc.red](https://lrc.red) — Word- and letter-synced lyrics
+  - [LyricsPlus](https://lyricsplus.binimum.org) — Word-level timing engine
+  - [AMLL](https://amll.dev) — Advanced Multi-language Lyrics
+  - [NetEase Cloud Music](https://music.163.com) — Rich synchronized lyrics catalog
+  - [KuGou Music](https://www.kugou.com) — Comprehensive Asian & Western catalog
+  - [Musixmatch](https://www.musixmatch.com) — Global crowd-sourced lyrics directory
+  - [Lyricify](https://lyricify.app) — Syllable & line-synced lyrics
+  - [LRCLIB](https://lrclib.net) — Community-driven open lyrics database
+  - [Genius](https://genius.com) — Verified annotations & plain text
+  - [AZLyrics](https://www.azlyrics.com) — Extensive lyrics archive
+  - [LyricsMINT](https://www.lyricsmint.com) — Bollywood & regional tracks
+  - [LyricFind](https://www.lyricfind.com) — Licensed lyrics database
 
 ---
 
