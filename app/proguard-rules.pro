@@ -25,3 +25,13 @@
 -keep class * extends androidx.work.ListenableWorker { *; }
 -keep class * extends androidx.work.InputMerger { *; }
 -keep class androidx.media3.** { *; }
+
+# Strip verbose and debug logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+}
+
+# Preserve Room database entities and DAOs
+-keep class com.example.looper_android.data.db.** { *; }

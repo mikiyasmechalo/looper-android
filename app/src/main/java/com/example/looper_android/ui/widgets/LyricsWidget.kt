@@ -123,17 +123,31 @@ class LyricsWidget : GlanceAppWidget() {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val isDarkIcons = WidgetSettingsManager.isDarkControlIcons(context, config)
+                            val prevPillBg = if (isDarkIcons) R.drawable.widget_ctrl_prev_pill_light else R.drawable.widget_ctrl_prev_pill
+                            val nextPillBg = if (isDarkIcons) R.drawable.widget_ctrl_next_pill_light else R.drawable.widget_ctrl_next_pill
+                            val playPillBg = if (isDarkIcons) R.drawable.widget_ctrl_play_pill_light else R.drawable.widget_ctrl_play_pill
+                            val starPillBg = if (isDarkIcons) R.drawable.widget_star_pill_bg_light else R.drawable.widget_star_pill_bg
+
+                            val prevIconRes = if (isDarkIcons) R.drawable.ic_widget_prev_dark else R.drawable.ic_widget_prev
+                            val nextIconRes = if (isDarkIcons) R.drawable.ic_widget_next_dark else R.drawable.ic_widget_next
+                            val playPauseIconRes = if (state.isPlaying) {
+                                if (isDarkIcons) R.drawable.ic_widget_pause_dark else R.drawable.ic_widget_pause
+                            } else {
+                                if (isDarkIcons) R.drawable.ic_widget_play_dark else R.drawable.ic_widget_play
+                            }
+
                             // Previous Pill Cap (46dp width, 34dp height)
                             Box(
                                 modifier = GlanceModifier
                                     .width(46.dp)
                                     .height(34.dp)
-                                    .background(ImageProvider(R.drawable.widget_ctrl_prev_pill))
+                                    .background(ImageProvider(prevPillBg))
                                     .clickable(actionRunCallback<PreviousActionCallback>()),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(R.drawable.ic_widget_prev),
+                                    provider = ImageProvider(prevIconRes),
                                     contentDescription = "Prev",
                                     modifier = GlanceModifier.size(17.dp)
                                 )
@@ -148,7 +162,7 @@ class LyricsWidget : GlanceAppWidget() {
                                     .height(34.dp)
                                     .let {
                                         if (state.isPlaying) {
-                                            it.background(ImageProvider(R.drawable.widget_ctrl_play_pill))
+                                            it.background(ImageProvider(playPillBg))
                                         } else {
                                             it.cornerRadius(8.dp).background(ColorProvider(state.accentColor))
                                         }
@@ -157,10 +171,7 @@ class LyricsWidget : GlanceAppWidget() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(
-                                        if (state.isPlaying) R.drawable.ic_widget_pause
-                                        else R.drawable.ic_widget_play
-                                    ),
+                                    provider = ImageProvider(playPauseIconRes),
                                     contentDescription = if (state.isPlaying) "Pause" else "Play",
                                     modifier = GlanceModifier.size(18.dp)
                                 )
@@ -173,12 +184,12 @@ class LyricsWidget : GlanceAppWidget() {
                                 modifier = GlanceModifier
                                     .width(46.dp)
                                     .height(34.dp)
-                                    .background(ImageProvider(R.drawable.widget_ctrl_next_pill))
+                                    .background(ImageProvider(nextPillBg))
                                     .clickable(actionRunCallback<NextActionCallback>()),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(R.drawable.ic_widget_next),
+                                    provider = ImageProvider(nextIconRes),
                                     contentDescription = "Next",
                                     modifier = GlanceModifier.size(17.dp)
                                 )
@@ -187,18 +198,20 @@ class LyricsWidget : GlanceAppWidget() {
                             // Top Right Star Pill Wrapper (Matches Full Album Art Widget)
                             if (config.showFavorite) {
                                 Spacer(modifier = GlanceModifier.width(4.dp))
+                                val starIconRes = if (state.isFavorite) {
+                                    R.drawable.ic_widget_star_filled
+                                } else {
+                                    if (isDarkIcons) R.drawable.ic_widget_star_border_dark else R.drawable.ic_widget_star_border
+                                }
                                 Box(
                                     modifier = GlanceModifier
-                                        .background(ImageProvider(R.drawable.widget_star_pill_bg))
+                                        .background(ImageProvider(starPillBg))
                                         .padding(5.dp)
                                         .clickable(actionRunCallback<ToggleFavoriteActionCallback>()),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
-                                        provider = ImageProvider(
-                                            if (state.isFavorite) R.drawable.ic_widget_star_filled
-                                            else R.drawable.ic_widget_star_border
-                                        ),
+                                        provider = ImageProvider(starIconRes),
                                         contentDescription = "Favorite",
                                         modifier = GlanceModifier.size(16.dp)
                                     )

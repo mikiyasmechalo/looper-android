@@ -483,6 +483,7 @@ private fun ThemeSettingsSection(
                     icon = Lucide.Type,
                     options = listOf(
                         "DM Sans (Default)" to "DM Sans",
+                        "Stack Sans Text" to "Stack Sans Text",
                         "Jost" to "Jost",
                         "Google Sans" to "Google Sans",
                         "Plus Jakarta Sans" to "Plus Jakarta Sans",
@@ -502,6 +503,7 @@ private fun ThemeSettingsSection(
                     icon = Lucide.Music,
                     options = listOf(
                         "Sora (Default)" to "Sora",
+                        "Stack Sans Text" to "Stack Sans Text",
                         "Space Grotesk" to "Space Grotesk",
                         "Google Sans" to "Google Sans",
                         "Plus Jakarta Sans" to "Plus Jakarta Sans",
@@ -1963,7 +1965,7 @@ private fun AboutSettingsSection(accentColor: Color) {
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "Version 2.0.00",
+                        text = "Version ${com.example.looper_android.BuildConfig.VERSION_NAME}",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,

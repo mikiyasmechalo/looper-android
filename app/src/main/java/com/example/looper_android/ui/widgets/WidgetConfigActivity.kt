@@ -256,6 +256,8 @@ fun WidgetConfigScreen(
             )
             val previewTextCol = WidgetSettingsManager.getEffectiveTextColor(context, currentConfig)
             val previewSecTextCol = WidgetSettingsManager.getEffectiveSecondaryTextColor(context, currentConfig)
+            val previewCtrlIconCol = WidgetSettingsManager.getEffectiveControlIconColor(context, currentConfig)
+            val previewCtrlPillBg = if (WidgetSettingsManager.isDarkControlIcons(context, currentConfig)) Color(0x1A000000) else Color(0x33FFFFFF)
 
             Box(
                 modifier = Modifier
@@ -363,7 +365,7 @@ fun WidgetConfigScreen(
                                     Icon(
                                         imageVector = if (liveState.isPlaying) Lucide.Pause else Lucide.Play,
                                         contentDescription = null,
-                                        tint = previewTextCol,
+                                        tint = previewCtrlIconCol,
                                         modifier = Modifier.size(26.dp)
                                     )
                                 }
@@ -421,22 +423,22 @@ fun WidgetConfigScreen(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Box(
-                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(previewCtrlPillBg),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.SkipBack, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Icon(Lucide.SkipBack, null, tint = previewCtrlIconCol, modifier = Modifier.size(18.dp))
                                         }
                                         Box(
-                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) previewCtrlPillBg else liveState.accentColor),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = if (liveState.isPlaying) previewCtrlIconCol else Color.White, modifier = Modifier.size(20.dp))
                                         }
                                         Box(
-                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                            modifier = Modifier.size(width = 50.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(previewCtrlPillBg),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.SkipForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Icon(Lucide.SkipForward, null, tint = previewCtrlIconCol, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
@@ -484,27 +486,27 @@ fun WidgetConfigScreen(
                                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         Box(
-                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(previewCtrlPillBg),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                            Icon(Lucide.SkipBack, null, tint = previewCtrlIconCol, modifier = Modifier.size(17.dp))
                                         }
                                         Box(
-                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) previewCtrlPillBg else liveState.accentColor),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = if (liveState.isPlaying) previewCtrlIconCol else Color.White, modifier = Modifier.size(18.dp))
                                         }
                                         Box(
-                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                            modifier = Modifier.size(width = 46.dp, height = 34.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(previewCtrlPillBg),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                            Icon(Lucide.SkipForward, null, tint = previewCtrlIconCol, modifier = Modifier.size(17.dp))
                                         }
                                         if (showFavorite) {
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Box(
-                                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0x66000000)).padding(4.dp),
+                                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(previewCtrlPillBg).padding(4.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(Lucide.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
@@ -664,22 +666,22 @@ fun WidgetConfigScreen(
                                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Box(
-                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(Color(0x33FFFFFF)),
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = 8.dp, bottomEnd = 8.dp)).background(previewCtrlPillBg),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Lucide.SkipBack, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                        Icon(Lucide.SkipBack, null, tint = previewCtrlIconCol, modifier = Modifier.size(17.dp))
                                     }
                                     Box(
-                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) Color(0x33FFFFFF) else liveState.accentColor),
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(if (liveState.isPlaying) previewCtrlPillBg else liveState.accentColor),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                        Icon(if (liveState.isPlaying) Lucide.Pause else Lucide.Play, null, tint = if (liveState.isPlaying) previewCtrlIconCol else Color.White, modifier = Modifier.size(20.dp))
                                     }
                                     Box(
-                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(Color(0x33FFFFFF)),
+                                        modifier = Modifier.size(width = 48.dp, height = 36.dp).clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 18.dp, bottomEnd = 18.dp)).background(previewCtrlPillBg),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Lucide.SkipForward, null, tint = previewTextCol, modifier = Modifier.size(17.dp))
+                                        Icon(Lucide.SkipForward, null, tint = previewCtrlIconCol, modifier = Modifier.size(17.dp))
                                     }
                                     if (showFavorite) {
                                         Spacer(modifier = Modifier.width(3.dp))
@@ -694,51 +696,53 @@ fun WidgetConfigScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. Background Theme Selector
-            Text(
-                text = "Background Theme",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.align(Alignment.Start).padding(bottom = 10.dp)
-            )
+            if (previewWidgetType != "FULL_ART") {
+                // 3. Background Theme Selector
+                Text(
+                    text = "Background Theme",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Start).padding(bottom = 10.dp)
+                )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionChip(title = "Adaptive", icon = Lucide.Palette, isSelected = selectedTheme == WidgetThemeMode.ADAPTIVE, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.ADAPTIVE })
-                ThemeOptionChip(title = "Dark", icon = Lucide.Moon, isSelected = selectedTheme == WidgetThemeMode.DARK, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.DARK })
-                ThemeOptionChip(title = "Light", icon = Lucide.Sun, isSelected = selectedTheme == WidgetThemeMode.LIGHT, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.LIGHT })
-                ThemeOptionChip(title = "System", icon = Lucide.Smartphone, isSelected = selectedTheme == WidgetThemeMode.SYSTEM, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.SYSTEM })
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemeOptionChip(title = "Adaptive", icon = Lucide.Palette, isSelected = selectedTheme == WidgetThemeMode.ADAPTIVE, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.ADAPTIVE })
+                    ThemeOptionChip(title = "Dark", icon = Lucide.Moon, isSelected = selectedTheme == WidgetThemeMode.DARK, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.DARK })
+                    ThemeOptionChip(title = "Light", icon = Lucide.Sun, isSelected = selectedTheme == WidgetThemeMode.LIGHT, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.LIGHT })
+                    ThemeOptionChip(title = "System", icon = Lucide.Smartphone, isSelected = selectedTheme == WidgetThemeMode.SYSTEM, modifier = Modifier.weight(1f), onClick = { selectedTheme = WidgetThemeMode.SYSTEM })
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 4. Background Transparency Slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Background Transparency", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "${(transparency * 100).toInt()}%", color = Color(0xFF55DF69), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Slider(
+                    value = transparency,
+                    onValueChange = { transparency = it },
+                    valueRange = 0.0f..1.0f,
+                    steps = 9,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF55DF69),
+                        activeTrackColor = Color(0xFF55DF69),
+                        inactiveTrackColor = Color(0x33FFFFFF)
+                    ),
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 4. Background Transparency Slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Background Transparency", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = "${(transparency * 100).toInt()}%", color = Color(0xFF55DF69), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-
-            Slider(
-                value = transparency,
-                onValueChange = { transparency = it },
-                valueRange = 0.0f..1.0f,
-                steps = 9,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF55DF69),
-                    activeTrackColor = Color(0xFF55DF69),
-                    inactiveTrackColor = Color(0x33FFFFFF)
-                ),
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
 
             // 5. Show Favorite Button Toggle (Not applicable for Mini Player)
             if (previewWidgetType != "MINI_PLAYER") {

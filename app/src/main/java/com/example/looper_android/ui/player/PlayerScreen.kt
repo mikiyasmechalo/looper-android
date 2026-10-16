@@ -68,7 +68,10 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -293,28 +296,21 @@ fun PlayerScreen(
         ) {
             // 1. Prioritize Dynamic Theming Blurred Artwork Background
             val initialArtPath = remember { settingsViewModel.getInitialSongArtPath() }
-            val artPath = song.artPath ?: (if (dynamicTheming) initialArtPath else null)
-            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !artPath.isNullOrEmpty()
+            val currentArtPath = song.artPath ?: (if (dynamicTheming) initialArtPath else null)
+            var lastValidArtPath by remember { mutableStateOf(currentArtPath) }
+            if (!currentArtPath.isNullOrEmpty()) {
+                lastValidArtPath = currentArtPath
+            }
+            val effectiveArtPath = currentArtPath ?: lastValidArtPath
+            val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !effectiveArtPath.isNullOrEmpty()
 
             if (shouldShowBlurredArt) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    coil.compose.AsyncImage(
-                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                            .data(artPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(radius = 24.dp)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
-                    )
-                }
+                com.example.looper_android.ui.components.PersistentBlurredArtworkBackground(
+                    artPath = effectiveArtPath,
+                    modifier = Modifier.fillMaxSize(),
+                    blurRadius = 24.dp,
+                    darknessAlpha = 0.65f
+                )
             } else if (enablePlayerGradient) {
                 Box(
                     modifier = Modifier
@@ -519,25 +515,37 @@ fun PlayerScreen(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
+                                            .height(21.dp)
+                                            .clip(RoundedCornerShape(100.dp))
                                             .background(Color.White.copy(alpha = 0.08f))
                                             .border(
                                                 width = 0.5.dp,
                                                 color = Color.White.copy(alpha = 0.12f),
-                                                shape = RoundedCornerShape(20.dp)
+                                                shape = RoundedCornerShape(100.dp)
                                             )
-                                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                                            .padding(horizontal = 10.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = displayQuality,
-                                            color = Color.White.copy(alpha = 0.70f),
+                                            color = Color.White.copy(alpha = 0.80f),
                                             fontFamily = JostFontFamily,
                                             fontWeight = FontWeight.SemiBold,
-                                            fontSize = 9.sp,
-                                            letterSpacing = 0.5.sp,
+                                            fontSize = 10.sp,
+                                            letterSpacing = 0.3.sp,
                                             maxLines = 1,
                                             softWrap = false,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = TextStyle(
+                                                platformStyle = @Suppress("DEPRECATION") PlatformTextStyle(
+                                                    includeFontPadding = false
+                                                ),
+                                                lineHeight = 12.sp,
+                                                lineHeightStyle = LineHeightStyle(
+                                                    alignment = LineHeightStyle.Alignment.Center,
+                                                    trim = LineHeightStyle.Trim.Both
+                                                )
+                                            )
                                         )
                                     }
                                 }
@@ -870,25 +878,37 @@ fun PlayerScreen(
                     if (showQualityBadge && displayQuality.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
+                                .height(21.dp)
+                                .clip(RoundedCornerShape(100.dp))
                                 .background(Color.White.copy(alpha = 0.08f))
                                 .border(
                                     width = 0.5.dp,
                                     color = Color.White.copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(20.dp)
+                                    shape = RoundedCornerShape(100.dp)
                                 )
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = displayQuality,
-                                color = Color.White.copy(alpha = 0.70f),
+                                color = Color.White.copy(alpha = 0.80f),
                                 fontFamily = JostFontFamily,
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 9.sp,
-                                letterSpacing = 0.5.sp,
+                                fontSize = 10.sp,
+                                letterSpacing = 0.3.sp,
                                 maxLines = 1,
                                 softWrap = false,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(
+                                    platformStyle = @Suppress("DEPRECATION") PlatformTextStyle(
+                                        includeFontPadding = false
+                                    ),
+                                    lineHeight = 12.sp,
+                                    lineHeightStyle = LineHeightStyle(
+                                        alignment = LineHeightStyle.Alignment.Center,
+                                        trim = LineHeightStyle.Trim.Both
+                                    )
+                                )
                             )
                         }
                     } else {

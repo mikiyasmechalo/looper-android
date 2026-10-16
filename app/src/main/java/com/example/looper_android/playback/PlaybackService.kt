@@ -361,7 +361,8 @@ class PlaybackService : MediaSessionService() {
             val notificationProvider = LooperMediaNotificationProvider(
                 this,
                 channelId,
-                R.string.playback_channel_name
+                R.string.playback_channel_name,
+                libraryDao
             )
             setMediaNotificationProvider(notificationProvider)
         } catch (e: Exception) {
@@ -520,7 +521,8 @@ class PlaybackService : MediaSessionService() {
     private class LooperMediaNotificationProvider(
         private val context: Context,
         channelId: String,
-        channelNameRes: Int
+        channelNameRes: Int,
+        private val libraryDao: LibraryDao
     ) : androidx.media3.session.MediaNotification.Provider {
 
         private val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider.Builder(context)
@@ -551,6 +553,31 @@ class PlaybackService : MediaSessionService() {
             } else {
                 notif.flags = (notif.flags and android.app.Notification.FLAG_ONGOING_EVENT.inv())
             }
+
+            // Explicitly set largeIcon on notification for dropdown & lockscreen controls
+            val currentMediaId = mediaSession.player.currentMediaItem?.mediaId?.toLongOrNull()
+            if (currentMediaId != null) {
+                val song = runCatching {
+                    kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                        libraryDao.getSongByIdSync(currentMediaId)
+                    }
+                }.getOrNull()
+                val bmp = com.example.looper_android.data.repository.ArtworkLoaderHelper.loadArtworkBitmap(
+                    context,
+                    song?.artPath,
+                    song?.path ?: mediaSession.player.currentMediaItem?.localConfiguration?.uri?.toString()
+                )
+                if (bmp != null) {
+                    @Suppress("DEPRECATION")
+                    notif.largeIcon = bmp
+                    notif.extras.putParcelable(android.app.Notification.EXTRA_LARGE_ICON, bmp)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        val icon = android.graphics.drawable.Icon.createWithBitmap(bmp)
+                        notif.extras.putParcelable(android.app.Notification.EXTRA_LARGE_ICON_BIG, icon)
+                    }
+                }
+            }
+
             try {
                 notif.extras.putBoolean("android.requestPromotedOngoing", true)
                 notif.extras.putBoolean("com.samsung.android.extra.LIVE_NOTIFICATION", true)

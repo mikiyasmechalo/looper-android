@@ -100,7 +100,7 @@ class SettingsRepository @Inject constructor(
 
     fun getInitialAccentColor(): Int {
         val isDynamic = syncPrefs.getBoolean("cached_dynamic_accent_color_enabled", true)
-        val isDynamicTheming = syncPrefs.getBoolean("cached_dynamic_theming_enabled", false)
+        val isDynamicTheming = syncPrefs.getBoolean("cached_dynamic_theming_enabled", true)
         if (isDynamic || isDynamicTheming) {
             val cachedDynamic = syncPrefs.getInt("cached_dynamic_accent_color", -1)
             if (cachedDynamic != -1 && cachedDynamic != 0 && (cachedDynamic and 0xFF000000.toInt()) != 0) {
@@ -171,7 +171,7 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: false }
+    val dynamicTheming: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_THEMING] ?: true }
     val disableBlur: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DISABLE_BLUR] ?: false }
     val dynamicAccentColor: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DYNAMIC_ACCENT_COLOR] ?: true }
     val darkTheme: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.DARK_THEME] ?: false }

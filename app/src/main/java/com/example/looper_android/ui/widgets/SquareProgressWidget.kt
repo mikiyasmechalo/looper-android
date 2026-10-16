@@ -180,17 +180,30 @@ class SquareProgressWidget : GlanceAppWidget() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val isDarkIcons = WidgetSettingsManager.isDarkControlIcons(context, config)
+                        val prevPillBg = if (isDarkIcons) R.drawable.widget_ctrl_prev_pill_light else R.drawable.widget_ctrl_prev_pill
+                        val nextPillBg = if (isDarkIcons) R.drawable.widget_ctrl_next_pill_light else R.drawable.widget_ctrl_next_pill
+                        val playPillBg = if (isDarkIcons) R.drawable.widget_ctrl_play_pill_light else R.drawable.widget_ctrl_play_pill
+
+                        val prevIconRes = if (isDarkIcons) R.drawable.ic_widget_prev_dark else R.drawable.ic_widget_prev
+                        val nextIconRes = if (isDarkIcons) R.drawable.ic_widget_next_dark else R.drawable.ic_widget_next
+                        val playPauseIconRes = if (state.isPlaying) {
+                            if (isDarkIcons) R.drawable.ic_widget_pause_dark else R.drawable.ic_widget_pause
+                        } else {
+                            if (isDarkIcons) R.drawable.ic_widget_play_dark else R.drawable.ic_widget_play
+                        }
+
                         // Previous Pill Cap
                         Box(
                             modifier = GlanceModifier
                                 .width(ctrlWidth)
                                 .height(ctrlHeight)
-                                .background(ImageProvider(R.drawable.widget_ctrl_prev_pill))
+                                .background(ImageProvider(prevPillBg))
                                 .clickable(actionRunCallback<PreviousActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                provider = ImageProvider(R.drawable.ic_widget_prev),
+                                provider = ImageProvider(prevIconRes),
                                 contentDescription = "Prev",
                                 modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )
@@ -205,7 +218,7 @@ class SquareProgressWidget : GlanceAppWidget() {
                                  .height(ctrlHeight)
                                  .let {
                                      if (state.isPlaying) {
-                                         it.background(ImageProvider(R.drawable.widget_ctrl_play_pill))
+                                         it.background(ImageProvider(playPillBg))
                                      } else {
                                          it.cornerRadius(8.dp).background(ColorProvider(state.accentColor))
                                      }
@@ -214,10 +227,7 @@ class SquareProgressWidget : GlanceAppWidget() {
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                provider = ImageProvider(
-                                    if (state.isPlaying) R.drawable.ic_widget_pause
-                                    else R.drawable.ic_widget_play
-                                ),
+                                provider = ImageProvider(playPauseIconRes),
                                 contentDescription = if (state.isPlaying) "Pause" else "Play",
                                 modifier = GlanceModifier.size(ctrlPlayIconSize)
                             )
@@ -230,12 +240,12 @@ class SquareProgressWidget : GlanceAppWidget() {
                             modifier = GlanceModifier
                                 .width(ctrlWidth)
                                 .height(ctrlHeight)
-                                .background(ImageProvider(R.drawable.widget_ctrl_next_pill))
+                                .background(ImageProvider(nextPillBg))
                                 .clickable(actionRunCallback<NextActionCallback>()),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                provider = ImageProvider(R.drawable.ic_widget_next),
+                                provider = ImageProvider(nextIconRes),
                                 contentDescription = "Next",
                                 modifier = GlanceModifier.size(ctrlPrevNextIconSize)
                             )

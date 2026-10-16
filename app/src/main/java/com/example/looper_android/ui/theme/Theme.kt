@@ -32,7 +32,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun LooperandroidTheme(
     darkTheme: Boolean = true,
-    dynamicTheming: Boolean = false,
+    dynamicTheming: Boolean = true,
     customAccentColor: androidx.compose.ui.graphics.Color = BrandAccent,
     fontFamilyName: String = "DM Sans",
     fontWeightDelta: Int = 0,

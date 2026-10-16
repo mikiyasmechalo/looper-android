@@ -8,7 +8,7 @@
                 android:bottomLeftRadius="12dp"
                 android:topRightRadius="36dp"
                 android:bottomRightRadius="36dp" />
-            <solid android:color="#E6F2F2F5" />
+            <solid android:color="#B3F2F2F5" />
         </shape>
     </item>
     <item android:id="@android:id/mask">

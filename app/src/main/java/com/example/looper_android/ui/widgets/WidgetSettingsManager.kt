@@ -42,6 +42,8 @@ object WidgetSettingsManager {
 
     fun getConfig(context: Context, widgetType: String, appWidgetId: Int = -1): WidgetConfig {
         val prefs = getPrefs(context)
+        val defaultThemeMode = if (widgetType == "MINI_PLAYER") WidgetThemeMode.DARK else WidgetThemeMode.ADAPTIVE
+        val defaultTransparency = if (widgetType == "MINI_PLAYER") 0.70f else 0.30f
         val defaultShowFav = if (widgetType == "FULL_ART" || widgetType == "SQUARE") true else false
         val defaultShowOutline = if (widgetType == "MINI_PLAYER") true else false
 
@@ -54,7 +56,7 @@ object WidgetSettingsManager {
         if (appWidgetId != -1 && prefs.contains("w_${appWidgetId}_theme")) {
             themeStr = prefs.getString("w_${appWidgetId}_theme", null)
             if (prefs.contains("w_${appWidgetId}_transparency")) {
-                transparency = prefs.getFloat("w_${appWidgetId}_transparency", 0.0f)
+                transparency = prefs.getFloat("w_${appWidgetId}_transparency", defaultTransparency)
             }
             if (prefs.contains("w_${appWidgetId}_show_favorite")) {
                 showFav = prefs.getBoolean("w_${appWidgetId}_show_favorite", defaultShowFav)
@@ -72,7 +74,7 @@ object WidgetSettingsManager {
             themeStr = prefs.getString("${typePrefix}theme", null)
         }
         if (transparency == null && prefs.contains("${typePrefix}transparency")) {
-            transparency = prefs.getFloat("${typePrefix}transparency", 0.0f)
+            transparency = prefs.getFloat("${typePrefix}transparency", defaultTransparency)
         }
         if (showFav == null && prefs.contains("${typePrefix}show_favorite")) {
             showFav = prefs.getBoolean("${typePrefix}show_favorite", defaultShowFav)
@@ -84,13 +86,13 @@ object WidgetSettingsManager {
             showOutline = prefs.getBoolean("${typePrefix}show_outline", defaultShowOutline)
         }
 
-        val finalThemeStr = themeStr ?: prefs.getString("default_theme", WidgetThemeMode.ADAPTIVE.name) ?: WidgetThemeMode.ADAPTIVE.name
-        val finalTransparency = transparency ?: prefs.getFloat("default_transparency", 0.0f)
+        val finalThemeStr = themeStr ?: defaultThemeMode.name
+        val finalTransparency = transparency ?: defaultTransparency
         val finalShowFav = showFav ?: defaultShowFav
         val finalCircularCapsule = circularCapsule ?: false
         val finalShowOutline = showOutline ?: defaultShowOutline
 
-        val mode = try { WidgetThemeMode.valueOf(finalThemeStr) } catch (_: Exception) { WidgetThemeMode.ADAPTIVE }
+        val mode = try { WidgetThemeMode.valueOf(finalThemeStr) } catch (_: Exception) { defaultThemeMode }
         return WidgetConfig(mode, finalTransparency, finalShowFav, finalCircularCapsule, finalShowOutline)
     }
 
@@ -112,7 +114,7 @@ object WidgetSettingsManager {
         editor.putBoolean("${typePrefix}circular_capsule", config.circularCapsule)
         editor.putBoolean("${typePrefix}show_outline", config.showOutline)
 
-        // 2. Find ALL widget IDs on home screen belonging to this widgetType and update them
+        // 2. Find ALL widget IDs on home screen belonging strictly to this widgetType and update them
         try {
             val manager = AppWidgetManager.getInstance(context)
             val receiverClass = when (widgetType) {
@@ -147,9 +149,6 @@ object WidgetSettingsManager {
             editor.putBoolean("${prefix}circular_capsule", config.circularCapsule)
             editor.putBoolean("${prefix}show_outline", config.showOutline)
         }
-
-        editor.putString("default_theme", config.themeMode.name)
-        editor.putFloat("default_transparency", config.transparency)
 
         editor.commit()
         notifyConfigChanged()
@@ -199,5 +198,22 @@ object WidgetSettingsManager {
         }
         if (config.transparency >= 0.7f) return Color(0xB3FFFFFF)
         return if (isLight) Color(0x99000000) else Color(0x99FFFFFF)
+    }
+
+    fun isEffectiveLightMode(context: Context, config: WidgetConfig): Boolean {
+        val isSystemDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        return when (config.themeMode) {
+            WidgetThemeMode.LIGHT -> true
+            WidgetThemeMode.SYSTEM -> !isSystemDark
+            else -> false
+        }
+    }
+
+    fun isDarkControlIcons(context: Context, config: WidgetConfig): Boolean {
+        return isEffectiveLightMode(context, config) && config.transparency < 0.70f
+    }
+
+    fun getEffectiveControlIconColor(context: Context, config: WidgetConfig): Color {
+        return if (isDarkControlIcons(context, config)) Color(0xFF111111) else Color.White
     }
 }

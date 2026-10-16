@@ -26,7 +26,8 @@ class SafScanner @Inject constructor(
     private val libraryDao: LibraryDao,
     private val db: AppDatabase,
     private val tagReader: AudioTagReader,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val artworkService: ArtworkService
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val supportedExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus")
@@ -133,11 +134,12 @@ class SafScanner @Inject constructor(
             traverse(rootDir)
         }
 
-        // Asynchronously enrich metadata in background scope (non-blocking for folder scan)
-        if (songsToEnrich.isNotEmpty()) {
-            externalScope.launch {
+        // Asynchronously enrich metadata in background scope, then download missing artist images
+        externalScope.launch {
+            if (songsToEnrich.isNotEmpty()) {
                 enrichMetadataInBackground(songsToEnrich)
             }
+            artworkService.downloadAllMissingArtistImages()
         }
     }
 

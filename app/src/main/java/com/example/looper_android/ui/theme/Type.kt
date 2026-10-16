@@ -66,6 +66,15 @@ val StaticSpaceGroteskFontFamily = FontFamily(
     Font(R.font.spacegrotesk_bold, FontWeight.Bold)
 )
 
+val StaticStackSansTextFontFamily = FontFamily(
+    Font(R.font.stacksanstext_extralight, FontWeight.ExtraLight),
+    Font(R.font.stacksanstext_light, FontWeight.Light),
+    Font(R.font.stacksanstext_regular, FontWeight.Normal),
+    Font(R.font.stacksanstext_medium, FontWeight.Medium),
+    Font(R.font.stacksanstext_semibold, FontWeight.SemiBold),
+    Font(R.font.stacksanstext_bold, FontWeight.Bold)
+)
+
 // Dynamic Composable Font accessors so all UI components automatically use user-selected font!
 val DmSansFontFamily: FontFamily
     @Composable get() = LocalAppFontFamily.current
@@ -81,6 +90,7 @@ fun getAppFontFamily(name: String?): FontFamily {
         "Poppins" -> StaticPoppinsFontFamily
         "Sora" -> StaticSoraFontFamily
         "Space Grotesk" -> StaticSpaceGroteskFontFamily
+        "Stack Sans Text", "Stack Sans" -> StaticStackSansTextFontFamily
         "DM Sans" -> StaticDmSansFontFamily
         else -> StaticDmSansFontFamily
     }

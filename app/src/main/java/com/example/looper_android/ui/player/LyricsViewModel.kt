@@ -157,17 +157,105 @@ class LyricsViewModel @Inject constructor(
             return
         }
 
-        // Never keep previous song's lyrics on screen when switching songs!
-        _uiState.value = LyricsUiState(
-            isLoading = true,
-            rawLyrics = null,
-            isSynced = false,
-            source = "None",
-            parsedLines = emptyList(),
-            plainLines = emptyList()
-        )
+        // Fast Check 2: Immediately display synchronous local lyrics (sidecar, database, or provider cache)
+        val localSync = if (!forceReload) lyricsFetcher.getLocalLyricsSync(song) else null
+        if (localSync != null) {
+            val parsed = LyricsParser.parseLyrics(localSync, (song.duration ?: 180000).toLong())
+            val source = lyricsFetcher.extractLyricsSource(localSync)
+            val offset = getTimingOffset(song.id, source)
+            _uiState.value = LyricsUiState(
+                isLoading = false,
+                rawLyrics = localSync,
+                isSynced = parsed.isSynced,
+                source = source,
+                timingOffsetMs = offset,
+                parsedLines = parsed.timedLines,
+                plainLines = parsed.plainLines
+            )
+
+            // If not synced, fetch online synced lyrics in background!
+            if (!parsed.isSynced && !localSync.contains("[picked:user]")) {
+                loadLyricsJob = viewModelScope.launch {
+                    val fetched = lyricsFetcher.fetchLyrics(song)
+                    if (fetched != null && fetched != localSync && currentSongKey == newKey) {
+                        val newParsed = LyricsParser.parseLyrics(fetched, (song.duration ?: 180000).toLong())
+                        val newSource = lyricsFetcher.extractLyricsSource(fetched)
+                        val newOffset = getTimingOffset(song.id, newSource)
+                        _uiState.value = _uiState.value.copy(
+                            rawLyrics = fetched,
+                            isSynced = newParsed.isSynced,
+                            source = newSource,
+                            timingOffsetMs = newOffset,
+                            parsedLines = newParsed.timedLines,
+                            plainLines = newParsed.plainLines
+                        )
+                    }
+                }
+            } else if (lyricsFetcher.canUpgrade(localSync)) {
+                loadLyricsJob = viewModelScope.launch {
+                    val upgraded = lyricsFetcher.upgradeLyrics(song, localSync)
+                    if (upgraded != null && currentSongKey == newKey) {
+                        val upParsed = LyricsParser.parseLyrics(upgraded, (song.duration ?: 180000).toLong())
+                        val upSource = lyricsFetcher.extractLyricsSource(upgraded)
+                        _uiState.value = _uiState.value.copy(
+                            rawLyrics = upgraded,
+                            isSynced = upParsed.isSynced,
+                            source = upSource,
+                            parsedLines = upParsed.timedLines,
+                            plainLines = upParsed.plainLines
+                        )
+                    }
+                }
+            }
+            return
+        }
 
         loadLyricsJob = viewModelScope.launch {
+            // Check embedded tags from audio file in background
+            val embedded = if (!forceReload) lyricsFetcher.getLocalOrEmbeddedLyrics(song) else null
+            if (embedded != null) {
+                val parsed = LyricsParser.parseLyrics(embedded, (song.duration ?: 180000).toLong())
+                val source = lyricsFetcher.extractLyricsSource(embedded)
+                val offset = getTimingOffset(song.id, source)
+                _uiState.value = LyricsUiState(
+                    isLoading = false,
+                    rawLyrics = embedded,
+                    isSynced = parsed.isSynced,
+                    source = source,
+                    timingOffsetMs = offset,
+                    parsedLines = parsed.timedLines,
+                    plainLines = parsed.plainLines
+                )
+
+                if (parsed.isSynced || embedded.contains("[picked:user]")) {
+                    if (lyricsFetcher.canUpgrade(embedded)) {
+                        val upgraded = lyricsFetcher.upgradeLyrics(song, embedded)
+                        if (upgraded != null && currentSongKey == newKey) {
+                            val upParsed = LyricsParser.parseLyrics(upgraded, (song.duration ?: 180000).toLong())
+                            val upSource = lyricsFetcher.extractLyricsSource(upgraded)
+                            _uiState.value = _uiState.value.copy(
+                                rawLyrics = upgraded,
+                                isSynced = upParsed.isSynced,
+                                source = upSource,
+                                parsedLines = upParsed.timedLines,
+                                plainLines = upParsed.plainLines
+                            )
+                        }
+                    }
+                    return@launch
+                }
+            } else {
+                // Only show loading screen when no cached, local, or embedded lyrics exist at all
+                _uiState.value = LyricsUiState(
+                    isLoading = true,
+                    rawLyrics = null,
+                    isSynced = false,
+                    source = "None",
+                    parsedLines = emptyList(),
+                    plainLines = emptyList()
+                )
+            }
+
             val raw = lyricsFetcher.fetchLyrics(song)
             if (currentSongKey != newKey) return@launch
 
@@ -199,7 +287,7 @@ class LyricsViewModel @Inject constructor(
                         )
                     }
                 }
-            } else {
+            } else if (_uiState.value.rawLyrics == null) {
                 _uiState.value = LyricsUiState(
                     isLoading = false,
                     rawLyrics = null,

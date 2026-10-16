@@ -262,29 +262,22 @@ fun LyricsScreen(
                 }
             }
     ) {
-        val artPath = state.currentSong?.artPath
+        val rawArtPath = state.currentSong?.artPath
+        var lastValidLyricsArtPath by remember { mutableStateOf(rawArtPath) }
+        if (!rawArtPath.isNullOrEmpty()) {
+            lastValidLyricsArtPath = rawArtPath
+        }
+        val artPath = rawArtPath ?: lastValidLyricsArtPath
         val baseColor = if (effectiveDarkTheme) Color.Black else androidx.compose.material3.MaterialTheme.colorScheme.background
         
         Box(modifier = Modifier.fillMaxSize().haze(lyricsHazeState)) {
             if (dynamicLyrics && blurredArtworkForLyrics && !artPath.isNullOrEmpty()) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(artPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(radius = 80.dp)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = lyricsScreenDarkness))
-                    )
-                }
+                com.example.looper_android.ui.components.PersistentBlurredArtworkBackground(
+                    artPath = artPath,
+                    modifier = Modifier.fillMaxSize(),
+                    blurRadius = 80.dp,
+                    darknessAlpha = lyricsScreenDarkness
+                )
             } else {
                 Box(
                     modifier = Modifier

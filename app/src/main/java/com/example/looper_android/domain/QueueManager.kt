@@ -373,11 +373,12 @@ class QueueManager @Inject constructor(
             .setArtist(song.artist ?: "Unknown Artist")
             .setAlbumTitle(song.album ?: "Unknown Album")
         
-        if (!song.artPath.isNullOrEmpty()) {
-            val artUri = if (song.artPath.startsWith("content://") || song.artPath.startsWith("file://") || song.artPath.startsWith("http://") || song.artPath.startsWith("https://")) {
-                android.net.Uri.parse(song.artPath)
+        val artPathToUse = if (!song.artPath.isNullOrEmpty()) song.artPath else song.path
+        if (!artPathToUse.isNullOrEmpty()) {
+            val artUri = if (artPathToUse.startsWith("content://") || artPathToUse.startsWith("file://") || artPathToUse.startsWith("http://") || artPathToUse.startsWith("https://")) {
+                android.net.Uri.parse(artPathToUse)
             } else {
-                android.net.Uri.fromFile(java.io.File(song.artPath))
+                android.net.Uri.fromFile(java.io.File(artPathToUse))
             }
             meta.setArtworkUri(artUri)
         }

@@ -27,7 +27,8 @@ class LibraryScanner @Inject constructor(
     private val db: AppDatabase,
     private val tagReader: AudioTagReader,
     private val settingsRepository: SettingsRepository,
-    private val safScanner: SafScanner
+    private val safScanner: SafScanner,
+    private val artworkService: ArtworkService
 ) {
     private val externalScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -288,11 +289,13 @@ class LibraryScanner @Inject constructor(
             if (artistsToInsert.isNotEmpty()) libraryDao.insertArtists(artistsToInsert)
         }
 
-        // Asynchronously enrich ID3 metadata in background scope (non-blocking batch update)
-        if (songsToEnrich.isNotEmpty()) {
-            externalScope.launch {
+        // Asynchronously enrich ID3 metadata in background scope, then download missing artist images
+        externalScope.launch {
+            if (songsToEnrich.isNotEmpty()) {
                 enrichMetadataInBackground(songsToEnrich, forceDiskRead)
             }
+            // Once initial scanning and background metadata enrichment are done (nothing to process):
+            artworkService.downloadAllMissingArtistImages()
         }
     }
 

@@ -138,17 +138,29 @@ class CompactWidget : GlanceAppWidget() {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val isDarkIcons = WidgetSettingsManager.isDarkControlIcons(context, config)
+                            val prevPillBg = if (isDarkIcons) R.drawable.widget_ctrl_prev_pill_light else R.drawable.widget_ctrl_prev_pill
+                            val nextPillBg = if (isDarkIcons) R.drawable.widget_ctrl_next_pill_light else R.drawable.widget_ctrl_next_pill
+                            val playPillBg = if (isDarkIcons) R.drawable.widget_ctrl_play_pill_light else R.drawable.widget_ctrl_play_pill
+                            val prevIconRes = if (isDarkIcons) R.drawable.ic_widget_prev_dark else R.drawable.ic_widget_prev
+                            val nextIconRes = if (isDarkIcons) R.drawable.ic_widget_next_dark else R.drawable.ic_widget_next
+                            val playPauseIconRes = if (state.isPlaying) {
+                                if (isDarkIcons) R.drawable.ic_widget_pause_dark else R.drawable.ic_widget_pause
+                            } else {
+                                if (isDarkIcons) R.drawable.ic_widget_play_dark else R.drawable.ic_widget_play
+                            }
+
                             // Previous Pill Cap (48dp width, 36dp height, 8dp facing corner, 18dp outer)
                             Box(
                                 modifier = GlanceModifier
                                     .width(48.dp)
                                     .height(36.dp)
-                                    .background(ImageProvider(R.drawable.widget_ctrl_prev_pill))
+                                    .background(ImageProvider(prevPillBg))
                                     .clickable(actionRunCallback<PreviousActionCallback>()),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(R.drawable.ic_widget_prev),
+                                    provider = ImageProvider(prevIconRes),
                                     contentDescription = "Previous",
                                     modifier = GlanceModifier.size(19.dp)
                                 )
@@ -163,7 +175,7 @@ class CompactWidget : GlanceAppWidget() {
                                     .height(36.dp)
                                     .let {
                                         if (state.isPlaying) {
-                                            it.background(ImageProvider(R.drawable.widget_ctrl_play_pill))
+                                            it.background(ImageProvider(playPillBg))
                                         } else {
                                             it.cornerRadius(8.dp).background(ColorProvider(state.accentColor))
                                         }
@@ -172,10 +184,7 @@ class CompactWidget : GlanceAppWidget() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(
-                                        if (state.isPlaying) R.drawable.ic_widget_pause
-                                        else R.drawable.ic_widget_play
-                                    ),
+                                    provider = ImageProvider(playPauseIconRes),
                                     contentDescription = if (state.isPlaying) "Pause" else "Play",
                                     modifier = GlanceModifier.size(20.dp)
                                 )
@@ -188,12 +197,12 @@ class CompactWidget : GlanceAppWidget() {
                                 modifier = GlanceModifier
                                     .width(48.dp)
                                     .height(36.dp)
-                                    .background(ImageProvider(R.drawable.widget_ctrl_next_pill))
+                                    .background(ImageProvider(nextPillBg))
                                     .clickable(actionRunCallback<NextActionCallback>()),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    provider = ImageProvider(R.drawable.ic_widget_next),
+                                    provider = ImageProvider(nextIconRes),
                                     contentDescription = "Next",
                                     modifier = GlanceModifier.size(19.dp)
                                 )
@@ -202,6 +211,11 @@ class CompactWidget : GlanceAppWidget() {
                             // Optional Favorite Button
                             if (config.showFavorite) {
                                 Spacer(modifier = GlanceModifier.width(4.dp))
+                                val starIconRes = if (state.isFavorite) {
+                                    R.drawable.ic_widget_star_filled
+                                } else {
+                                    if (isDarkIcons) R.drawable.ic_widget_star_border_dark else R.drawable.ic_widget_star_border
+                                }
                                 Box(
                                     modifier = GlanceModifier
                                         .padding(horizontal = 2.dp, vertical = 2.dp)
@@ -209,10 +223,7 @@ class CompactWidget : GlanceAppWidget() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
-                                        provider = ImageProvider(
-                                            if (state.isFavorite) R.drawable.ic_widget_star_filled
-                                            else R.drawable.ic_widget_star_border
-                                        ),
+                                        provider = ImageProvider(starIconRes),
                                         contentDescription = "Favorite",
                                         modifier = GlanceModifier.size(18.dp)
                                     )

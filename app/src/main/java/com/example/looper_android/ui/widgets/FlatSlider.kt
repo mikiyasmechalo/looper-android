@@ -141,6 +141,8 @@ fun FlatSlider(
                                         change.consume()
                                         currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
                                         dragProgress = currentFraction
+                                    } else {
+                                        currentFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
                                     }
                                 } else {
                                     if (isDrag) {
@@ -150,12 +152,17 @@ fun FlatSlider(
                                 }
                             }
                             
+                            val targetMs = (currentFraction * totalDurationMs).toLong()
+                            smoothPositionMs = targetMs
                             if (isDrag) {
-                                val targetMs = (currentFraction * totalDurationMs).toLong()
-                                smoothPositionMs = targetMs
                                 onSeek(targetMs)
                                 isDragging = false
                                 dragProgress = null
+                                onSeekEnd?.invoke()
+                            } else {
+                                down.consume()
+                                onSeekStart?.invoke()
+                                onSeek(targetMs)
                                 onSeekEnd?.invoke()
                             }
                         }

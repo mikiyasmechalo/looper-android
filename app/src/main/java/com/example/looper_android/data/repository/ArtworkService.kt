@@ -257,17 +257,27 @@ class ArtworkService @Inject constructor(
         return getArtistImageUrl(artistName)
     }
 
-    suspend fun downloadAllMissingArtistImages() = withContext(Dispatchers.IO) {
-        val enableInternet = settingsRepository.enableInternet.first()
-        if (!enableInternet) return@withContext
+    private val isDownloadingMissingArtists = java.util.concurrent.atomic.AtomicBoolean(false)
 
-        val missingArtists = libraryDao.getArtistsWithMissingImage()
-        Log.d("ArtworkService", "Fetching artist images for ${missingArtists.size} missing artists")
-        for (artist in missingArtists) {
-            val currentEnabled = settingsRepository.enableInternet.first()
-            if (!currentEnabled) break
-            getArtistImageUrl(artist.name)
-            kotlinx.coroutines.delay(2000) // Rate limit delay of 2.0s
+    suspend fun downloadAllMissingArtistImages() = withContext(Dispatchers.IO) {
+        if (!isDownloadingMissingArtists.compareAndSet(false, true)) {
+            Log.d("ArtworkService", "downloadAllMissingArtistImages is already running, skipping concurrent trigger")
+            return@withContext
+        }
+        try {
+            val enableInternet = settingsRepository.enableInternet.first()
+            if (!enableInternet) return@withContext
+
+            val missingArtists = libraryDao.getArtistsWithMissingImage()
+            Log.d("ArtworkService", "Fetching artist images for ${missingArtists.size} missing artists")
+            for (artist in missingArtists) {
+                val currentEnabled = settingsRepository.enableInternet.first()
+                if (!currentEnabled) break
+                getArtistImageUrl(artist.name)
+                kotlinx.coroutines.delay(2000) // Rate limit delay of 2.0s
+            }
+        } finally {
+            isDownloadingMissingArtists.set(false)
         }
     }
 

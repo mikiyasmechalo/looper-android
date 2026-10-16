@@ -117,6 +117,46 @@ class LyricsFetcher @Inject constructor(
         return null
     }
 
+    fun getLocalLyricsSync(song: SongEntity): String? {
+        val inMem = sessionLyricsCache[song.id]?.let { map ->
+            map["LOCAL"] ?: map["EMBEDDED"] ?: selectBestLyrics(map.values)
+        }
+        if (!inMem.isNullOrBlank()) return inMem
+
+        val diskLocal = lyricsCache.getProvider(song.id, song.artist, song.title, "LOCAL")
+        if (!diskLocal.isNullOrBlank()) return diskLocal
+        val diskEmbedded = lyricsCache.getProvider(song.id, song.artist, song.title, "EMBEDDED")
+        if (!diskEmbedded.isNullOrBlank()) return diskEmbedded
+
+        if (!song.lyrics.isNullOrBlank()) return song.lyrics
+
+        val sidecar = tryLocalSidecarLyrics(song)
+        if (!sidecar.isNullOrBlank()) {
+            cacheInMemory(song.id, "LOCAL", sidecar)
+            lyricsCache.saveProvider(song.id, song.artist, song.title, "LOCAL", sidecar)
+            return sidecar
+        }
+
+        return null
+    }
+
+    suspend fun getLocalOrEmbeddedLyrics(song: SongEntity): String? {
+        val sync = getLocalLyricsSync(song)
+        if (sync != null) return sync
+
+        return try {
+            val embedded = audioTagReader.read(song.path).lyrics
+            if (!embedded.isNullOrBlank()) {
+                val tagged = "[source:embedded]\n$embedded"
+                cacheInMemory(song.id, "EMBEDDED", tagged)
+                lyricsCache.saveProvider(song.id, song.artist, song.title, "EMBEDDED", tagged)
+                tagged
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun cacheInMemory(songId: Long, provider: String, lyrics: String) {
         sessionLyricsCache.computeIfAbsent(songId) { ConcurrentHashMap() }[provider.uppercase()] = lyrics
     }

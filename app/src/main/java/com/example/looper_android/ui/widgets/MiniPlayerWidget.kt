@@ -55,37 +55,35 @@ class MiniPlayerWidget : GlanceAppWidget() {
             val textCol = WidgetSettingsManager.getEffectiveTextColor(context, config)
             val secTextCol = WidgetSettingsManager.getEffectiveSecondaryTextColor(context, config)
 
-            val isSystemDark = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val isLight = WidgetSettingsManager.isEffectiveLightMode(context, config)
+            val isDarkIcons = WidgetSettingsManager.isDarkControlIcons(context, config)
+
             val (leftBgRes, rightBgRes) = if (config.showOutline) {
-                when {
-                    config.themeMode == WidgetThemeMode.LIGHT ||
-                        (config.themeMode == WidgetThemeMode.SYSTEM && !isSystemDark) -> {
-                        R.drawable.widget_mini_player_left_light to R.drawable.widget_mini_player_right_light
+                if (isLight) {
+                    when {
+                        config.transparency >= 0.6f -> R.drawable.widget_mini_player_left_light_trans to R.drawable.widget_mini_player_right_light_trans
+                        config.transparency <= 0.05f -> R.drawable.widget_mini_player_left_light_solid to R.drawable.widget_mini_player_right_light_solid
+                        else -> R.drawable.widget_mini_player_left_light to R.drawable.widget_mini_player_right_light
                     }
-                    config.transparency >= 0.6f -> {
-                        R.drawable.widget_mini_player_left_trans to R.drawable.widget_mini_player_right_trans
-                    }
-                    config.transparency <= 0.05f -> {
-                        R.drawable.widget_mini_player_left_solid to R.drawable.widget_mini_player_right_solid
-                    }
-                    else -> {
-                        R.drawable.widget_mini_player_left to R.drawable.widget_mini_player_right
+                } else {
+                    when {
+                        config.transparency >= 0.6f -> R.drawable.widget_mini_player_left_trans to R.drawable.widget_mini_player_right_trans
+                        config.transparency <= 0.05f -> R.drawable.widget_mini_player_left_solid to R.drawable.widget_mini_player_right_solid
+                        else -> R.drawable.widget_mini_player_left to R.drawable.widget_mini_player_right
                     }
                 }
             } else {
-                when {
-                    config.themeMode == WidgetThemeMode.LIGHT ||
-                        (config.themeMode == WidgetThemeMode.SYSTEM && !isSystemDark) -> {
-                        R.drawable.widget_mini_player_left_light_no_border to R.drawable.widget_mini_player_right_light_no_border
+                if (isLight) {
+                    when {
+                        config.transparency >= 0.6f -> R.drawable.widget_mini_player_left_light_trans_no_border to R.drawable.widget_mini_player_right_light_trans_no_border
+                        config.transparency <= 0.05f -> R.drawable.widget_mini_player_left_light_solid_no_border to R.drawable.widget_mini_player_right_light_solid_no_border
+                        else -> R.drawable.widget_mini_player_left_light_no_border to R.drawable.widget_mini_player_right_light_no_border
                     }
-                    config.transparency >= 0.6f -> {
-                        R.drawable.widget_mini_player_left_trans_no_border to R.drawable.widget_mini_player_right_trans_no_border
-                    }
-                    config.transparency <= 0.05f -> {
-                        R.drawable.widget_mini_player_left_solid_no_border to R.drawable.widget_mini_player_right_solid_no_border
-                    }
-                    else -> {
-                        R.drawable.widget_mini_player_left_no_border to R.drawable.widget_mini_player_right_no_border
+                } else {
+                    when {
+                        config.transparency >= 0.6f -> R.drawable.widget_mini_player_left_trans_no_border to R.drawable.widget_mini_player_right_trans_no_border
+                        config.transparency <= 0.05f -> R.drawable.widget_mini_player_left_solid_no_border to R.drawable.widget_mini_player_right_solid_no_border
+                        else -> R.drawable.widget_mini_player_left_no_border to R.drawable.widget_mini_player_right_no_border
                     }
                 }
             }
@@ -182,11 +180,13 @@ class MiniPlayerWidget : GlanceAppWidget() {
                             .clickable(actionRunCallback<PlayPauseActionCallback>()),
                         contentAlignment = Alignment.Center
                     ) {
+                        val playPauseIconRes = if (state.isPlaying) {
+                            if (isDarkIcons) R.drawable.ic_widget_pause_dark else R.drawable.ic_widget_pause
+                        } else {
+                            if (isDarkIcons) R.drawable.ic_widget_play_dark else R.drawable.ic_widget_play
+                        }
                         Image(
-                            provider = ImageProvider(
-                                if (state.isPlaying) R.drawable.ic_widget_pause
-                                else R.drawable.ic_widget_play
-                            ),
+                            provider = ImageProvider(playPauseIconRes),
                             contentDescription = if (state.isPlaying) "Pause" else "Play",
                             modifier = GlanceModifier.size(28.dp)
                         )

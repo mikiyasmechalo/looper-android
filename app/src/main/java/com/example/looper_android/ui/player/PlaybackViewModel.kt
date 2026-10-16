@@ -62,7 +62,7 @@ data class PlaybackState(
 
 @HiltViewModel
 class PlaybackViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val player: Player,
     private val libraryDao: LibraryDao,
     private val queueManager: com.example.looper_android.domain.QueueManager,
@@ -292,9 +292,9 @@ class PlaybackViewModel @Inject constructor(
                                 )
                             }
                         }
-                        // Pre-fetch next song's lyrics ahead of time
-                        prefetchNextSongLyrics()
                     }
+                    // Pre-fetch next song's lyrics concurrently ahead of time
+                    prefetchNextSongLyrics()
 
                     // Calculate quality and accent color in background
                     launch(Dispatchers.Default) {
@@ -743,21 +743,20 @@ class PlaybackViewModel @Inject constructor(
     fun prefetchNextSongLyrics() {
         prefetchLyricsJob?.cancel()
         prefetchLyricsJob = viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(400L)
+            kotlinx.coroutines.delay(200L)
             try {
-                val nextIndex = withContext(Dispatchers.Main) {
-                    if (player.mediaItemCount > 0) player.nextMediaItemIndex else -1
+                val (currentIndex, nextPlayerIndex) = withContext(Dispatchers.Main) {
+                    Pair(player.currentMediaItemIndex, player.nextMediaItemIndex)
                 }
-                if (nextIndex in 0 until (withContext(Dispatchers.Main) { player.mediaItemCount })) {
-                    val nextMediaItem = withContext(Dispatchers.Main) { player.getMediaItemAt(nextIndex) }
-                    val nextSongId = nextMediaItem.mediaId.toLongOrNull()
-                    if (nextSongId != null && nextSongId > 0L) {
-                        val nextSong = libraryDao.getSongById(nextSongId).firstOrNull()
-                            ?: queueManager.activeQueueSongs.value.find { it.id == nextSongId }
-                        if (nextSong != null) {
-                            lyricsFetcher.fetchLyrics(nextSong)
-                        }
-                    }
+                val queue = queueManager.workingSongs
+                val nextSong: SongEntity? = when {
+                    nextPlayerIndex in queue.indices -> queue[nextPlayerIndex]
+                    currentIndex >= 0 && currentIndex + 1 in queue.indices -> queue[currentIndex + 1]
+                    currentIndex >= 0 && currentIndex + 1 >= queue.size && queue.isNotEmpty() -> queue[0]
+                    else -> null
+                }
+                if (nextSong != null) {
+                    lyricsFetcher.fetchLyrics(nextSong)
                 }
             } catch (_: Exception) {}
         }

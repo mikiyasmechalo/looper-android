@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">looper-android</string>
+    <string name="app_name">Looper</string>
     <string name="playback_channel_name">Playback</string>
 
     <string name="widget_compact_name">Compact Player (1x4)</string>

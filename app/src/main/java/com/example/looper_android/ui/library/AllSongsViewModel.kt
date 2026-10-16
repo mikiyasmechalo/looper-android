@@ -47,7 +47,8 @@ class AllSongsViewModel @Inject constructor(
     private val safScanner: SafScanner,
     private val audioFileDeleter: AudioFileDeleter,
     private val queueManager: QueueManager,
-    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager
+    val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager,
+    private val artworkService: com.example.looper_android.data.repository.ArtworkService
 ) : ViewModel() {
 
     private val _pendingDeletePermission = MutableStateFlow<PendingDeletePermission?>(null)
@@ -250,6 +251,7 @@ class AllSongsViewModel @Inject constructor(
                 libraryCacheManager.isDbLoaded.first { it }
             }
             if (libraryCacheManager.songs.value.isNotEmpty()) {
+                artworkService.downloadAllMissingArtistImages()
                 return@launch
             }
             _isScanning.value = true

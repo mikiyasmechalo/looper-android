@@ -146,7 +146,7 @@ fun SettingsScreen(
             SearchableSetting("library", "Music Library", "Rescan Music Library", "Rescan saved storage folders for audio files"),
             SearchableSetting("library", "Music Library", "Use Album Artist for Artists", "Group artists using Album Artist tag field"),
             SearchableSetting("library", "Music Library", "Reset Library & Clear Database", "Clear local database and wipe cached metadata"),
-            SearchableSetting("about", "About & Maintainers", "Looper Player", "Version 2.0.00 (Native Compose & ExoPlayer Port)"),
+            SearchableSetting("about", "About & Maintainers", "Looper Player", "Version ${com.example.looper_android.BuildConfig.VERSION_NAME} (Native Compose & ExoPlayer Port)"),
             SearchableSetting("about", "About & Maintainers", "Lyrics Provider", "lrclib.net"),
             SearchableSetting("about", "About & Maintainers", "Give a Star on GitHub", "Support project development on GitHub")
         )

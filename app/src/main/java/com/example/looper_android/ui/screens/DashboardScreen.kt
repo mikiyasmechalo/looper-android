@@ -209,7 +209,12 @@ fun DashboardScreen(
     val keepBackgroundGradient by settingsViewModel.keepBackgroundGradient.collectAsState()
     val initialArtPath = remember { settingsViewModel.getInitialSongArtPath() }
     val currentSongArtPath = playbackState.currentSong?.artPath
-    val effectiveArtPath = currentSongArtPath ?: (if (dynamicTheming) initialArtPath else null)
+    val baseEffectiveArtPath = currentSongArtPath ?: (if (dynamicTheming) initialArtPath else null)
+    var lastValidDashboardArtPath by remember { mutableStateOf(baseEffectiveArtPath) }
+    if (!baseEffectiveArtPath.isNullOrEmpty()) {
+        lastValidDashboardArtPath = baseEffectiveArtPath
+    }
+    val effectiveArtPath = baseEffectiveArtPath ?: lastValidDashboardArtPath
     
     val animatedAccentColor by androidx.compose.animation.animateColorAsState(
         targetValue = playbackState.accentColor,
@@ -242,24 +247,12 @@ fun DashboardScreen(
             ) {
             val shouldShowBlurredArt = !effectiveDarkTheme && dynamicTheming && !effectiveArtPath.isNullOrEmpty()
             if (shouldShowBlurredArt) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AsyncImage(
-                        model = coil.request.ImageRequest.Builder(LocalContext.current)
-                            .data(effectiveArtPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(radius = 24.dp)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                    )
-                }
+                com.example.looper_android.ui.components.PersistentBlurredArtworkBackground(
+                    artPath = effectiveArtPath,
+                    modifier = Modifier.fillMaxSize(),
+                    blurRadius = 24.dp,
+                    darknessAlpha = 0.72f
+                )
             } else if ((!effectiveDarkTheme && dynamicTheming) || (enablePlayerGradient && keepBackgroundGradient)) {
                 Box(
                     modifier = Modifier
