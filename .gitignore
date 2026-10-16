@@ -17,3 +17,9 @@ local.properties
 .kotlin/
 /app/build/
 /.idea/
+
+# Keystores & Signing Credentials
+*.jks
+*.keystore
+keystore.properties
+*.pepk

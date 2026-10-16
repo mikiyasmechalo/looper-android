@@ -30,11 +30,24 @@ android {
     signingConfigs {
         create("release") {
             val keystoreFile = file("keystore.jks")
+            val keystorePropsFile = file("keystore.properties").takeIf { it.exists() }
+                ?: rootProject.file("keystore.properties").takeIf { it.exists() }
+            val props = java.util.Properties()
+            if (keystorePropsFile != null) {
+                keystorePropsFile.inputStream().use { props.load(it) }
+            }
+
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    ?: props.getProperty("storePassword")
+                    ?: ""
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: props.getProperty("keyAlias")
+                    ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD")
+                    ?: props.getProperty("keyPassword")
+                    ?: ""
             }
         }
     }
@@ -44,7 +57,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             val releaseSigning = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+            signingConfig = if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists() && releaseSigning.storePassword.isNotEmpty()) {
                 releaseSigning
             } else {
                 signingConfigs.getByName("debug")
