@@ -37,6 +37,7 @@ class SettingsViewModel @Inject constructor(
     private val safPermissionRepo: SafPermissionRepository,
     private val libraryDao: LibraryDao,
     private val queueManager: com.example.looper_android.domain.QueueManager,
+    private val updateService: com.example.looper_android.data.repository.UpdateService,
     @ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
 
@@ -443,5 +444,34 @@ class SettingsViewModel @Inject constructor(
             libraryDao.deleteSongsByPathPrefix(uriString)
             queueManager.removeSongsByPathPrefix(uriString)
         }
+    }
+
+    val updateStatus = updateService.updateStatus
+    val updateAvailable = updateService.updateAvailable
+    val skippedUpdateVersion = updateService.skippedUpdateVersion
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun checkForUpdates(manual: Boolean = true) = viewModelScope.launch {
+        updateService.checkForUpdates(manual = manual)
+    }
+
+    fun skipUpdate(version: String) = viewModelScope.launch {
+        updateService.skipUpdate(version)
+    }
+
+    fun snoozeOneWeek() = viewModelScope.launch {
+        updateService.snoozeOneWeek()
+    }
+
+    fun resetSkippedUpdate() = viewModelScope.launch {
+        updateService.resetSkippedUpdate()
+    }
+
+    fun dismissUpdate() {
+        updateService.dismissUpdate()
+    }
+
+    fun openUpdateUrl(url: String) {
+        updateService.openUrl(url)
     }
 }

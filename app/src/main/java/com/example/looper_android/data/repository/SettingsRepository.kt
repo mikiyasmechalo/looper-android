@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
@@ -93,6 +94,8 @@ class SettingsRepository @Inject constructor(
     val SHOW_HOME_RECENTLY_ADDED = booleanPreferencesKey("show_home_recently_added")
     val SHOW_HOME_NOT_PLAYED = booleanPreferencesKey("show_home_not_played")
     val SHOW_LIBRARY_RECENTLY_ADDED = booleanPreferencesKey("show_library_recently_added")
+    val SKIPPED_UPDATE_VERSION = stringPreferencesKey("skipped_update_version")
+    val REMIND_UPDATE_AFTER_TIMESTAMP = longPreferencesKey("remind_update_after_timestamp")
     val SHOW_LIBRARY_NOT_PLAYED = booleanPreferencesKey("show_library_not_played")
     }
 
@@ -236,6 +239,8 @@ class SettingsRepository @Inject constructor(
             raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         }
     }
+    val skippedUpdateVersion: Flow<String?> = dataStore.data.map { prefs -> prefs[Keys.SKIPPED_UPDATE_VERSION] }
+    val remindUpdateAfterTimestamp: Flow<Long> = dataStore.data.map { prefs -> prefs[Keys.REMIND_UPDATE_AFTER_TIMESTAMP] ?: 0L }
 
     val showCardPlayButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_PLAY_BUTTON] ?: true }
     val showCardOptionsButton: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.SHOW_CARD_OPTIONS_BUTTON] ?: true }
@@ -593,5 +598,28 @@ class SettingsRepository @Inject constructor(
     }
     suspend fun setShowLibraryNotPlayed(value: Boolean) {
         dataStore.edit { prefs -> prefs[Keys.SHOW_LIBRARY_NOT_PLAYED] = value }
+    }
+
+    suspend fun setSkippedUpdateVersion(version: String?) {
+        dataStore.edit { prefs ->
+            if (version == null) {
+                prefs.remove(Keys.SKIPPED_UPDATE_VERSION)
+            } else {
+                prefs[Keys.SKIPPED_UPDATE_VERSION] = version
+            }
+        }
+    }
+
+    suspend fun setRemindUpdateAfterTimestamp(timestamp: Long) {
+        dataStore.edit { prefs ->
+            prefs[Keys.REMIND_UPDATE_AFTER_TIMESTAMP] = timestamp
+        }
+    }
+
+    suspend fun resetSkippedUpdate() {
+        dataStore.edit { prefs ->
+            prefs.remove(Keys.SKIPPED_UPDATE_VERSION)
+            prefs.remove(Keys.REMIND_UPDATE_AFTER_TIMESTAMP)
+        }
     }
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.random.Random
 
@@ -43,7 +44,8 @@ class HomeViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
     private val queueManager: QueueManager,
     val libraryCacheManager: com.example.looper_android.data.repository.LibraryCacheManager,
-    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository
+    private val settingsRepository: com.example.looper_android.data.repository.SettingsRepository,
+    private val updateService: com.example.looper_android.data.repository.UpdateService
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE)
@@ -53,6 +55,28 @@ class HomeViewModel @Inject constructor(
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    val updateAvailable = updateService.updateAvailable
+
+    fun dismissUpdate() {
+        updateService.dismissUpdate()
+    }
+
+    fun skipUpdate(version: String) {
+        viewModelScope.launch {
+            updateService.skipUpdate(version)
+        }
+    }
+
+    fun snoozeUpdateOneWeek() {
+        viewModelScope.launch {
+            updateService.snoozeOneWeek()
+        }
+    }
+
+    fun openUpdateUrl(url: String) {
+        updateService.openUrl(url)
+    }
+
     private val sessionSeed: Long = System.currentTimeMillis()
 
     private var cachedQuickPicksPool: List<SongEntity>? = null
@@ -60,6 +84,10 @@ class HomeViewModel @Inject constructor(
     private var cachedDate: String? = null
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(2000)
+            updateService.checkForUpdates(manual = false)
+        }
         combine(
             libraryCacheManager.songs,
             libraryCacheManager.albums,

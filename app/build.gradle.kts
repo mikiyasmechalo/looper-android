@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -32,9 +35,11 @@ android {
             val keystoreFile = file("keystore.jks")
             val keystorePropsFile = file("keystore.properties").takeIf { it.exists() }
                 ?: rootProject.file("keystore.properties").takeIf { it.exists() }
-            val props = java.util.Properties()
+            val props = Properties()
             if (keystorePropsFile != null) {
-                keystorePropsFile.inputStream().use { props.load(it) }
+                FileInputStream(keystorePropsFile).use { stream ->
+                    props.load(stream)
+                }
             }
 
             if (keystoreFile.exists()) {
@@ -57,7 +62,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             val releaseSigning = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists() && releaseSigning.storePassword.isNotEmpty()) {
+            signingConfig = if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists() && releaseSigning.storePassword?.isNotEmpty() == true) {
                 releaseSigning
             } else {
                 signingConfigs.getByName("debug")

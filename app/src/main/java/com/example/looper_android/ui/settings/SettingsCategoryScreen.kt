@@ -16,6 +16,9 @@ import com.composables.icons.lucide.BatteryCharging
 import com.composables.icons.lucide.BookOpen
 import com.composables.icons.lucide.ListOrdered
 import com.composables.icons.lucide.History
+import com.example.looper_android.data.repository.UpdateInfo
+import com.example.looper_android.data.repository.UpdateStatus
+import com.example.looper_android.ui.components.UpdatePromptDialog
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1913,7 +1916,10 @@ private fun LibrarySettingsSection(
 
 // 6. About & Maintainers (EXACT 1-TO-1 FLUTTER PORT)
 @Composable
-private fun AboutSettingsSection(accentColor: Color) {
+private fun AboutSettingsSection(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    accentColor: Color
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val openUrl: (String) -> Unit = { url ->
         if (url.isNotBlank()) {
@@ -1925,6 +1931,32 @@ private fun AboutSettingsSection(accentColor: Color) {
                 context.startActivity(intent)
             } catch (_: Exception) {}
         }
+    }
+
+    val updateStatus by viewModel.updateStatus.collectAsState()
+    val skippedVersion by viewModel.skippedUpdateVersion.collectAsState()
+    var promptUpdateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+
+    if (promptUpdateInfo != null) {
+        UpdatePromptDialog(
+            updateInfo = promptUpdateInfo!!,
+            accentColor = accentColor,
+            onUpdateClick = { url ->
+                viewModel.openUpdateUrl(url)
+                promptUpdateInfo = null
+            },
+            onRemindInAWeek = {
+                viewModel.snoozeOneWeek()
+                promptUpdateInfo = null
+            },
+            onSkipVersion = { tag ->
+                viewModel.skipUpdate(tag)
+                promptUpdateInfo = null
+            },
+            onDismiss = {
+                promptUpdateInfo = null
+            }
+        )
     }
 
     Column {
@@ -1976,7 +2008,7 @@ private fun AboutSettingsSection(accentColor: Color) {
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .clickable { openUrl("https://github.com/SthrNilshaaa/looper") },
+                        .clickable { openUrl("https://github.com/mikiyasmechalo/looper-android") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(imageVector = LucideIcons.GithubCustom, contentDescription = "GitHub", tint = Color.White, modifier = Modifier.size(24.dp))
@@ -1986,11 +2018,11 @@ private fun AboutSettingsSection(accentColor: Color) {
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Give Star on GitHub (No Card background, exactly like Flutter!)
+        // Give Star on GitHub
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { openUrl("https://github.com/SthrNilshaaa/looper") }
+                .clickable { openUrl("https://github.com/mikiyasmechalo/looper-android") }
                 .padding(horizontal = 20.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2008,6 +2040,147 @@ private fun AboutSettingsSection(accentColor: Color) {
                 Text(text = "Give Star on GitHub", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = DmSansFontFamily)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(text = "Support the project and show some love!", color = Color.White.copy(alpha = 0.54f), fontSize = 12.sp, fontFamily = DmSansFontFamily)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Application Updates Card
+        PremiumSection(
+            cornerRadius = 14.dp,
+            backgroundColor = Color.White.copy(alpha = 0.06f),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.checkForUpdates(manual = true) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (updateStatus is UpdateStatus.Checking) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = accentColor,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Lucide.RefreshCw,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Check for Updates",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = DmSansFontFamily
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        val statusSubtitle = when (val s = updateStatus) {
+                            is UpdateStatus.Checking -> "Checking GitHub releases..."
+                            is UpdateStatus.Available -> if (s.isSkipped) {
+                                "Update ${s.updateInfo.tagName} available (Skipped)"
+                            } else {
+                                "Update ${s.updateInfo.tagName} available! Tap to view"
+                            }
+                            is UpdateStatus.UpToDate -> "You're on the latest version (${s.currentVersion})"
+                            is UpdateStatus.Error -> s.message
+                            UpdateStatus.Idle -> "Tap to check GitHub for new versions"
+                        }
+                        Text(
+                            text = statusSubtitle,
+                            color = when (updateStatus) {
+                                is UpdateStatus.Available -> accentColor
+                                is UpdateStatus.Error -> Color(0xFFEF5350)
+                                else -> Color.White.copy(alpha = 0.54f)
+                            },
+                            fontSize = 12.sp,
+                            fontFamily = DmSansFontFamily
+                        )
+                    }
+
+                    if (updateStatus is UpdateStatus.Available) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(accentColor)
+                                .clickable {
+                                    promptUpdateInfo = (updateStatus as UpdateStatus.Available).updateInfo
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "View",
+                                color = Color.Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = DmSansFontFamily
+                            )
+                        }
+                    }
+                }
+
+                // If user previously skipped a version, show indicator + Reset Skip option
+                if (!skippedVersion.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AboutDivider()
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Skipped Version",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = DmSansFontFamily
+                            )
+                            Text(
+                                text = "Automatic prompts are muted for $skippedVersion",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp,
+                                fontFamily = DmSansFontFamily
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                .clickable { viewModel.resetSkippedUpdate() }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "Reset Skip",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = DmSansFontFamily
+                            )
+                        }
+                    }
+                }
             }
         }
         

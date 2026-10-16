@@ -771,6 +771,26 @@ fun DashboardScreen(
             }
         }
 
+        val updateAvailable by homeViewModel.updateAvailable.collectAsState()
+        if (updateAvailable != null) {
+            com.example.looper_android.ui.components.UpdatePromptDialog(
+                updateInfo = updateAvailable!!,
+                accentColor = animatedAccentColor,
+                onUpdateClick = { url ->
+                    homeViewModel.openUpdateUrl(url)
+                },
+                onRemindInAWeek = {
+                    homeViewModel.snoozeUpdateOneWeek()
+                },
+                onSkipVersion = { version ->
+                    homeViewModel.skipUpdate(version)
+                },
+                onDismiss = {
+                    homeViewModel.dismissUpdate()
+                }
+            )
+        }
+
         frostedSheetOverlayState.value?.invoke()
     }
 }
