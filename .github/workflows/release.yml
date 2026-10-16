@@ -47,12 +47,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build Release APK and App Bundle (AAB)
+      - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease bundleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Prepare Release Artifacts
         id: prepare-artifacts
@@ -66,9 +66,8 @@ jobs:
 
           mkdir -p release-artifacts
 
-          # Locate APK and AAB outputs
+          # Locate APK output
           APK_SRC=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
-          AAB_SRC=$(find app/build/outputs/bundle/release/ -name "*.aab" | head -n 1)
 
           if [ -f "$APK_SRC" ]; then
             cp "$APK_SRC" "release-artifacts/Looper-${VERSION}.apk"
@@ -77,16 +76,9 @@ jobs:
             echo "Error: APK not found!" && exit 1
           fi
 
-          if [ -f "$AAB_SRC" ]; then
-            cp "$AAB_SRC" "release-artifacts/Looper-${VERSION}.aab"
-            echo "Copied AAB to release-artifacts/Looper-${VERSION}.aab"
-          else
-            echo "Error: AAB not found!" && exit 1
-          fi
-
           # Generate SHA-256 Checksums
           cd release-artifacts
-          sha256sum Looper-${VERSION}.apk Looper-${VERSION}.aab > checksums.txt
+          sha256sum Looper-${VERSION}.apk > checksums.txt
           cat checksums.txt
           cd ..
 
@@ -112,8 +104,7 @@ jobs:
 
             #### 📦 Downloads
             - **Universal APK**: Direct install on Android 7.0+ (API 24+) devices.
-            - **Android App Bundle (.aab)**: For Google Play or compatible deployment.
-            - **Checksums**: SHA-256 verification hashes for all released binaries.
+            - **Checksums**: SHA-256 verification hash for download integrity.
 
             #### 🔒 Integrity & Security
             Verify your download using SHA-256:
@@ -122,3 +113,4 @@ jobs:
             ```
 
             *Built automatically via GitHub Actions.*
+
